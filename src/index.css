@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+@theme {
+  --font-kufam: 'Kufam', system-ui, sans-serif;
+  --font-ibm: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-canvas: #EDE6D8;
+  --color-canvas-subtle: #e5ded0;
+  --color-sand: #E5C690;
+  --color-sand-light: #f5e4c3;
+  --color-sand-dim: #cca86b;
+  --color-pine: #183630;
+  --color-pine-light: #254a43;
+  --color-pine-muted: #334d46;
+}
+
+:root {
+  --canvas: #EDE6D8;
+  --accent: #E5C690;
+  --pine: #183630;
+}
+
+* {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+body {
+  background-color: var(--canvas);
+  color: var(--pine);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-weight: 300;
+  direction: rtl;
+  min-height: 100vh;
+  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+  font-family: 'Kufam', sans-serif !important;
+  font-weight: 400;
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(24, 54, 48, 0.18);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(24, 54, 48, 0.35);
+}
+
+/* Glassmorphism helpers with improved contrast and lightness */
+.glass-panel {
+  background-color: rgba(246, 242, 235, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(24, 54, 48, 0.12);
+}
+
+.glass-dropdown {
+  background-color: rgba(248, 245, 240, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(24, 54, 48, 0.15);
+}
+
+/* Silky smooth animations */
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes backdropFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes viewFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dropdownSlide {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-modal-enter {
+  animation: modalEnter 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-backdrop-fade {
+  animation: backdropFade 0.25s ease-out forwards;
+}
+
+.animate-view-fade {
+  animation: viewFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-dropdown-slide {
+  animation: dropdownSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+
+

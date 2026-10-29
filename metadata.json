@@ -1,0 +1,6 @@
+{
+  "name": "محرر وهندسة الخطوط الطباعية",
+  "description": "منصة احترافية هادئة لتصميم وهندسة وبرمجة الخطوط والمحارف العربية واللاتينية مع منطق الطبقات والمقاييس.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
