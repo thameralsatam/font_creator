@@ -1,62 +1,74 @@
-export interface Layer {
+export interface Vec {
+  x: number;
+  y: number;
+}
+
+export type NodeKind = 'corner' | 'smooth';
+
+/**
+ * نقطة على المسار. المقبضان مخزّنان كإزاحة نسبة إلى موضع النقطة،
+ * فعند تحريك النقطة يتحرك مقبضاها تلقائياً. القيمة null تعني بلا مقبض.
+ */
+export interface PathNode {
   id: string;
-  name: string;
-  description: string;
-  isVisible: boolean;
-  isLocked: boolean;
-  color: string;
-  opacity: number;
+  x: number;
+  y: number;
+  kind: NodeKind;
+  handleIn: Vec | null;
+  handleOut: Vec | null;
+}
+
+/** مسار واحد. هذا هو المصدر الوحيد للحقيقة، ونص SVG يُولَّد منه عند العرض فقط. */
+export interface Contour {
+  id: string;
+  closed: boolean;
+  nodes: PathNode[];
 }
 
 export interface AnchorPoint {
   id: string;
-  name: string; // e.g., 'top', 'bottom', 'entry', 'exit'
+  name: string; // top, bottom, entry, exit
   x: number;
   y: number;
 }
 
-export interface GlyphPoint {
-  id: string;
-  x: number;
-  y: number;
-  type: 'move' | 'line' | 'curve';
-  cp1?: { x: number; y: number };
-  cp2?: { x: number; y: number };
-}
+export type GlyphCategory = 'letter' | 'diacritic' | 'number' | 'symbol' | 'ligature';
+export type GlyphForm = 'isolated' | 'initial' | 'medial' | 'final';
 
-export interface GlyphContour {
-  id: string;
-  points: GlyphPoint[];
-  closed: boolean;
-  svgPath: string;
-}
-
+/**
+ * ملاحظة: العارضان الأيمن والأيسر لا يُخزَّنان. يُحسبان دائماً من حدود المسارات
+ * ومن العرض الكامل، حتى لا يختلف رقم مخزّن عن الرسم الفعلي.
+ */
 export interface Glyph {
   id: string;
   name: string;
-  unicode: string;
+  unicode: string; // مثل U+0627، أو نص فارغ للأشكال غير المرمّزة
   char: string;
-  category: 'letter' | 'diacritic' | 'number' | 'symbol' | 'ligature';
+  category: GlyphCategory;
+  form: GlyphForm;
   advanceWidth: number;
-  lsb: number; // Left Sidebearing
-  rsb: number; // Right Sidebearing
-  contours: GlyphContour[];
+  contours: Contour[];
   anchors: AnchorPoint[];
-  position?: 'isolated' | 'initial' | 'medial' | 'final';
-  notes?: string;
 }
 
+export interface NewGlyphData {
+  char: string;
+  name: string;
+  unicode: string;
+  category: GlyphCategory;
+}
+
+/** خط الأساس ثابت عند 0 ولذلك لا يُخزَّن. */
 export interface FontMetrics {
-  upm: number; // Units Per EM (e.g., 1000)
-  ascender: number; // e.g., 800
-  capHeight: number; // e.g., 700
-  xHeight: number; // e.g., 500
-  baseline: number; // 0
-  descender: number; // e.g., -200
+  upm: number;
+  ascender: number;
+  capHeight: number;
+  xHeight: number;
+  descender: number;
 }
 
 export interface OpenTypeFeature {
-  tag: string; // e.g., 'init', 'medi', 'fina', 'liga', 'kern'
+  tag: string;
   name: string;
   enabled: boolean;
   code: string;
@@ -67,10 +79,10 @@ export interface FontProject {
   name: string;
   designer: string;
   version: string;
-  description?: string;
-  updatedAt?: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
   metrics: FontMetrics;
   glyphs: Glyph[];
-  layers: Layer[];
   features: OpenTypeFeature[];
 }

@@ -1,47 +1,70 @@
 @import "tailwindcss";
 
 @theme {
-  --font-kufam: 'Kufam', system-ui, sans-serif;
-  --font-ibm: 'IBM Plex Sans Arabic', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-heading: 'Kufam', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  --color-canvas: #EDE6D8;
-  --color-canvas-subtle: #e5ded0;
+  --color-paper: #EDE6D8;
+  --color-paper-deep: #E3DAC9;
+  --color-surface: #F6F2EB;
+  --color-ink: #183630;
+  --color-ink-light: #254A43;
   --color-sand: #E5C690;
-  --color-sand-light: #f5e4c3;
-  --color-sand-dim: #cca86b;
-  --color-pine: #183630;
-  --color-pine-light: #254a43;
-  --color-pine-muted: #334d46;
+  --color-sand-deep: #CCA86B;
 }
 
 :root {
-  --canvas: #EDE6D8;
-  --accent: #E5C690;
-  --pine: #183630;
+  /* وزن النص 200. لتجربة الأرفع غيّر هذا السطر فقط إلى 100 */
+  --weight-text: 200;
+  /* كوفام أرفع وزن فيه هو 400 */
+  --weight-heading: 400;
+  --ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  --line: color-mix(in srgb, var(--color-ink) 18%, transparent);
+  --line-strong: color-mix(in srgb, var(--color-ink) 32%, transparent);
+  --wash: color-mix(in srgb, var(--color-sand) 32%, transparent);
 }
 
-* {
-  font-family: 'IBM Plex Sans Arabic', sans-serif;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-weight: var(--weight-text);
+    direction: rtl;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: var(--font-heading);
+    font-weight: var(--weight-heading);
+  }
+
+  code, kbd, pre, .font-mono {
+    font-family: var(--font-mono);
+    font-weight: 300;
+  }
+
+  button, input, select, textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-sand) 55%, transparent);
+  }
 }
 
-body {
-  background-color: var(--canvas);
-  color: var(--pine);
-  font-family: 'IBM Plex Sans Arabic', sans-serif;
-  font-weight: 300;
-  direction: rtl;
-  min-height: 100vh;
-  overflow-x: hidden;
-  text-rendering: optimizeLegibility;
-}
-
-h1, h2, h3, h4, h5, h6, .font-heading {
-  font-family: 'Kufam', sans-serif !important;
-  font-weight: 400;
-}
-
-/* Custom subtle scrollbars */
+/* ===== أشرطة التمرير ===== */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -56,8 +79,142 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(24, 54, 48, 0.35);
 }
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 
-/* Glassmorphism helpers with improved contrast and lightness */
+/* ===== المكونات المشتركة ===== */
+@layer components {
+  /* --- نظام الأزرار ---
+     primary   : الإجراء الرئيسي الوحيد في الشاشة
+     secondary : الإجراءات الجانبية
+     quiet     : الأدوات والأيقونات (بدون إطار)
+     الحالة النشطة: الصنف is-active
+     الأداة غير المبرمجة بعد: الصنف is-soon (باهتة ومعطلة) */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 2.25rem;
+    padding: 0 0.9rem;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.18s ease, color 0.18s ease,
+      border-color 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
+  }
+  .btn:focus-visible {
+    outline: 2px solid var(--color-sand-deep);
+    outline-offset: 2px;
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn-icon {
+    width: 2.25rem;
+    padding: 0;
+  }
+
+  .btn-primary {
+    background-color: var(--color-ink);
+    color: var(--color-paper);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--color-ink-light);
+  }
+
+  .btn-secondary {
+    background-color: var(--color-surface);
+    border-color: var(--line-strong);
+    color: var(--color-ink);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--wash);
+  }
+
+  .btn-quiet {
+    background-color: transparent;
+    color: var(--color-ink);
+  }
+  .btn-quiet:hover:not(:disabled) {
+    background-color: var(--wash);
+  }
+
+  .btn.is-active {
+    background-color: var(--color-ink);
+    border-color: var(--color-ink);
+    color: var(--color-paper);
+  }
+  .btn.is-active:hover:not(:disabled) {
+    background-color: var(--color-ink-light);
+    border-color: var(--color-ink-light);
+  }
+
+  .btn:disabled,
+  .btn.is-soon {
+    opacity: 0.38;
+    cursor: not-allowed;
+  }
+
+  /* --- حقول الإدخال --- */
+  .field {
+    width: 100%;
+    height: 2.25rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 0.75rem;
+    background-color: color-mix(in srgb, var(--color-surface) 70%, transparent);
+    color: var(--color-ink);
+    font-size: 0.8125rem;
+    transition: border-color 0.18s ease;
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-ink);
+  }
+  .field::placeholder {
+    color: color-mix(in srgb, var(--color-ink) 40%, transparent);
+  }
+  textarea.field {
+    height: auto;
+    padding: 0.6rem 0.75rem;
+  }
+
+  /* --- عناصر القوائم المنسدلة --- */
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    min-height: 2.25rem;
+    padding: 0 0.6rem;
+    border: 0;
+    border-radius: 0.6rem;
+    background: transparent;
+    font-size: 0.8125rem;
+    text-align: start;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+  .menu-item:hover:not(:disabled) {
+    background-color: var(--wash);
+  }
+  .menu-item:disabled,
+  .menu-item.is-soon {
+    opacity: 0.38;
+    cursor: not-allowed;
+  }
+}
+
+/* ===== الأسطح الزجاجية ===== */
 .glass-panel {
   background-color: rgba(246, 242, 235, 0.78);
   backdrop-filter: blur(16px);
@@ -72,64 +229,47 @@ h1, h2, h3, h4, h5, h6, .font-heading {
   border: 1px solid rgba(24, 54, 48, 0.15);
 }
 
-/* Silky smooth animations */
+/* ===== الحركات ===== */
 @keyframes modalEnter {
-  from {
-    opacity: 0;
-    transform: scale(0.96) translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+  from { opacity: 0; transform: scale(0.96) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
-
 @keyframes backdropFade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-
 @keyframes viewFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes dropdownSlide {
-  from {
-    opacity: 0;
-    transform: scale(0.97) translateY(-6px);
+  from { opacity: 0; transform: scale(0.97) translateY(-6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-modal-enter { animation: modalEnter 0.28s var(--ease-soft) forwards; }
+.animate-backdrop-fade { animation: backdropFade 0.25s ease-out forwards; }
+.animate-view-fade { animation: viewFadeIn 0.35s var(--ease-soft) forwards; }
+.animate-dropdown-slide { animation: dropdownSlide 0.2s var(--ease-soft) forwards; }
+.animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+
+/* ===== شاشات اللمس ===== */
+@media (pointer: coarse) {
+  .btn { height: 2.75rem; }
+  .btn-icon { width: 2.75rem; }
+  .field { height: 2.75rem; }
+  .menu-item { min-height: 2.75rem; }
+}
+
+/* ===== تقليل الحركة ===== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
 }
-
-.animate-modal-enter {
-  animation: modalEnter 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-backdrop-fade {
-  animation: backdropFade 0.25s ease-out forwards;
-}
-
-.animate-view-fade {
-  animation: viewFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-dropdown-slide {
-  animation: dropdownSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-
-

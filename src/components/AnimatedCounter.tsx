@@ -34,7 +34,6 @@ export const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
       const elapsed = timestamp - startTimestamp;
       const progress = Math.min(elapsed / duration, 1);
 
-      // Quartic ease-out: starts gently and decrescendos very smoothly towards the final value
       const easeOut = 1 - Math.pow(1 - progress, 4);
       const current = Math.round(startValue + (endValue - startValue) * easeOut);
 
@@ -55,7 +54,7 @@ export const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
   }, [value, duration]);
 
   return (
-    <span className={className}>
+    <span dir="ltr" className={`inline-block ${className}`}>
       {prefix}
       {displayValue}
       {suffix}
