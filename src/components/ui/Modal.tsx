@@ -65,7 +65,7 @@ export const Modal: React.FC<ModalProps> = ({
               <h2 id={titleId} className="text-base">
                 {title}
               </h2>
-              {subtitle && <p className="mt-0.5 text-xs opacity-75">{subtitle}</p>}
+              {subtitle && <p className="mt-0.5 text-xs text-ink-soft">{subtitle}</p>}
             </div>
           </div>
           <Button variant="quiet" icon title="إغلاق" onClick={onClose}>

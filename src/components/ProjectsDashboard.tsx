@@ -78,14 +78,14 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
       {/* اللافتة العلوية */}
       <div className="glass-panel flex flex-col justify-between gap-4 rounded-2xl p-6 sm:p-8 md:flex-row md:items-center">
         <div>
-          <div className="mb-1.5 flex items-center gap-2 text-xs opacity-85">
+          <div className="mb-1.5 flex items-center gap-2 text-xs text-ink-soft">
             <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-ink/20 bg-sand/35">
               <PenTool className="h-3.5 w-3.5 stroke-[1.5]" />
             </span>
             <span>استوديو هندسة وتصميم الخطوط الطباعية</span>
           </div>
           <h1 className="text-2xl sm:text-3xl">مشاريع الخطوط</h1>
-          <p className="mt-1 max-w-xl text-xs leading-relaxed opacity-80 sm:text-sm">
+          <p className="mt-1 max-w-xl text-xs leading-relaxed text-ink-soft sm:text-sm">
             مساحة هادئة لرسم المحارف وضبط المقاييس وبرمجة قواعد التبديل السياقي.
           </p>
         </div>
@@ -113,14 +113,14 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
                 className="field ps-9"
               />
             </div>
-            <div className="flex items-center gap-2 px-1 text-xs opacity-85">
+            <div className="flex items-center gap-2 px-1 text-xs text-ink-soft">
               <span>إجمالي المشاريع:</span>
               <AnimatedCounter value={projects.length} duration={900} className="font-mono text-sm" />
             </div>
           </div>
 
           {filtered.length === 0 ? (
-            <p className="py-10 text-center text-sm opacity-70">لا توجد مشاريع تطابق بحثك.</p>
+            <p className="py-10 text-center text-sm text-ink-soft">لا توجد مشاريع تطابق بحثك.</p>
           ) : (
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
               {filtered.map((project) => (
@@ -133,7 +133,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
                     <div className="mb-2.5 flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <h2 className="truncate text-lg">{project.name}</h2>
-                        <p className="mt-0.5 text-[11px] opacity-75">
+                        <p className="mt-0.5 text-[11px] text-ink-soft">
                           المصمم: {project.designer} · الإصدار {project.version}
                         </p>
                       </div>
@@ -142,7 +142,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
                       </span>
                     </div>
 
-                    <p className="mb-3.5 line-clamp-2 min-h-[34px] text-xs leading-relaxed opacity-80">
+                    <p className="mb-3.5 line-clamp-2 min-h-[34px] text-xs leading-relaxed text-ink-soft">
                       {project.description || 'مشروع خط عربي طباعي قيد التطوير.'}
                     </p>
 
@@ -154,9 +154,9 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
                           ))}
                         </div>
                       ) : (
-                        <span className="text-[11px] opacity-65">لا توجد محارف مرسومة بعد</span>
+                        <span className="text-[11px] text-ink-soft">لا توجد محارف مرسومة بعد</span>
                       )}
-                      <span className="ms-auto whitespace-nowrap text-[11px] opacity-75">
+                      <span className="ms-auto whitespace-nowrap text-[11px] text-ink-soft">
                         {project.glyphs.length} محرف
                       </span>
                     </div>
@@ -199,7 +199,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
             <FolderPlus className="h-6 w-6 stroke-[1.5]" />
           </div>
           <h2 className="mb-2 text-xl">لا توجد مشاريع خطوط حتى الآن</h2>
-          <p className="mb-6 max-w-md text-xs leading-relaxed opacity-75 sm:text-sm">
+          <p className="mb-6 max-w-md text-xs leading-relaxed text-ink-soft sm:text-sm">
             ابدأ مشروع خطك الأول، ثم ارسم المحارف واضبط المقاييس وابنِ منها خطاً حقيقياً.
           </p>
           <Button variant="primary" onClick={() => setShowCreate(true)}>
@@ -213,7 +213,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
         <Modal title="إنشاء مشروع خط جديد" onClose={closeCreate}>
           <form onSubmit={submitCreate} className="space-y-3.5">
             <div>
-              <label htmlFor="new-name" className="mb-1 block text-xs opacity-85">اسم الخط</label>
+              <label htmlFor="new-name" className="mb-1 block text-xs text-ink-soft">اسم الخط</label>
               <input
                 id="new-name"
                 autoFocus
@@ -225,7 +225,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
               />
             </div>
             <div>
-              <label htmlFor="new-designer" className="mb-1 block text-xs opacity-85">المصمم أو الاستوديو</label>
+              <label htmlFor="new-designer" className="mb-1 block text-xs text-ink-soft">المصمم أو الاستوديو</label>
               <input
                 id="new-designer"
                 value={newDesigner}
@@ -235,7 +235,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
               />
             </div>
             <div>
-              <label htmlFor="new-desc" className="mb-1 block text-xs opacity-85">وصف مختصر</label>
+              <label htmlFor="new-desc" className="mb-1 block text-xs text-ink-soft">وصف مختصر</label>
               <textarea
                 id="new-desc"
                 rows={3}
@@ -274,7 +274,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
 
       {deleting && (
         <Modal title="تأكيد حذف المشروع" size="sm" onClose={() => setDeleting(null)}>
-          <p className="text-xs leading-relaxed opacity-85">
+          <p className="text-xs leading-relaxed text-ink-soft">
             سيُحذف «{deleting.name}» نهائياً مع كل ما رُسم فيه من محارف، ولا يمكن استرجاعه.
           </p>
           <ModalActions>

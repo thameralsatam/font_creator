@@ -78,15 +78,15 @@ export const MetricsModal: React.FC<MetricsModalProps> = ({ onClose, project, on
       <form onSubmit={submit} className="space-y-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
-            <label htmlFor="m-name" className="mb-1 block text-[11px] opacity-80">اسم عائلة الخط</label>
+            <label htmlFor="m-name" className="mb-1 block text-[11px] text-ink-soft">اسم عائلة الخط</label>
             <input id="m-name" required value={name} onChange={(e) => setName(e.target.value)} className="field" />
           </div>
           <div>
-            <label htmlFor="m-designer" className="mb-1 block text-[11px] opacity-80">المصمم</label>
+            <label htmlFor="m-designer" className="mb-1 block text-[11px] text-ink-soft">المصمم</label>
             <input id="m-designer" value={designer} onChange={(e) => setDesigner(e.target.value)} className="field" />
           </div>
           <div>
-            <label htmlFor="m-version" className="mb-1 block text-[11px] opacity-80">الإصدار</label>
+            <label htmlFor="m-version" className="mb-1 block text-[11px] text-ink-soft">الإصدار</label>
             <input id="m-version" value={version} onChange={(e) => setVersion(e.target.value)} className="field font-mono" />
           </div>
         </div>
@@ -96,7 +96,7 @@ export const MetricsModal: React.FC<MetricsModalProps> = ({ onClose, project, on
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {FIELDS.map(({ key, label }) => (
               <div key={key} className="rounded-2xl border border-ink/15 bg-sand/20 p-2.5">
-                <label htmlFor={`m-${key}`} className="block text-[11px] opacity-80">{label}</label>
+                <label htmlFor={`m-${key}`} className="block text-[11px] text-ink-soft">{label}</label>
                 <input
                   id={`m-${key}`}
                   inputMode="numeric"
@@ -108,8 +108,8 @@ export const MetricsModal: React.FC<MetricsModalProps> = ({ onClose, project, on
               </div>
             ))}
             <div className="rounded-2xl border border-ink/10 bg-ink/5 p-2.5">
-              <span className="block text-[11px] opacity-60">خط الأساس</span>
-              <span className="mt-1 block py-0.5 font-mono text-xs opacity-60">0 (ثابت)</span>
+              <span className="block text-[11px] text-ink-soft">خط الأساس</span>
+              <span className="mt-1 block py-0.5 font-mono text-xs text-ink-soft">0 (ثابت)</span>
             </div>
           </div>
         </div>

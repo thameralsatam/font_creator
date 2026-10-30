@@ -10,15 +10,15 @@ interface Options {
   fitBox: FitBox;
   /** يتغير عند الانتقال لمحرف آخر لإعادة الملاءمة تلقائياً. */
   fitKey: string;
-  /** السحب بإصبع أو مؤشر واحد يحرّك الكانفاس. يُعطَّل عند تفعيل أدوات الرسم. */
-  singlePointerPan?: boolean;
+  /** هل يحرّك المؤشر الواحد اللوحة الآن؟ تُقرأ لحظة الحركة. الافتراضي: نعم. */
+  shouldPan?: () => boolean;
 }
 
 /**
  * التحريك والتكبير للكانفاس:
  * عجلة الفأرة للتكبير، السحب للتحريك، وإصبعان للتكبير والتحريك معاً على الجوال.
  */
-export function useViewport({ fitBox, fitKey, singlePointerPan = true }: Options) {
+export function useViewport({ fitBox, fitKey, shouldPan }: Options) {
   const ref = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [view, setView] = useState<Viewport>({ scale: 0.4, ox: 0, oy: 0 });
@@ -90,7 +90,7 @@ export function useViewport({ fitBox, fitKey, singlePointerPan = true }: Options
     const cur = local(e);
     pointers.current.set(e.pointerId, cur);
 
-    if (pointers.current.size === 1 && singlePointerPan) {
+    if (pointers.current.size === 1 && (shouldPan ? shouldPan() : true)) {
       const dx = cur.x - prev.x;
       const dy = cur.y - prev.y;
       setView((v) => ({ ...v, ox: v.ox + dx, oy: v.oy + dy }));
@@ -130,7 +130,8 @@ export function useViewport({ fitBox, fitKey, singlePointerPan = true }: Options
     },
     zoomIn: () => zoomBy(ZOOM_STEP),
     zoomOut: () => zoomBy(1 / ZOOM_STEP),
-    zoomActual: () => setView((v) => zoomAt(v, size.w / 2, size.h / 2, 1)),
+    zoomTo: (percent: number) =>
+      setView((v) => zoomAt(v, size.w / 2, size.h / 2, percent / 100)),
     fit: () => {
       if (hasSize) setView(computeFit(size.w, size.h, fitBoxRef.current));
     },

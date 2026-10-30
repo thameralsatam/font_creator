@@ -62,7 +62,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onClose, project }) =>
               <span className="mt-0.5">{item.icon}</span>
               <div className="min-w-0">
                 <h3 className="truncate font-mono text-xs">{item.title}</h3>
-                <p className="text-[11px] leading-relaxed opacity-75">{item.description}</p>
+                <p className="text-[11px] leading-relaxed text-ink-soft">{item.description}</p>
               </div>
             </div>
 
@@ -93,7 +93,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onClose, project }) =>
       </div>
 
       {copyFailed && (
-        <p role="alert" className="mt-3 text-xs opacity-80">
+        <p role="alert" className="mt-3 text-xs text-ink-soft">
           تعذّر النسخ من هذا المتصفح. استعمل زر التحميل بدلاً منه.
         </p>
       )}

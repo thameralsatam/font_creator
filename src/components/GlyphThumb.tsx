@@ -42,7 +42,7 @@ export const GlyphThumb: React.FC<GlyphThumbProps> = ({ glyph, metrics, classNam
           y={0}
           textAnchor="middle"
           fontSize={metrics.upm * 0.6}
-          className="fill-ink/25 font-heading"
+          className="fill-ink/35 font-heading"
         >
           {glyph.char}
         </text>

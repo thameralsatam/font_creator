@@ -98,7 +98,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                 v{project.version}
               </span>
             </div>
-            <p className="mt-0.5 text-xs opacity-85">
+            <p className="mt-0.5 text-xs text-ink-soft">
               المصمم: {project.designer} · {glyphs.length} محرف
             </p>
           </div>
@@ -129,7 +129,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {stats.map((s) => (
           <div key={s.label} className="glass-panel rounded-xl p-3">
-            <span className="block text-[11px] opacity-75">{s.label}</span>
+            <span className="block text-[11px] text-ink-soft">{s.label}</span>
             <AnimatedCounter
               value={s.value}
               duration={700}
@@ -159,7 +159,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
       {isEmpty ? (
         <div className="glass-panel flex flex-col items-center rounded-2xl p-8 text-center sm:p-10">
           <p className="mb-1 text-base">لا توجد محارف في هذا المشروع حتى الآن</p>
-          <p className="mb-4 max-w-sm text-xs leading-relaxed opacity-75">
+          <p className="mb-4 max-w-sm text-xs leading-relaxed text-ink-soft">
             أضف محرفك الأول، ثم ادخل استوديو الرسم لتشكيل منحنياته.
           </p>
           <Button variant="primary" onClick={() => setShowAdd(true)}>
@@ -176,7 +176,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
               onClick={() => onEnterStudio(glyph.id)}
               className="glass-panel group flex flex-col items-stretch rounded-2xl p-4 text-start transition-all hover:-translate-y-1 hover:border-ink/45 hover:shadow-md"
             >
-              <div className="flex items-center justify-between font-mono text-[10px] opacity-70">
+              <div className="flex items-center justify-between font-mono text-[10px] text-ink-soft">
                 <span>{glyph.unicode || '—'}</span>
                 <span className="font-sans">{CATEGORY_LABEL[glyph.category]}</span>
               </div>
@@ -189,7 +189,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
               </div>
               <div className="flex items-center justify-between border-t border-ink/10 pt-2 text-xs">
                 <span className="font-mono">{glyph.name}</span>
-                <span className="font-mono text-[10px] opacity-75">{glyph.advanceWidth}u</span>
+                <span className="font-mono text-[10px] text-ink-soft">{glyph.advanceWidth}u</span>
               </div>
             </button>
           ))}
@@ -200,7 +200,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
         <Modal title="إضافة محرف جديد" onClose={closeAdd}>
           <form onSubmit={submitAdd} className="space-y-3.5">
             <div>
-              <label htmlFor="g-char" className="mb-1 block text-xs opacity-85">المحرف أو الرمز</label>
+              <label htmlFor="g-char" className="mb-1 block text-xs text-ink-soft">المحرف أو الرمز</label>
               <input
                 id="g-char"
                 autoFocus
@@ -213,7 +213,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
               />
             </div>
             <div>
-              <label htmlFor="g-name" className="mb-1 block text-xs opacity-85">اسم المحرف في الخط</label>
+              <label htmlFor="g-name" className="mb-1 block text-xs text-ink-soft">اسم المحرف في الخط</label>
               <input
                 id="g-name"
                 dir="ltr"
@@ -228,7 +228,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
               />
             </div>
             <div>
-              <label htmlFor="g-unicode" className="mb-1 block text-xs opacity-85">نقطة اليونيكود</label>
+              <label htmlFor="g-unicode" className="mb-1 block text-xs text-ink-soft">نقطة اليونيكود</label>
               <input
                 id="g-unicode"
                 dir="ltr"
@@ -243,7 +243,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
               />
             </div>
             <div>
-              <label htmlFor="g-cat" className="mb-1 block text-xs opacity-85">التصنيف</label>
+              <label htmlFor="g-cat" className="mb-1 block text-xs text-ink-soft">التصنيف</label>
               <select
                 id="g-cat"
                 value={category}

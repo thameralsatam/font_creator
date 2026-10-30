@@ -5,24 +5,26 @@
   --font-heading: 'Kufam', 'IBM Plex Sans Arabic', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  --color-paper: #EDE6D8;
-  --color-paper-deep: #E3DAC9;
-  --color-surface: #F6F2EB;
-  --color-ink: #183630;
-  --color-ink-light: #254A43;
-  --color-sand: #E5C690;
-  --color-sand-deep: #CCA86B;
+  --color-paper: #F8F4EA;
+  --color-paper-deep: #ECE4D2;
+  --color-surface: #FFFDF8;
+  --color-canvas: #FCFAF4;
+  --color-ink: #12302A;
+  --color-ink-light: #1F4A42;
+  --color-ink-soft: #3A524B;
+  --color-sand: #E8CD9A;
+  --color-sand-deep: #B98F45;
 }
 
 :root {
-  /* وزن النص 200. لتجربة الأرفع غيّر هذا السطر فقط إلى 100 */
-  --weight-text: 200;
+  /* وزن النص 300 لوضوح أفضل. للأنحف غيّر هذا السطر فقط إلى 200 أو 100 */
+  --weight-text: 300;
   /* كوفام أرفع وزن فيه هو 400 */
   --weight-heading: 400;
   --ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
-  --line: color-mix(in srgb, var(--color-ink) 18%, transparent);
-  --line-strong: color-mix(in srgb, var(--color-ink) 32%, transparent);
-  --wash: color-mix(in srgb, var(--color-sand) 32%, transparent);
+  --line: color-mix(in srgb, var(--color-ink) 24%, transparent);
+  --line-strong: color-mix(in srgb, var(--color-ink) 45%, transparent);
+  --wash: color-mix(in srgb, var(--color-sand) 45%, transparent);
 }
 
 @layer base {
@@ -73,7 +75,7 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(24, 54, 48, 0.18);
+  background: rgba(18, 48, 42, 0.25);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -160,7 +162,7 @@
 
   .btn:disabled,
   .btn.is-soon {
-    opacity: 0.38;
+    opacity: 0.45;
     cursor: not-allowed;
   }
 
@@ -181,7 +183,7 @@
     border-color: var(--color-ink);
   }
   .field::placeholder {
-    color: color-mix(in srgb, var(--color-ink) 40%, transparent);
+    color: color-mix(in srgb, var(--color-ink) 55%, transparent);
   }
   textarea.field {
     height: auto;
@@ -209,24 +211,24 @@
   }
   .menu-item:disabled,
   .menu-item.is-soon {
-    opacity: 0.38;
+    opacity: 0.45;
     cursor: not-allowed;
   }
 }
 
 /* ===== الأسطح الزجاجية ===== */
 .glass-panel {
-  background-color: rgba(246, 242, 235, 0.78);
+  background-color: rgba(255, 253, 248, 0.94);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(24, 54, 48, 0.12);
+  border: 1px solid rgba(18, 48, 42, 0.2);
 }
 
 .glass-dropdown {
-  background-color: rgba(248, 245, 240, 0.96);
+  background-color: rgba(255, 253, 248, 0.98);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(24, 54, 48, 0.15);
+  border: 1px solid rgba(18, 48, 42, 0.24);
 }
 
 /* ===== الحركات ===== */
