@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { Check, Copy, Download, FileCode, FileJson } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { AlertTriangle, Check, Copy, Download, FileCode, FileJson, Type } from 'lucide-react';
 import { type FontProject } from '../types/font';
 import { exportProjectJSON, generateOpenTypeFea } from '../utils/fontLogic';
-import { copyText, downloadTextFile } from '../utils/download';
+import { copyText, downloadBlob, downloadTextFile } from '../utils/download';
+import { buildFontBuffer, checkProject, safePsName } from '../utils/fontBuild';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 
@@ -15,6 +16,22 @@ interface ExportModalProps {
 export const ExportModal: React.FC<ExportModalProps> = ({ onClose, project }) => {
   const [copied, setCopied] = useState<string | null>(null);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [building, setBuilding] = useState(false);
+  const [buildError, setBuildError] = useState<string | null>(null);
+  const report = useMemo(() => checkProject(project), [project]);
+
+  const downloadFont = async () => {
+    setBuilding(true);
+    setBuildError(null);
+    try {
+      const buf = await buildFontBuffer(project);
+      downloadBlob(new Blob([buf], { type: 'font/otf' }), `${safePsName(project.name)}-Regular.otf`);
+    } catch {
+      setBuildError('تعذّر بناء ملف الخط. راجع المحارف وحاول من جديد.');
+    } finally {
+      setBuilding(false);
+    }
+  };
 
   const items = [
     {
@@ -53,6 +70,38 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onClose, project }) =>
       onClose={onClose}
     >
       <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-ink/30 bg-sand/30 p-3.5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="mt-0.5"><Type className="h-5 w-5 stroke-[1.5]" /></span>
+            <div className="min-w-0">
+              <h3 className="truncate font-mono text-xs">{safePsName(project.name)}-Regular.otf</h3>
+              <p className="text-[11px] leading-relaxed text-ink-soft">
+                ملف الخط الحقيقي، يُثبَّت ويُستعمل في أي برنامج
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="primary"
+            title="بناء الخط وتحميله"
+            disabled={building || report.errors.length > 0}
+            onClick={downloadFont}
+          >
+            <Download className="h-3.5 w-3.5 stroke-[1.5]" />
+            <span>{building ? 'جارٍ البناء' : 'تحميل'}</span>
+          </Button>
+        </div>
+
+        {(report.errors.length > 0 || report.warnings.length > 0 || buildError) && (
+          <div role="alert" className="space-y-1.5 rounded-2xl border border-ink/20 bg-paper p-3 text-xs leading-6">
+            {[...report.errors, ...(buildError ? [buildError] : [])].map((t) => (
+              <p key={t} className="flex gap-2"><AlertTriangle className="mt-1 h-3.5 w-3.5 shrink-0 stroke-[1.5]" />{t}</p>
+            ))}
+            {report.warnings.map((t) => (
+              <p key={t} className="flex gap-2 text-ink-soft"><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-ink/40" />{t}</p>
+            ))}
+          </div>
+        )}
+
         {items.map((item) => (
           <div
             key={item.id}

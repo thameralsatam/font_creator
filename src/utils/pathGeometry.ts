@@ -129,3 +129,15 @@ export function getGlyphBounds(glyph: Glyph): Bounds | null {
 export function isContourFillable(contour: Contour): boolean {
   return contour.closed && contour.nodes.length >= 3;
 }
+
+/**
+ * مسار واحد لكل المسارات المغلقة. هذا ضروري: قاعدة الملء (nonzero) لا تصنع ثقوباً
+ * إلا إذا كان المساران داخل عنصر path واحد، أما رسمهما في عنصرين فيملأ كلاً منهما على حدة.
+ */
+export function glyphFillPath(contours: Contour[]): string {
+  return contours
+    .filter((c) => c.closed && c.nodes.length > 1)
+    .map(contourToPath)
+    .join(' ');
+}
+

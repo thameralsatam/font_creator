@@ -29,7 +29,7 @@ export const HelpProvider: React.FC<{ children: React.ReactNode }> = ({ children
       topicId,
       setOn: (v) => {
         setOnState(v);
-        setTopicId(null);
+        setTopicId(v ? 'intro' : null);
       },
       show: (id) => setTopicId(id),
     }),

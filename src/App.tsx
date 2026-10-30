@@ -6,6 +6,8 @@ import { MetricsModal } from './components/MetricsModal';
 import { ExportModal } from './components/ExportModal';
 import { useProjects } from './state/useProjects';
 import { type FontMetrics, type NewGlyphData } from './types/font';
+import { createGlyph } from './utils/fontLogic';
+import { applyGlyphMeta, duplicateGlyph, type GlyphMeta } from './utils/glyphLogic';
 
 export type AppView = 'dashboard' | 'overview' | 'studio';
 
@@ -66,6 +68,28 @@ export default function App() {
     setSelectedGlyphId(glyph.id);
   };
 
+  const handleEditGlyph = (glyphId: string, meta: GlyphMeta) => {
+    if (!activeProject) return;
+    store.updateGlyph(activeProject.id, glyphId, (g) => applyGlyphMeta(g, meta));
+  };
+
+  const handleDeleteGlyph = (glyphId: string) => {
+    if (!activeProject) return;
+    store.removeGlyph(activeProject.id, glyphId);
+    if (selectedGlyphId === glyphId) setSelectedGlyphId(null);
+  };
+
+  const handleDuplicateGlyph = (glyphId: string) => {
+    if (!activeProject) return;
+    const copy = duplicateGlyph(activeProject.glyphs, glyphId);
+    if (copy) store.addGlyphs(activeProject.id, [copy]);
+  };
+
+  const handleAddPreset = (items: NewGlyphData[]) => {
+    if (!activeProject) return;
+    store.addGlyphs(activeProject.id, items.map(createGlyph));
+  };
+
   const handleEnterStudio = (glyphId?: string) => {
     if (glyphId) setSelectedGlyphId(glyphId);
     setView('studio');
@@ -92,6 +116,7 @@ export default function App() {
             onRenameProject={store.renameProject}
             onDuplicateProject={store.duplicateProject}
             onDeleteProject={handleDeleteProject}
+            onImportProject={store.importProject}
           />
         </div>
       )}
@@ -105,6 +130,10 @@ export default function App() {
             onOpenMetrics={() => setIsMetricsOpen(true)}
             onOpenExport={() => setIsExportOpen(true)}
             onAddNewGlyph={handleAddGlyph}
+            onAddPreset={handleAddPreset}
+            onEditGlyph={handleEditGlyph}
+            onDeleteGlyph={handleDeleteGlyph}
+            onDuplicateGlyph={handleDuplicateGlyph}
           />
         </div>
       )}

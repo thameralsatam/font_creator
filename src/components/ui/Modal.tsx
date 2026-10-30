@@ -1,4 +1,5 @@
 import React, { useEffect, useId } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from './Button';
 
@@ -41,9 +42,10 @@ export const Modal: React.FC<ModalProps> = ({
     };
   }, [onClose]);
 
-  return (
+  // تُرسم خارج أي حاوية ذات تأثير زجاجي أو تحويل حتى لا تُقصّ أو تنزل تحت طبقات أخرى
+  return createPortal(
     <div
-      className="animate-backdrop-fade fixed inset-0 z-50 flex items-center justify-center bg-ink/35 p-4 backdrop-blur-sm"
+      className="animate-backdrop-fade fixed inset-0 z-[90] flex items-center justify-center bg-ink/35 p-4 backdrop-blur-sm"
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -75,7 +77,8 @@ export const Modal: React.FC<ModalProps> = ({
 
         <div className="pt-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

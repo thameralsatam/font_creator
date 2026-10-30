@@ -6,21 +6,23 @@ import { useHelp } from './HelpContext';
 /** بطاقة الشرح العائمة في وضع التعليمات. */
 export const HelpPanel: React.FC<{ onOpenBook: () => void }> = ({ onOpenBook }) => {
   const help = useHelp();
-  if (!help.on) return null;
-  const topic = STUDIO_HELP[help.topicId ?? 'intro'] ?? STUDIO_HELP.intro;
+  // topicId فارغ = أُغلقت البطاقة والوضع ما زال شغالاً
+  if (!help.on || !help.topicId) return null;
+  const topic = STUDIO_HELP[help.topicId] ?? STUDIO_HELP.intro;
 
   return (
     <div
       data-help-panel
       role="status"
-      className="glass-panel animate-dropdown-slide absolute inset-x-3 bottom-3 z-20 mx-auto max-h-[45%] w-full max-w-xl overflow-y-auto rounded-2xl p-4 shadow-xl"
+      className="glass-panel animate-dropdown-slide absolute inset-x-3 bottom-3 z-20 mx-auto max-h-[55%] max-w-xl overflow-y-auto rounded-2xl p-4 shadow-xl"
     >
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-sm">{topic.title}</h3>
         <button
           type="button"
           title="إغلاق الشرح"
-          className="btn btn-quiet btn-icon shrink-0"
+          className="btn btn-quiet btn-icon relative z-10 shrink-0"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={() => help.show(null)}
         >
           <X className="h-4 w-4 stroke-[1.5]" />

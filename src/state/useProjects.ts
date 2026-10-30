@@ -43,6 +43,11 @@ export function useProjects() {
     []
   );
 
+  /** يضيف مشروعاً جاهزاً (مستورداً من ملف خط). */
+  const importProject = useCallback((project: FontProject) => {
+    setProjects((prev) => [project, ...prev]);
+  }, []);
+
   const renameProject = useCallback((id: string, name: string) => {
     setProjects((prev) => logic.renameProject(prev, id, name));
   }, []);
@@ -78,6 +83,14 @@ export function useProjects() {
     []
   );
 
+  /** يضيف عدة محارف دفعة واحدة (مجموعة جاهزة أو نسخة). */
+  const addGlyphs = useCallback((projectId: string, glyphs: Glyph[]) => {
+    if (glyphs.length === 0) return;
+    setProjects((prev) =>
+      logic.updateProjectById(prev, projectId, (p) => ({ ...p, glyphs: [...p.glyphs, ...glyphs] }))
+    );
+  }, []);
+
   const updateGlyph = useCallback(
     (projectId: string, glyphId: string, updater: (glyph: Glyph) => Glyph) => {
       setProjects((prev) =>
@@ -102,11 +115,13 @@ export function useProjects() {
   return {
     projects,
     createProject,
+    importProject,
     renameProject,
     duplicateProject,
     deleteProject,
     updateProject,
     addGlyph,
+    addGlyphs,
     updateGlyph,
     removeGlyph,
   };

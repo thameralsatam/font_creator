@@ -21,3 +21,16 @@ export async function copyText(text: string): Promise<boolean> {
     return false;
   }
 }
+
+/** ينزّل كائن Blob كملف ثنائي. */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const safeName = filename.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_');
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = safeName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}

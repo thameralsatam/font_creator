@@ -53,6 +53,9 @@ import {
 
 export type ToolId = 'select' | 'move' | 'pen' | 'hand';
 
+/** replace = تحديد جديد، add = جمع إلى ما سبق، subtract = طرح مما سبق. */
+export type SelectMode = 'replace' | 'add' | 'subtract';
+
 export interface PointerInfo {
   world: Vec;
   screen: Vec;
@@ -115,7 +118,7 @@ type Gesture =
       pre: Snapshot;
       start: Vec;
       startScreen: Vec;
-      additive: boolean;
+      selMode: SelectMode;
       initial: ReadonlySet<string>;
       moved: boolean;
     }
@@ -205,6 +208,12 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
   const noticeTimer = useRef<number | undefined>(undefined);
   const hoverRef = useRef<HoverTarget | null>(null);
   const lastDown = useRef<{ at: number; x: number; y: number } | null>(null);
+  const [selectMode, setSelectModeState] = useState<SelectMode>('replace');
+  const modeRef = useRef<SelectMode>('replace');
+  const setSelectMode = (m: SelectMode) => {
+    modeRef.current = m;
+    setSelectModeState(m);
+  };
 
   const setSelection = (ids: ReadonlySet<string>) => {
     selRef.current = ids;
@@ -356,9 +365,18 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
       const hn = hitNode(contours, info.world, hitRadius(info.touch, 9, 16));
       if (hn) {
         const node = contours.flatMap((c) => c.nodes).find((x) => x.id === hn.nodeId)!;
+        const mode = modeRef.current;
+        if (mode === 'subtract') {
+          const rest = new Set(sel);
+          rest.delete(hn.nodeId);
+          setSelection(rest);
+          return;
+        }
         let ids: ReadonlySet<string> = sel;
         let toggleId: string | null = null;
-        if (info.shift) {
+        if (mode === 'add') {
+          ids = new Set([...sel, hn.nodeId]);
+        } else if (info.shift) {
           if (sel.has(hn.nodeId)) toggleId = hn.nodeId;
           else ids = new Set([...sel, hn.nodeId]);
         } else if (!sel.has(hn.nodeId)) {
@@ -379,14 +397,16 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
         };
         return;
       }
-      const initial = info.shift ? sel : EMPTY;
-      if (!info.shift) setSelection(EMPTY);
+      const mode = modeRef.current;
+      const selMode: SelectMode = mode === 'replace' && info.shift ? 'add' : mode;
+      const initial = selMode === 'replace' ? EMPTY : sel;
+      if (selMode === 'replace') setSelection(EMPTY);
       gesture.current = {
         kind: 'marquee',
         pre,
         start: info.world,
         startScreen: info.screen,
-        additive: info.shift,
+        selMode,
         initial,
         moved: false,
       };
@@ -672,7 +692,12 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
       g.moved = true;
       setMarquee({ a: g.start, b: info.world });
       const inside = nodesInRect(work.current.contours, g.start, info.world);
-      setSelection(new Set([...(g.additive ? g.initial : EMPTY), ...inside]));
+      const insideSet = new Set(inside);
+      if (g.selMode === 'subtract') {
+        setSelection(new Set([...g.initial].filter((id) => !insideSet.has(id))));
+      } else {
+        setSelection(new Set([...(g.selMode === 'add' ? g.initial : EMPTY), ...inside]));
+      }
       return;
     }
 
@@ -1053,6 +1078,9 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     smooth,
     corner,
     autoSmooth,
+    nudge,
+    selectMode,
+    setSelectMode,
     reverse,
     autoDirection,
     closeSelected,

@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { type FontMetrics, type Glyph } from '../../types/font';
-import { contourToPath } from '../../utils/pathGeometry';
+import { contourToPath, glyphFillPath } from '../../utils/pathGeometry';
 import { contourArrow, effectiveGridStep } from '../../utils/pathEdit';
 import { type PointerInfo, type StudioEditor } from './useStudioEditor';
 import { useViewport } from './useViewport';
@@ -207,7 +207,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
               />
               {showLabels && (
                 <text x={size.w - 10} y={sy(line.v) - 5} textAnchor="end" fontSize="12" className="fill-ink-soft">
-                  {line.label} ({line.v})
+                  {line.v}
                 </text>
               )}
             </g>
@@ -228,7 +228,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
           ))}
           {showLabels && (
             <text x={sx(glyph.advanceWidth) - 6} y={16} textAnchor="end" fontSize="12" className="fill-ink-soft">
-              العرض الكامل ({glyph.advanceWidth})
+              {glyph.advanceWidth}
             </text>
           )}
         </g>
@@ -236,16 +236,35 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
       {/* مسارات المحرف بوحدات الخط */}
       <g transform={`translate(${ox} ${oy}) scale(${s} ${-s})`}>
-        {glyph.contours.map((c) => (
-          <path
-            key={c.id}
-            d={contourToPath(c)}
-            fillRule="nonzero"
-            className={c.closed ? 'fill-ink/90 stroke-ink' : 'fill-none stroke-ink'}
-            strokeWidth={c.id === hoverContourId ? 3 : 1.2}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
+        <path
+          d={glyphFillPath(glyph.contours)}
+          fillRule="nonzero"
+          className="fill-ink/90 stroke-ink"
+          strokeWidth={1.2}
+          vectorEffect="non-scaling-stroke"
+        />
+        {glyph.contours
+          .filter((c) => !c.closed)
+          .map((c) => (
+            <path
+              key={c.id}
+              d={contourToPath(c)}
+              className="fill-none stroke-ink"
+              strokeWidth={1.2}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+        {glyph.contours
+          .filter((c) => c.id === hoverContourId)
+          .map((c) => (
+            <path
+              key={c.id}
+              d={contourToPath(c)}
+              className="fill-none stroke-sand-deep"
+              strokeWidth={3}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
       </g>
 
       {/* معاينة القطعة القادمة في القلم */}

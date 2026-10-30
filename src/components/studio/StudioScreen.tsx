@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowDown,
+  ArrowLeft,
   ArrowRight,
+  ArrowUp,
   Check,
   CircleHelp,
   Copy,
@@ -35,7 +38,7 @@ import { BarDivider, DragScroll } from '../ui/DragScroll';
 import { Dropdown, MenuDivider, MenuItem, MenuLabel } from '../ui/Dropdown';
 import { GlyphThumb } from '../GlyphThumb';
 import { StudioCanvas, type ViewOptions } from './StudioCanvas';
-import { useStudioEditor, type ToolId } from './useStudioEditor';
+import { useStudioEditor, type SelectMode, type ToolId } from './useStudioEditor';
 import { useViewport } from './useViewport';
 
 interface StudioScreenProps {
@@ -48,6 +51,13 @@ interface StudioScreenProps {
 
 const GRID_STEPS = [10, 25, 50, 100];
 const ZOOM_PRESETS = [25, 50, 100, 200];
+const NUDGE_STEPS = [1, 5, 10, 50];
+
+const SELECT_MODES: Array<{ id: SelectMode; label: string; hint: string }> = [
+  { id: 'replace', label: 'تحديد عادي', hint: 'كل تحديد جديد يستبدل السابق' },
+  { id: 'add', label: 'جمع إلى المحدد', hint: 'يبقى السابق ويُضاف الجديد' },
+  { id: 'subtract', label: 'طرح من المحدد', hint: 'ما تحدده يُزال من المحدد' },
+];
 
 const icon = 'h-4 w-4 stroke-[1.5]';
 
@@ -113,6 +123,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
   const { metrics } = project;
   const help = useHelp();
   const [showBook, setShowBook] = useState(false);
+  const [nudgeStep, setNudgeStep] = useState(10);
 
   // Esc في وضع التعليمات: يغلق الشرح أولاً ثم يطفئ الوضع
   useEffect(() => {
@@ -217,19 +228,52 @@ const StudioInner: React.FC<StudioScreenProps> = ({
 
         <BarDivider />
 
-        {TOOLS.map(({ id, label, key, Icon }) => (
-          <Button
-            key={id}
-            variant="quiet"
-            active={editor.tool === id}
-            helpId={`tool.${id}`}
-            title={`${label} (${key})`}
-            onClick={() => editor.setTool(id)}
-          >
-            <Icon className={icon} />
-            <span className="hidden md:inline">{label}</span>
-          </Button>
-        ))}
+        {TOOLS.map(({ id, label, key, Icon }) =>
+          id === 'select' ? (
+            <Dropdown
+              key={id}
+              label={label}
+              helpId="tool.select"
+              placement="bottom"
+              width={270}
+              active={editor.tool === 'select'}
+              onOpen={() => editor.setTool('select')}
+              icon={<Icon className={icon} />}
+            >
+              {(close) => (
+                <>
+                  <MenuLabel>طريقة التحديد</MenuLabel>
+                  {SELECT_MODES.map((m) => (
+                    <MenuItem
+                      key={m.id}
+                      label={m.label}
+                      hint={m.hint}
+                      helpId={`sel.${m.id}`}
+                      active={editor.selectMode === m.id}
+                      onClick={() => {
+                        editor.setSelectMode(m.id);
+                        editor.setTool('select');
+                        close();
+                      }}
+                    />
+                  ))}
+                </>
+              )}
+            </Dropdown>
+          ) : (
+            <Button
+              key={id}
+              variant="quiet"
+              active={editor.tool === id}
+              helpId={`tool.${id}`}
+              title={`${label} (${key})`}
+              onClick={() => editor.setTool(id)}
+            >
+              <Icon className={icon} />
+              <span className="hidden md:inline">{label}</span>
+            </Button>
+          )
+        )}
 
         <BarDivider />
 
@@ -475,6 +519,17 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 active={editor.settings.snapPoints}
                 onClick={() => editor.setSnapPoints(!editor.settings.snapPoints)}
               />
+              <MenuDivider />
+              <MenuLabel>خطوة أزرار التحريك (وحدة خط)</MenuLabel>
+              {NUDGE_STEPS.map((n) => (
+                <MenuItem
+                  key={n}
+                  label={String(n)}
+                  helpId="settings.nudge"
+                  active={nudgeStep === n}
+                  onClick={() => setNudgeStep(n)}
+                />
+              ))}
               <MenuLabel>Shift لتقييد الاتجاه، وAlt لتعطيل الالتصاق مؤقتاً.</MenuLabel>
             </>
           )}
@@ -565,6 +620,29 @@ const StudioInner: React.FC<StudioScreenProps> = ({
         <Button variant="quiet" icon helpId="redo" title="إعادة (Ctrl+Shift+Z)" disabled={!editor.canRedo} onClick={editor.redo}>
           <Redo2 className={icon} />
         </Button>
+
+        <BarDivider />
+
+        {(
+          [
+            ['up', ArrowUp, 0, 1, 'للأعلى'],
+            ['down', ArrowDown, 0, -1, 'للأسفل'],
+            ['left', ArrowLeft, -1, 0, 'لليسار'],
+            ['right', ArrowRight, 1, 0, 'لليمين'],
+          ] as const
+        ).map(([k, Ico, dx, dy, name]) => (
+          <Button
+            key={k}
+            variant="quiet"
+            icon
+            helpId="nudge"
+            title={`تحريك المحدد ${name} (${nudgeStep})`}
+            disabled={!hasSelection}
+            onClick={() => editor.nudge(dx * nudgeStep, dy * nudgeStep)}
+          >
+            <Ico className={icon} />
+          </Button>
+        ))}
 
         <BarDivider />
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { type FontMetrics, type Glyph } from '../types/font';
-import { contourToPath } from '../utils/pathGeometry';
+import { glyphFillPath } from '../utils/pathGeometry';
 
 interface GlyphThumbProps {
   glyph: Glyph;
@@ -27,14 +27,7 @@ export const GlyphThumb: React.FC<GlyphThumbProps> = ({ glyph, metrics, classNam
     >
       {glyph.contours.length > 0 ? (
         <g transform="scale(1 -1)">
-          {glyph.contours.map((c) => (
-            <path
-              key={c.id}
-              d={contourToPath(c)}
-              className="fill-ink"
-              fillRule="nonzero"
-            />
-          ))}
+          <path d={glyphFillPath(glyph.contours)} className="fill-ink" fillRule="nonzero" />
         </g>
       ) : (
         <text

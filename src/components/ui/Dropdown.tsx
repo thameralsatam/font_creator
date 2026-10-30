@@ -32,6 +32,10 @@ interface DropdownProps {
   soon?: boolean;
   /** في وضع التعليمات: الضغطة الأولى تشرح الزر، والثانية تفتح القائمة. */
   helpId?: string;
+  /** يظهر الزر مضيئاً حتى والقائمة مغلقة (مثل أداة مختارة). */
+  active?: boolean;
+  /** يُستدعى عند فتح القائمة بنقرة عادية (ليس في وضع التعليمات). */
+  onOpen?: () => void;
   children: (close: () => void) => React.ReactNode;
 }
 
@@ -56,6 +60,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
   width = 256,
   soon = false,
   helpId,
+  active = false,
+  onOpen,
   children,
 }) => {
   const help = useHelp();
@@ -147,7 +153,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
         ref={triggerRef}
         variant="quiet"
         soon={soon}
-        active={open}
+        active={open || active}
         title={label}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -157,6 +163,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
             help.show(helpId);
             return;
           }
+          if (!help.on && !open) onOpen?.();
           setOpen((v) => !v);
         }}
       >

@@ -13,6 +13,7 @@ import { type FontProject } from '../types/font';
 import { AnimatedCounter } from './AnimatedCounter';
 import { GlyphThumb } from './GlyphThumb';
 import { HelpBookButton } from './help/HelpBook';
+import { ImportFontButton } from './ImportFontButton';
 import { Button } from './ui/Button';
 import { Modal, ModalActions } from './ui/Modal';
 
@@ -23,6 +24,7 @@ interface ProjectsDashboardProps {
   onRenameProject: (projectId: string, newName: string) => void;
   onDuplicateProject: (projectId: string) => void;
   onDeleteProject: (projectId: string) => void;
+  onImportProject: (project: FontProject) => void;
 }
 
 export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
@@ -32,6 +34,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
   onRenameProject,
   onDuplicateProject,
   onDeleteProject,
+  onImportProject,
 }) => {
   const [query, setQuery] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -92,7 +95,10 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
         </div>
 
         {/* لا يظهر هنا عند عدم وجود مشاريع حتى لا يتكرر مع الحالة الفارغة */}
-        <HelpBookButton />
+        <div className="flex flex-wrap items-center gap-2">
+          <ImportFontButton onImport={onImportProject} />
+          <HelpBookButton />
+        </div>
         {hasProjects && (
           <Button variant="primary" className="self-start md:self-auto" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4 stroke-[1.5]" />

@@ -41,7 +41,7 @@ export function createGlyph(data: NewGlyphData): Glyph {
     unicode: data.unicode,
     category: data.category,
     form: 'isolated',
-    advanceWidth: 500,
+    advanceWidth: data.advanceWidth ?? 500,
     contours: [],
     anchors: [],
   };
@@ -65,7 +65,8 @@ export function validateNewGlyph(
   existing: Glyph[],
   data: NewGlyphData
 ): string | null {
-  if (!data.char.trim()) return 'اكتب المحرف أو الرمز.';
+  // الفراغ محرف صالح، فلا نرفض النص المكوّن من مسافة فقط
+  if (!data.char) return 'اكتب المحرف أو الرمز.';
   if (!/^[A-Za-z_][A-Za-z0-9._-]*$/.test(data.name)) {
     return 'اسم المحرف يبدأ بحرف لاتيني ويحوي حروفاً لاتينية وأرقاماً ونقطة وشرطة فقط.';
   }

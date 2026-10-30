@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { ArrowRight, Download, PenTool, Plus, Sliders } from 'lucide-react';
+import { ArrowRight, Copy, Download, Layers, Pencil, PenTool, Plus, Sliders, Trash2 } from 'lucide-react';
 import { type FontProject, type GlyphCategory, type NewGlyphData } from '../types/font';
+import { type GlyphMeta } from '../utils/glyphLogic';
 import { defaultGlyphName, defaultUnicode, validateNewGlyph } from '../utils/fontLogic';
 import { CATEGORY_LABEL } from '../utils/labels';
 import { AnimatedCounter } from './AnimatedCounter';
+import { GlyphEditModal } from './GlyphEditModal';
 import { GlyphThumb } from './GlyphThumb';
+import { PresetModal } from './PresetModal';
 import { HelpBookButton } from './help/HelpBook';
 import { Button } from './ui/Button';
 import { Modal, ModalActions } from './ui/Modal';
@@ -16,6 +19,10 @@ interface ProjectOverviewProps {
   onOpenMetrics: () => void;
   onOpenExport: () => void;
   onAddNewGlyph: (glyphData: NewGlyphData) => void;
+  onAddPreset: (items: NewGlyphData[]) => void;
+  onEditGlyph: (glyphId: string, meta: GlyphMeta) => void;
+  onDeleteGlyph: (glyphId: string) => void;
+  onDuplicateGlyph: (glyphId: string) => void;
 }
 
 export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
@@ -25,8 +32,15 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
   onOpenMetrics,
   onOpenExport,
   onAddNewGlyph,
+  onAddPreset,
+  onEditGlyph,
+  onDeleteGlyph,
+  onDuplicateGlyph,
 }) => {
   const [showAdd, setShowAdd] = useState(false);
+  const [showPreset, setShowPreset] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [char, setChar] = useState('');
   const [name, setName] = useState('');
   const [unicode, setUnicode] = useState('');
@@ -143,40 +157,54 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
       </div>
 
       {/* المحارف */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2">
           <h2 className="text-lg">المحارف المرسومة</h2>
           <span className="rounded-md border border-ink/15 bg-sand/30 px-2 py-0.5 font-mono text-xs">
             {glyphs.length}
           </span>
         </div>
-        {!isEmpty && (
+        <div className="flex items-center gap-2 shrink-0">
+          <Button onClick={() => setShowPreset(true)}>
+            <Layers className="h-3.5 w-3.5 stroke-[1.5]" />
+            <span>مجموعات جاهزة</span>
+          </Button>
           <Button onClick={() => setShowAdd(true)}>
             <Plus className="h-3.5 w-3.5 stroke-[1.5]" />
             <span>إضافة محرف</span>
           </Button>
-        )}
+        </div>
       </div>
 
       {isEmpty ? (
         <div className="glass-panel flex flex-col items-center rounded-2xl p-8 text-center sm:p-10">
           <p className="mb-1 text-base">لا توجد محارف في هذا المشروع حتى الآن</p>
           <p className="mb-4 max-w-sm text-xs leading-relaxed text-ink-soft">
-            أضف محرفك الأول، ثم ادخل استوديو الرسم لتشكيل منحنياته.
+            أضف محرفك الأول، أو اختر مجموعة جاهزة للبدء مباشرة في رسم خطك.
           </p>
-          <Button variant="primary" onClick={() => setShowAdd(true)}>
-            <Plus className="h-3.5 w-3.5 stroke-[1.5]" />
-            <span>إضافة أول محرف</span>
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
+            <Button variant="primary" onClick={() => setShowAdd(true)}>
+              <Plus className="h-3.5 w-3.5 stroke-[1.5]" />
+              <span>إضافة أول محرف</span>
+            </Button>
+            <Button onClick={() => setShowPreset(true)}>
+              <Layers className="h-3.5 w-3.5 stroke-[1.5]" />
+              <span>مجموعات جاهزة</span>
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
           {glyphs.map((glyph) => (
-            <button
+            <div
               key={glyph.id}
+              className="glass-panel group flex flex-col items-stretch rounded-2xl p-4 transition-all hover:-translate-y-1 hover:border-ink/45 hover:shadow-md"
+            >
+            <button
               type="button"
               onClick={() => onEnterStudio(glyph.id)}
-              className="glass-panel group flex flex-col items-stretch rounded-2xl p-4 text-start transition-all hover:-translate-y-1 hover:border-ink/45 hover:shadow-md"
+              className="flex flex-col items-stretch text-start"
+              title="فتح المحرف في الاستوديو"
             >
               <div className="flex items-center justify-between font-mono text-[10px] text-ink-soft">
                 <span>{glyph.unicode || '—'}</span>
@@ -194,8 +222,55 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                 <span className="font-mono text-[10px] text-ink-soft">{glyph.advanceWidth}u</span>
               </div>
             </button>
+            <div className="mt-2 flex items-center justify-end gap-1 border-t border-ink/10 pt-2">
+              <Button variant="quiet" icon title="تعديل بيانات المحرف" onClick={() => setEditingId(glyph.id)}>
+                <Pencil className="h-3.5 w-3.5 stroke-[1.5]" />
+              </Button>
+              <Button variant="quiet" icon title="تكرار المحرف" onClick={() => onDuplicateGlyph(glyph.id)}>
+                <Copy className="h-3.5 w-3.5 stroke-[1.5]" />
+              </Button>
+              <Button variant="quiet" icon title="حذف المحرف" onClick={() => setDeletingId(glyph.id)}>
+                <Trash2 className="h-3.5 w-3.5 stroke-[1.5]" />
+              </Button>
+            </div>
+            </div>
           ))}
         </div>
+      )}
+
+      {showPreset && (
+        <PresetModal existing={glyphs} onAdd={onAddPreset} onClose={() => setShowPreset(false)} />
+      )}
+
+      {editingId && glyphs.find((g) => g.id === editingId) && (
+        <GlyphEditModal
+          key={editingId}
+          glyph={glyphs.find((g) => g.id === editingId)!}
+          glyphs={glyphs}
+          onSave={(meta) => onEditGlyph(editingId, meta)}
+          onClose={() => setEditingId(null)}
+        />
+      )}
+
+      {deletingId && glyphs.find((g) => g.id === deletingId) && (
+        <Modal title="حذف المحرف" size="sm" onClose={() => setDeletingId(null)}>
+          <p className="text-sm leading-7">
+            سيُحذف المحرف <span className="font-mono">{glyphs.find((g) => g.id === deletingId)!.name}</span> مع
+            رسمه نهائياً ولا يمكن التراجع.
+          </p>
+          <ModalActions>
+            <Button onClick={() => setDeletingId(null)}>إلغاء</Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                onDeleteGlyph(deletingId);
+                setDeletingId(null);
+              }}
+            >
+              حذف
+            </Button>
+          </ModalActions>
+        </Modal>
       )}
 
       {showAdd && (
