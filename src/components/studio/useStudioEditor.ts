@@ -6,21 +6,27 @@ import {
   allNodeIds,
   appendNode,
   autoSmoothNodes,
-  boundsOf,
+  boundsOfTouched,
   centerInAdvance,
   clampAdvance,
   closeContour,
+  closeContours,
   constrainAngle,
   cornerNodes,
   countNodes,
   deleteNodes,
+  duplicateContours,
+  fixDirections,
   flipHFn,
   flipVFn,
   hitContour,
   hitEndpoint,
   hitHandle,
   hitNode,
+  insertNodeOnSegment,
   moveNodes,
+  nearestOnContours,
+  openContourAt,
   newNode,
   nodePositions,
   nodesInRect,
@@ -33,9 +39,12 @@ import {
   setLsb,
   setRsb,
   setSymmetricHandles,
+  signedArea,
   smoothNodes,
   snapPoint,
   transformNodes,
+  wholeContourIds,
+  wrongDirectionCount,
   effectiveGridStep,
   type Snapshot,
   type SnapContext,
@@ -58,7 +67,7 @@ export interface Rect {
 }
 
 export interface HoverTarget {
-  kind: 'node' | 'handle' | 'contour' | 'first' | 'end';
+  kind: 'node' | 'handle' | 'contour' | 'first' | 'end' | 'remove' | 'insert';
   id: string;
 }
 
@@ -73,6 +82,8 @@ interface Options {
   metrics: FontMetrics;
   /** مقياس العرض الحالي (بكسل لكل وحدة خط). */
   scale: number;
+  /** false أثناء وضع التعليمات: لا يستجيب المحرر لأي مؤشر أو مفتاح، وتبقى حالته كما هي. */
+  enabled?: boolean;
   onUpdateGlyph: (updater: (g: Glyph) => Glyph) => void;
 }
 
@@ -134,6 +145,10 @@ export const MSG = {
   outOfRange: 'التحويل سيُخرج الرسم عن الحدود المسموحة للمحرف.',
   noDrawing: 'لا يوجد رسم في هذا المحرف.',
   badMetric: 'القيمة تُخرج الرسم أو العرض عن الحدود المسموحة.',
+  noOpenPath: 'لا يوجد مسار مفتوح بثلاث نقاط أو أكثر ليُغلق.',
+  needOneClosed: 'حدد نقطة واحدة على مسار مغلق لفتحه عندها.',
+  dirsOk: 'اتجاه كل المسارات صحيح، لا حاجة لتغيير.',
+  cannotDuplicate: 'التكرار يتجاوز حدود النقاط أو المسارات أو مساحة المحرف.',
 } as const;
 
 /**
@@ -141,7 +156,9 @@ export const MSG = {
  * مصدر الحقيقة الوحيد للرسم هو glyph.contours. هذا المحرك يحتفظ بنسخة عمل متزامنة (work)
  * حتى لا تُقرأ قيمة قديمة بين حدثين متتاليين قبل إعادة الرسم.
  */
-export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Options) {
+export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdateGlyph }: Options) {
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
   const scaleRef = useRef(scale);
   scaleRef.current = scale;
   const metricsRef = useRef(metrics);
@@ -187,6 +204,7 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
   const [counts, setCounts] = useState({ past: 0, future: 0 });
   const noticeTimer = useRef<number | undefined>(undefined);
   const hoverRef = useRef<HoverTarget | null>(null);
+  const lastDown = useRef<{ at: number; x: number; y: number } | null>(null);
 
   const setSelection = (ids: ReadonlySet<string>) => {
     selRef.current = ids;
@@ -302,6 +320,7 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
     (touch ? fingers : mouse) / scaleRef.current;
 
   const pointerDown = (info: PointerInfo) => {
+    if (!enabledRef.current) return;
     const t = toolRef.current;
     if (t === 'hand') return;
     const contours = work.current.contours;
@@ -310,6 +329,13 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
     if (t === 'pen') return penDown(info);
 
     if (t === 'select') {
+      const now = Date.now();
+      const prev = lastDown.current;
+      lastDown.current = { at: now, x: info.screen.x, y: info.screen.y };
+      if (prev && now - prev.at < 380 && Math.hypot(info.screen.x - prev.x, info.screen.y - prev.y) < 8) {
+        lastDown.current = null;
+        if (doubleClick(info)) return;
+      }
       const sel = liveSelection();
       const hh = hitHandle(contours, sel, info.world, hitRadius(info.touch, 8, 14));
       if (hh) {
@@ -409,7 +435,10 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
           flash(MSG.needThree);
           return;
         }
-        commit({ contours: closeContour(contours, pen.id) });
+        const closed = closeContour(contours, pen.id);
+        const fixed = fixDirections(closed);
+        const mine = fixed.find((c) => c.id === pen.id);
+        commit({ contours: closed.map((c) => (c.id === pen.id && mine ? mine : c)) });
         setPenId(null);
         setPreview(null);
         setSelection(EMPTY);
@@ -438,6 +467,20 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
     }
 
     const ep = hitEndpoint(contours, info.world, rEnd);
+    if (!ep) {
+      // مسار موجود (مغلق أو مفتوح): نقطة = حذفها، مقطع = إدراج نقطة عليه
+      const hn = hitNode(contours, info.world, rEnd);
+      if (hn) {
+        commit({ contours: deleteNodes(contours, new Set([hn.nodeId])) });
+        setSelection(EMPTY);
+        return;
+      }
+      const seg = nearestOnContours(contours, info.world, hitRadius(info.touch, 8, 14));
+      if (seg) {
+        insertAt(seg.contourId, seg.index, seg.t, pre, info);
+        return;
+      }
+    }
     if (ep) {
       if (ep.end === 'first') {
         apply({
@@ -475,6 +518,57 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
     };
   };
 
+  /** يدرج نقطة على مقطع ويبدأ سحبها فوراً. */
+  const insertAt = (contourId: string, index: number, t: number, pre: Snapshot, info: PointerInfo): boolean => {
+    const res = insertNodeOnSegment(work.current.contours, contourId, index, t);
+    if (!res) {
+      flash(MSG.maxNodes);
+      return false;
+    }
+    apply({ contours: res.contours });
+    setSelection(new Set([res.nodeId]));
+    const n = res.contours.flatMap((c) => c.nodes).find((x) => x.id === res.nodeId)!;
+    gesture.current = {
+      kind: 'drag',
+      pre,
+      base: work.current.contours,
+      ids: new Set([res.nodeId]),
+      startWorld: info.world,
+      startScreen: info.screen,
+      grab: { x: n.x, y: n.y },
+      mode: 'point',
+      toggleId: null,
+      moved: false,
+    };
+    return true;
+  };
+
+  /** نقر مزدوج بأداة التحديد: على نقطة يبدّل ناعمة/زاوية، وعلى مقطع يدرج نقطة. */
+  const doubleClick = (info: PointerInfo): boolean => {
+    const contours = work.current.contours;
+    const pre = work.current;
+    const hn = hitNode(contours, info.world, hitRadius(info.touch, 9, 16));
+    if (hn) {
+      const node = contours.flatMap((c) => c.nodes).find((x) => x.id === hn.nodeId)!;
+      const ids = new Set([hn.nodeId]);
+      const next =
+        node.kind === 'smooth'
+          ? cornerNodes(contours, ids)
+          : node.handleIn || node.handleOut
+            ? smoothNodes(contours, ids)
+            : autoSmoothNodes(contours, ids, metricsRef.current);
+      commit({ contours: next });
+      setSelection(ids);
+      return true;
+    }
+    const seg = nearestOnContours(contours, info.world, hitRadius(info.touch, 8, 14));
+    if (seg) {
+      gesture.current = { kind: 'none' };
+      return insertAt(seg.contourId, seg.index, seg.t, pre, info);
+    }
+    return false;
+  };
+
   const resolveHover = (info: PointerInfo): HoverTarget | null => {
     const t = toolRef.current;
     const contours = work.current.contours;
@@ -487,6 +581,10 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
       if (!pen) {
         const ep = hitEndpoint(contours, info.world, rEnd);
         if (ep) return { kind: 'end', id: ep.nodeId };
+        const hn = hitNode(contours, info.world, rEnd);
+        if (hn) return { kind: 'remove', id: hn.nodeId };
+        const seg = nearestOnContours(contours, info.world, hitRadius(info.touch, 8, 14));
+        if (seg) return { kind: 'insert', id: `${seg.contourId}:${seg.index}:${Math.round(seg.point.x)}:${Math.round(seg.point.y)}` };
       }
       return null;
     }
@@ -504,6 +602,7 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
   };
 
   const pointerMove = (info: PointerInfo) => {
+    if (!enabledRef.current) return;
     const g = gesture.current;
     const m = metricsRef.current;
 
@@ -588,6 +687,7 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
   };
 
   const pointerUp = (info: PointerInfo) => {
+    if (!enabledRef.current && gesture.current.kind === 'none') return;
     const g = gesture.current;
     if (g.kind === 'none') return;
     gesture.current = { kind: 'none' };
@@ -640,9 +740,10 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
   };
 
   /* ---------- أوامر ---------- */
+  /** التحويلات تعمل دائماً على مسارات كاملة: المسارات التي فيها تحديد، أو المحرف كله. */
   const targetIds = (): ReadonlySet<string> => {
     const sel = liveSelection();
-    return sel.size > 0 ? sel : allNodeIds(work.current.contours);
+    return sel.size > 0 ? wholeContourIds(work.current.contours, sel) : allNodeIds(work.current.contours);
   };
 
   const selectAll = () => {
@@ -686,7 +787,7 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
   };
 
   const center = () => {
-    const b = boundsOf(work.current.contours, liveSelection());
+    const b = boundsOfTouched(work.current.contours, liveSelection());
     return b ? { cx: (b.xMin + b.xMax) / 2, cy: (b.yMin + b.yMax) / 2 } : null;
   };
 
@@ -720,8 +821,55 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
   const autoSmooth = () => nodeOp((c, ids) => autoSmoothNodes(c, ids, metricsRef.current));
 
   const reverse = () => {
-    if (work.current.contours.length === 0) return flash(MSG.noDrawing);
-    commit({ contours: reverseContours(work.current.contours, liveSelection()) });
+    const before = work.current.contours;
+    if (before.length === 0) return flash(MSG.noDrawing);
+    const next = reverseContours(before, liveSelection());
+    commit({ contours: next });
+    const n = next.filter((c, i) => c !== before[i]).length;
+    const one = next.find((c, i) => c !== before[i]);
+    flash(
+      n === 1 && one && one.closed && one.nodes.length >= 3
+        ? `انعكس اتجاه المسار، وهو الآن ${signedArea(one) > 0 ? 'عكس' : 'مع'} عقارب الساعة.`
+        : `انعكس اتجاه ${n} مسار.`
+    );
+  };
+
+  const autoDirection = () => {
+    const before = work.current.contours;
+    if (before.length === 0) return flash(MSG.noDrawing);
+    const n = wrongDirectionCount(before);
+    if (n === 0) return flash(MSG.dirsOk);
+    commit({ contours: fixDirections(before) });
+    flash(`صُحّح اتجاه ${n} مسار: الخارجي عكس عقارب الساعة والثقوب معها.`);
+  };
+
+  const closeSelected = () => {
+    const before = work.current.contours;
+    const closed = closeContours(before, liveSelection());
+    if (!closed.some((c, i) => c !== before[i])) return flash(MSG.noOpenPath);
+    const fixed = fixDirections(closed);
+    // الاتجاه يُصحَّح للمسارات التي أُغلقت الآن فقط
+    const next = closed.map((c, i) => (c !== before[i] ? fixed[i] : c));
+    commit({ contours: next });
+    if (penRef.current && !penContour()) setPenId(null);
+    if (penContour()?.closed) {
+      setPenId(null);
+      setPreview(null);
+    }
+  };
+
+  const openAtSelected = () => {
+    const sel = liveSelection();
+    const c = sel.size === 1 ? work.current.contours.find((x) => x.closed && x.nodes.some((n) => sel.has(n.id))) : null;
+    if (!c) return flash(MSG.needOneClosed);
+    commit({ contours: openContourAt(work.current.contours, [...sel][0]) });
+  };
+
+  const duplicate = () => {
+    const res = duplicateContours(work.current.contours, liveSelection(), 40, -40, metricsRef.current);
+    if (!res) return flash(MSG.cannotDuplicate);
+    commit({ contours: res.contours });
+    setSelection(res.newIds);
   };
 
   const setAdvance = (v: number) => {
@@ -758,9 +906,9 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
 
   /* ---------- لوحة المفاتيح ---------- */
   const latest = useRef({
-    undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen,
+    undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate,
   });
-  latest.current = { undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen };
+  latest.current = { undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate };
 
   useEffect(() => {
     const typing = (t: EventTarget | null) =>
@@ -770,6 +918,7 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
 
     const down = (e: KeyboardEvent) => {
       if (typing(e.target)) return;
+      if (!enabledRef.current) return;
       const L = latest.current;
       const mod = e.ctrlKey || e.metaKey;
 
@@ -784,6 +933,9 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
         } else if (e.code === 'KeyA') {
           e.preventDefault();
           L.selectAll();
+        } else if (e.code === 'KeyD') {
+          e.preventDefault();
+          L.duplicate();
         }
         return;
       }
@@ -902,6 +1054,10 @@ export function useStudioEditor({ glyph, metrics, scale, onUpdateGlyph }: Option
     corner,
     autoSmooth,
     reverse,
+    autoDirection,
+    closeSelected,
+    openAtSelected,
+    duplicate,
     setAdvance,
     changeLsb,
     changeRsb,

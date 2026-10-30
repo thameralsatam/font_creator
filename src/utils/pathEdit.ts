@@ -557,7 +557,7 @@ export function reverseContours(contours: Contour[], ids: ReadonlySet<string>): 
 /* ---------- تحويلات ---------- */
 
 export const flipHFn = (cx: number) => (p: Vec): Vec => ({ x: 2 * cx - p.x, y: p.y });
-export const flipVFn = (cy: number) => (p: Vec): Vec => ({ x: 2 * cy - p.y, y: p.y });
+export const flipVFn = (cy: number) => (p: Vec): Vec => ({ x: p.x, y: 2 * cy - p.y });
 export const scaleFn = (cx: number, cy: number, k: number) => (p: Vec): Vec => ({
   x: cx + (p.x - cx) * k,
   y: cy + (p.y - cy) * k,
@@ -707,4 +707,255 @@ export function centerInAdvance(s: Snapshot, m: FontMetrics): Snapshot | null {
   const r = coordRange(m);
   if (b.xMin + dx < r.xMin || b.xMax + dx > r.xMax) return null;
   return { contours: translateAll(s.contours, dx, 0), advanceWidth: s.advanceWidth };
+}
+
+/* ============================================================
+   الدفعة 13: مسارات كاملة، اتجاه، إدراج نقطة، تكرار
+   ============================================================ */
+
+/** كل نقاط المسارات التي فيها نقطة واحدة محددة على الأقل (التحويلات تعمل على مسارات كاملة دائماً). */
+export function wholeContourIds(contours: Contour[], ids: ReadonlySet<string>): Set<string> {
+  const out = new Set<string>();
+  for (const c of contours) {
+    if (c.nodes.some((n) => ids.has(n.id))) c.nodes.forEach((n) => out.add(n.id));
+  }
+  return out;
+}
+
+/** حدود المسارات التي فيها المحدد (أو كلها إن لم يكن هناك تحديد)، بدقة المنحنيات. */
+export function boundsOfTouched(contours: Contour[], ids: ReadonlySet<string>): Bounds | null {
+  const touched = ids.size === 0 ? contours : contours.filter((c) => c.nodes.some((n) => ids.has(n.id)));
+  return boundsOf(touched);
+}
+
+/** المساحة الموقّعة: موجبة = عكس عقارب الساعة (والمحور الرأسي للأعلى). */
+export function signedArea(c: Contour): number {
+  const p = flattenContour(c);
+  let a = 0;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+    a += p[j].x * p[i].y - p[i].x * p[j].y;
+  }
+  return a / 2;
+}
+
+export function isCounterClockwise(c: Contour): boolean {
+  return signedArea(c) > 0;
+}
+
+/** عدد المسارات المغلقة الأخرى التي تحتوي هذا المسار. 0 = خارجي، 1 = ثقب، وهكذا. */
+export function containmentDepth(contours: Contour[], c: Contour): number {
+  if (c.nodes.length === 0) return 0;
+  const probe = { x: c.nodes[0].x, y: c.nodes[0].y };
+  let d = 0;
+  for (const o of contours) {
+    if (o.id === c.id || !o.closed || o.nodes.length < 3) continue;
+    if (pointInPolygon(probe, flattenContour(o))) d++;
+  }
+  return d;
+}
+
+/** الاتجاه الصحيح: الخارجي عكس عقارب الساعة والثقوب مع عقاربها. يعيد المصفوفة نفسها إن كان كله صحيحاً. */
+export function fixDirections(contours: Contour[]): Contour[] {
+  let changed = false;
+  const out = contours.map((c) => {
+    if (!c.closed || c.nodes.length < 3) return c;
+    const area = signedArea(c);
+    if (area === 0) return c;
+    const wantCcw = containmentDepth(contours, c) % 2 === 0;
+    if (area > 0 === wantCcw) return c;
+    changed = true;
+    return reverseContour(c);
+  });
+  return changed ? out : contours;
+}
+
+/** كم مساراً مغلقاً اتجاهه خطأ. */
+export function wrongDirectionCount(contours: Contour[]): number {
+  const fixed = fixDirections(contours);
+  return fixed === contours ? 0 : fixed.filter((c, i) => c !== contours[i]).length;
+}
+
+export interface SegmentHit {
+  contourId: string;
+  /** رقم النقطة التي يبدأ منها المقطع. المقطع الأخير في المغلق يعود للنقطة الأولى. */
+  index: number;
+  t: number;
+  point: Vec;
+  distance: number;
+}
+
+/** أقرب مقطع (خط أو منحنى) إلى نقطة، ضمن tolerance. */
+export function nearestOnContours(contours: Contour[], p: Vec, tolerance: number): SegmentHit | null {
+  let best: SegmentHit | null = null;
+  for (const c of contours) {
+    const n = c.nodes.length;
+    const count = c.closed ? n : n - 1;
+    for (let i = 0; i < count; i++) {
+      const a = c.nodes[i];
+      const b = c.nodes[(i + 1) % n];
+      const straight = !a.handleOut && !b.handleIn;
+      let t: number;
+      if (straight) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len2 = dx * dx + dy * dy;
+        t = len2 === 0 ? 0 : clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / len2, 0, 1);
+      } else {
+        const N = 32;
+        let bt = 0;
+        let bd = Infinity;
+        for (let k = 0; k <= N; k++) {
+          const q = bez(a, b, k / N);
+          const d = Math.hypot(p.x - q.x, p.y - q.y);
+          if (d < bd) {
+            bd = d;
+            bt = k / N;
+          }
+        }
+        let lo = Math.max(0, bt - 1 / N);
+        let hi = Math.min(1, bt + 1 / N);
+        for (let k = 0; k < 12; k++) {
+          const m1 = lo + (hi - lo) / 3;
+          const m2 = hi - (hi - lo) / 3;
+          const q1 = bez(a, b, m1);
+          const q2 = bez(a, b, m2);
+          if (Math.hypot(p.x - q1.x, p.y - q1.y) < Math.hypot(p.x - q2.x, p.y - q2.y)) hi = m2;
+          else lo = m1;
+        }
+        t = (lo + hi) / 2;
+      }
+      const q = bez(a, b, t);
+      const d = Math.hypot(p.x - q.x, p.y - q.y);
+      if (d <= tolerance && (!best || d < best.distance)) {
+        best = { contourId: c.id, index: i, t, point: q, distance: d };
+      }
+    }
+  }
+  return best;
+}
+
+const lerp = (a: Vec, b: Vec, t: number): Vec => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+const rv = (h: Vec): Vec | null => {
+  const v = { x: Math.round(h.x), y: Math.round(h.y) };
+  return v.x === 0 && v.y === 0 ? null : v;
+};
+
+/** إدراج نقطة على مقطع دون تغيير شكله (de Casteljau). يعيد null عند بلوغ حد النقاط. */
+export function insertNodeOnSegment(
+  contours: Contour[],
+  contourId: string,
+  index: number,
+  t: number
+): { contours: Contour[]; nodeId: string } | null {
+  if (countNodes(contours) >= LIMITS.maxNodes) return null;
+  const c = contours.find((x) => x.id === contourId);
+  if (!c) return null;
+  const n = c.nodes.length;
+  const a = c.nodes[index];
+  const b = c.nodes[(index + 1) % n];
+  if (!a || !b || (!c.closed && index >= n - 1)) return null;
+
+  const tt = clamp(t, 0.02, 0.98);
+  const id = uid('node');
+  let fresh: PathNode;
+  let na: PathNode = a;
+  let nb: PathNode = b;
+
+  if (!a.handleOut && !b.handleIn) {
+    const p = lerp(a, b, tt);
+    fresh = { id, x: Math.round(p.x), y: Math.round(p.y), kind: 'corner', handleIn: null, handleOut: null };
+  } else {
+    const p0 = { x: a.x, y: a.y };
+    const p1 = { x: a.x + (a.handleOut?.x ?? 0), y: a.y + (a.handleOut?.y ?? 0) };
+    const p2 = { x: b.x + (b.handleIn?.x ?? 0), y: b.y + (b.handleIn?.y ?? 0) };
+    const p3 = { x: b.x, y: b.y };
+    const q0 = lerp(p0, p1, tt);
+    const q1 = lerp(p1, p2, tt);
+    const q2 = lerp(p2, p3, tt);
+    const r0 = lerp(q0, q1, tt);
+    const r1 = lerp(q1, q2, tt);
+    const s = lerp(r0, r1, tt);
+    const sx = Math.round(s.x);
+    const sy = Math.round(s.y);
+    fresh = {
+      id,
+      x: sx,
+      y: sy,
+      kind: 'smooth',
+      handleIn: rv({ x: r0.x - sx, y: r0.y - sy }),
+      handleOut: rv({ x: r1.x - sx, y: r1.y - sy }),
+    };
+    na = { ...a, handleOut: rv({ x: q0.x - a.x, y: q0.y - a.y }) };
+    nb = { ...b, handleIn: rv({ x: q2.x - b.x, y: q2.y - b.y }) };
+  }
+
+  const nodes = c.nodes.map((x) => (x.id === a.id ? na : x.id === b.id ? nb : x));
+  const at = index + 1;
+  nodes.splice(at, 0, fresh);
+  return {
+    contours: contours.map((x) => (x.id === contourId ? { ...x, nodes } : x)),
+    nodeId: id,
+  };
+}
+
+/** يفتح مسار مغلق عند نقطة (تصير طرفاً). */
+export function openContourAt(contours: Contour[], nodeId: string): Contour[] {
+  return contours.map((c) => {
+    if (!c.closed) return c;
+    const i = c.nodes.findIndex((n) => n.id === nodeId);
+    if (i < 0) return c;
+    return { ...c, closed: false, nodes: [...c.nodes.slice(i + 1), ...c.nodes.slice(0, i + 1)] };
+  });
+}
+
+/** يغلق كل مسار مفتوح فيه نقطة محددة (أو كل المفتوحة إن لم يكن هناك تحديد). */
+export function closeContours(contours: Contour[], ids: ReadonlySet<string>): Contour[] {
+  return contours.map((c) =>
+    !c.closed && c.nodes.length >= 3 && (ids.size === 0 || c.nodes.some((n) => ids.has(n.id)))
+      ? { ...c, closed: true }
+      : c
+  );
+}
+
+export function hasClosable(contours: Contour[], ids: ReadonlySet<string>): boolean {
+  return closeContours(contours, ids).some((c, i) => c !== contours[i]);
+}
+
+/** نسخ المسارات المحددة (أو كلها) بإزاحة. يعيد null إن تجاوز الحدود. */
+export function duplicateContours(
+  contours: Contour[],
+  ids: ReadonlySet<string>,
+  dx: number,
+  dy: number,
+  m: FontMetrics
+): { contours: Contour[]; newIds: Set<string> } | null {
+  const src = ids.size === 0 ? contours : contours.filter((c) => c.nodes.some((n) => ids.has(n.id)));
+  if (src.length === 0) return null;
+  if (contours.length + src.length > LIMITS.maxContours) return null;
+  if (countNodes(contours) + countNodes(src) > LIMITS.maxNodes) return null;
+  const r = coordRange(m);
+  const newIds = new Set<string>();
+  const copies: Contour[] = [];
+  for (const c of src) {
+    const nodes = c.nodes.map((n) => {
+      const nid = uid('node');
+      newIds.add(nid);
+      return { ...n, id: nid, x: n.x + dx, y: n.y + dy };
+    });
+    if (nodes.some((n) => n.x < r.xMin || n.x > r.xMax || n.y < r.yMin || n.y > r.yMax)) return null;
+    copies.push({ ...c, id: uid('contour'), nodes });
+  }
+  return { contours: [...contours, ...copies], newIds };
+}
+
+/** موضع واتجاه سهم يدل على اتجاه المسار (منتصف أول مقطع). */
+export function contourArrow(c: Contour): { at: Vec; dir: Vec } | null {
+  if (c.nodes.length < 2) return null;
+  const a = c.nodes[0];
+  const b = c.nodes[1];
+  const p = bez(a, b, 0.5);
+  const q = bez(a, b, 0.56);
+  const len = Math.hypot(q.x - p.x, q.y - p.y);
+  if (len === 0) return null;
+  return { at: p, dir: { x: (q.x - p.x) / len, y: (q.y - p.y) / len } };
 }

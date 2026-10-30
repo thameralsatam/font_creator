@@ -5,6 +5,7 @@ import { defaultGlyphName, defaultUnicode, validateNewGlyph } from '../utils/fon
 import { CATEGORY_LABEL } from '../utils/labels';
 import { AnimatedCounter } from './AnimatedCounter';
 import { GlyphThumb } from './GlyphThumb';
+import { HelpBookButton } from './help/HelpBook';
 import { Button } from './ui/Button';
 import { Modal, ModalActions } from './ui/Modal';
 
@@ -105,6 +106,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <HelpBookButton />
           <Button onClick={onOpenMetrics}>
             <Sliders className="h-3.5 w-3.5 stroke-[1.5]" />
             <span>المقاييس</span>

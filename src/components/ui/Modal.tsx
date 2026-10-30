@@ -11,12 +11,12 @@ interface ModalProps {
   title: string;
   subtitle?: string;
   icon?: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   onClose: () => void;
   children: React.ReactNode;
 }
 
-const SIZES = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-xl' } as const;
+const SIZES = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-xl', xl: 'max-w-3xl' } as const;
 
 export const Modal: React.FC<ModalProps> = ({
   title,

@@ -8,6 +8,7 @@ import React, {
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
 import { Button } from './Button';
+import { useHelp } from '../help/HelpContext';
 
 /*
   القائمة المنسدلة الموحّدة. كل مجموعة أدوات تعيش داخل زر واحد يفتح قائمة.
@@ -29,6 +30,8 @@ interface DropdownProps {
   /** عرض القائمة بالبكسل. يقلّ تلقائياً إن كانت الشاشة أضيق منه. */
   width?: number;
   soon?: boolean;
+  /** في وضع التعليمات: الضغطة الأولى تشرح الزر، والثانية تفتح القائمة. */
+  helpId?: string;
   children: (close: () => void) => React.ReactNode;
 }
 
@@ -52,14 +55,21 @@ export const Dropdown: React.FC<DropdownProps> = ({
   align = 'start',
   width = 256,
   soon = false,
+  helpId,
   children,
 }) => {
+  const help = useHelp();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<Position | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => setOpen(false), []);
+
+  // عند إطفاء وضع التعليمات تُغلق القوائم المفتوحة
+  useEffect(() => {
+    if (!help.on) setOpen(false);
+  }, [help.on]);
 
   const compute = useCallback(() => {
     const trigger = triggerRef.current;
@@ -108,6 +118,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
       const target = e.target as Node;
       if (triggerRef.current?.contains(target)) return;
       if (panelRef.current?.contains(target)) return;
+      if (target instanceof Element && target.closest('[data-help-panel]')) return;
       setOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
@@ -141,7 +152,13 @@ export const Dropdown: React.FC<DropdownProps> = ({
         aria-haspopup="menu"
         aria-expanded={open}
         className="shrink-0"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (help.on && helpId && help.topicId !== helpId) {
+            help.show(helpId);
+            return;
+          }
+          setOpen((v) => !v);
+        }}
       >
         {icon}
         <span className={labelOnMobile ? '' : 'hidden md:inline'}>{label}</span>
@@ -183,6 +200,8 @@ interface MenuItemProps {
   /** عند تمريرها (true أو false) تظهر علامة اختيار عند true. */
   active?: boolean;
   soon?: boolean;
+  /** معرّف الشرح في وضع التعليمات. */
+  helpId?: string;
   /** معطّل مؤقتاً لعدم انطباق الأمر الآن (ليس "قريباً"). */
   disabled?: boolean;
   onClick?: () => void;
@@ -195,15 +214,18 @@ export const MenuItem: React.FC<MenuItemProps> = ({
   active,
   soon = false,
   disabled = false,
+  helpId,
   onClick,
-}) => (
+}) => {
+  const help = useHelp();
+  return (
   <button
     type="button"
     role="menuitem"
     className={`menu-item ${soon ? 'is-soon' : ''}`}
-    disabled={soon || disabled}
+    disabled={!help.on && (soon || disabled)}
     title={soon ? `${label} (قريباً)` : undefined}
-    onClick={onClick}
+    onClick={help.on ? () => help.show(helpId ?? null) : onClick}
   >
     {icon && <span className="flex h-4 w-4 items-center justify-center">{icon}</span>}
     <span className="flex-1">{label}</span>
@@ -212,7 +234,8 @@ export const MenuItem: React.FC<MenuItemProps> = ({
       <Check className={`h-3.5 w-3.5 stroke-[1.5] ${active ? 'opacity-100' : 'opacity-0'}`} />
     )}
   </button>
-);
+  );
+};
 
 export const MenuLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="px-2 pb-1 pt-2 text-[11px] text-ink-soft">{children}</div>

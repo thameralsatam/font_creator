@@ -12,6 +12,7 @@ import {
 import { type FontProject } from '../types/font';
 import { AnimatedCounter } from './AnimatedCounter';
 import { GlyphThumb } from './GlyphThumb';
+import { HelpBookButton } from './help/HelpBook';
 import { Button } from './ui/Button';
 import { Modal, ModalActions } from './ui/Modal';
 
@@ -91,6 +92,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
         </div>
 
         {/* لا يظهر هنا عند عدم وجود مشاريع حتى لا يتكرر مع الحالة الفارغة */}
+        <HelpBookButton />
         {hasProjects && (
           <Button variant="primary" className="self-start md:self-auto" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4 stroke-[1.5]" />

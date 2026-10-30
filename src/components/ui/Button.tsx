@@ -1,4 +1,5 @@
 import React from 'react';
+import { useHelp } from '../help/HelpContext';
 
 /*
   قواعد استعمال الزر في كل المشروع:
@@ -18,6 +19,8 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: boolean;
   active?: boolean;
   soon?: boolean;
+  /** معرّف الشرح في وضع التعليمات: الضغط يشرح الزر بدل أن ينفّذ. */
+  helpId?: string;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -32,10 +35,14 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       disabled,
       type = 'button',
       children,
+      helpId,
+      onClick,
       ...rest
     },
     ref
   ) => {
+    const help = useHelp();
+    const helping = help.on && !!helpId;
     const classes = [
       'btn',
       `btn-${variant}`,
@@ -52,7 +59,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         type={type}
         className={classes}
-        disabled={disabled || soon}
+        disabled={(disabled && !helping) || (soon && !helping)}
+        onClick={helping ? () => help.show(helpId!) : onClick}
         aria-pressed={active}
         title={soon ? (title ? `${title} (قريباً)` : 'قريباً') : title}
         {...rest}

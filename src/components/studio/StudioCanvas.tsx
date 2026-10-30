@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { type FontMetrics, type Glyph } from '../../types/font';
 import { contourToPath } from '../../utils/pathGeometry';
-import { effectiveGridStep } from '../../utils/pathEdit';
+import { contourArrow, effectiveGridStep } from '../../utils/pathEdit';
 import { type PointerInfo, type StudioEditor } from './useStudioEditor';
 import { useViewport } from './useViewport';
 
@@ -10,6 +10,8 @@ export interface ViewOptions {
   metrics: boolean;
   nodes: boolean;
   anchors: boolean;
+  /** أسهم تبيّن اتجاه كل مسار. */
+  direction: boolean;
 }
 
 interface StudioCanvasProps {
@@ -20,6 +22,8 @@ interface StudioCanvasProps {
   editor: StudioEditor;
   /** يضبطه الكانفاس: هل المؤشر الحالي يحرّك اللوحة بدل الأداة؟ يقرؤه useViewport. */
   panMode: React.MutableRefObject<boolean>;
+  /** في وضع التعليمات: الضغط على اللوحة يشرحها بدل أن يرسم. */
+  onHelp?: () => void;
 }
 
 /**
@@ -38,6 +42,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   options,
   editor,
   panMode,
+  onHelp,
 }) => {
   const { ref, bind, size, view } = viewport;
   const { scale: s, ox, oy } = view;
@@ -90,6 +95,10 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
     panMode.current = wantPan;
     if (wantPan || e.button !== 0) return;
     multi.current = false;
+    if (onHelp) {
+      onHelp();
+      return;
+    }
     editor.pointerDown(toInfo(e));
   };
 
@@ -127,8 +136,20 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
   const hoverContourId = editor.hover?.kind === 'contour' ? editor.hover.id : null;
   const hoverNodeId =
-    editor.hover && (editor.hover.kind === 'first' || editor.hover.kind === 'end' || editor.hover.kind === 'node')
+    editor.hover &&
+    (editor.hover.kind === 'first' ||
+      editor.hover.kind === 'end' ||
+      editor.hover.kind === 'node' ||
+      editor.hover.kind === 'remove')
       ? editor.hover.id
+      : null;
+  const removing = editor.hover?.kind === 'remove';
+  const insertAt =
+    editor.hover?.kind === 'insert'
+      ? (() => {
+          const parts = editor.hover.id.split(':');
+          return { x: Number(parts[parts.length - 2]), y: Number(parts[parts.length - 1]) };
+        })()
       : null;
 
   const pv = editor.preview;
@@ -283,11 +304,50 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
                   {target && (
                     <circle cx={sx(n.x)} cy={sy(n.y)} r="12" fill="none" className="stroke-sand-deep" strokeWidth="2" />
                   )}
+                  {target && removing && (
+                    <path
+                      d={`M ${sx(n.x) - 5} ${sy(n.y) - 5} L ${sx(n.x) + 5} ${sy(n.y) + 5} M ${sx(n.x) + 5} ${sy(n.y) - 5} L ${sx(n.x) - 5} ${sy(n.y) + 5}`}
+                      className="stroke-ink"
+                      strokeWidth="1.5"
+                    />
+                  )}
                 </g>
               );
             })}
           </g>
         ))}
+
+      {/* أسهم الاتجاه */}
+      {options.direction &&
+        glyph.contours.map((c) => {
+          const ar = contourArrow(c);
+          if (!ar) return null;
+          const x = sx(ar.at.x);
+          const y = sy(ar.at.y);
+          const dx = ar.dir.x;
+          const dy = -ar.dir.y;
+          const nx = -dy;
+          const ny = dx;
+          return (
+            <path
+              key={c.id}
+              d={`M ${x + dx * 7} ${y + dy * 7} L ${x - dx * 5 + nx * 5} ${y - dy * 5 + ny * 5} L ${x - dx * 5 - nx * 5} ${y - dy * 5 - ny * 5} Z`}
+              className="fill-sand-deep stroke-ink"
+              strokeWidth="1"
+            />
+          );
+        })}
+
+      {insertAt && (
+        <g className="pointer-events-none">
+          <circle cx={sx(insertAt.x)} cy={sy(insertAt.y)} r="7" className="fill-sand-deep/60 stroke-ink" strokeWidth="1.5" />
+          <path
+            d={`M ${sx(insertAt.x) - 3} ${sy(insertAt.y)} H ${sx(insertAt.x) + 3} M ${sx(insertAt.x)} ${sy(insertAt.y) - 3} V ${sy(insertAt.y) + 3}`}
+            className="stroke-ink"
+            strokeWidth="1.2"
+          />
+        </g>
+      )}
 
       {options.anchors &&
         glyph.anchors.map((a) => (
