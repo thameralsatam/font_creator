@@ -8,6 +8,7 @@ import {
   type PathNode,
 } from '../types/font';
 import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
+import { computeFeatures, rulesForBuild } from './features';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
 
 /*
@@ -69,9 +70,13 @@ export function checkProject(project: FontProject): BuildReport {
   if (empty.length) warnings.push(`محارف بلا رسم: ${list(empty.map((g) => g.name))}.`);
 
   const noCode = glyphs.filter((g) => parseUnicode(g.unicode) === null);
-  if (noCode.length && noCode.length < glyphs.length) {
-    warnings.push(`محارف بلا رمز يونيكود لن تُكتب مباشرة (تحتاج قواعد تبديل): ${list(noCode.map((g) => g.name))}.`);
+  const feats = computeFeatures(glyphs);
+  const unnamed = noCode.filter((g) => !feats.rules.some((r) => r.to === g.name));
+  if (unnamed.length && noCode.length < glyphs.length) {
+    warnings.push(`محارف بلا رمز يونيكود ولا ميزة تستدعيها فلن تظهر أبداً: ${list(unnamed.map((g) => g.name))}. سمِّها بلاحقة .init أو .medi أو .fina.`);
   }
+  if (feats.gaps.length) warnings.push(`ميزات ناقصة: ${list(feats.gaps.map((x) => `${x.glyph} (${x.message})`))}.`);
+  if (feats.mismatches.length) warnings.push(`شكل المحرف لا يطابق لاحقة اسمه: ${list(feats.mismatches)}.`);
   return { errors, warnings };
 }
 
@@ -156,6 +161,31 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
     version: `Version ${project.version}`,
     glyphs,
   });
+  // ارتفاعا الحروف الصغيرة والكبيرة يُكتبان كما ضبطتهما، وإلا خمّنتهما المكتبة من حروف لاتينية
+  (font.tables as unknown as Record<string, unknown>).os2 = {
+    sxHeight: m.xHeight,
+    sCapHeight: m.capHeight,
+    sTypoAscender: m.ascender,
+    sTypoDescender: m.descender,
+  };
+
+  // ميزات الأوبن تايب المستخرجة من أسماء المحارف (init وmedi وfina وisol وrlig)
+  const sub = font.substitution as unknown as {
+    addSingle(f: string, s: { sub: number; by: number }, script: string, lang: string): void;
+    addLigature(f: string, s: { sub: number[]; by: number }, script: string, lang: string): void;
+  };
+  const index = new Map(glyphs.map((gl, i) => [gl.name, i]));
+  for (const r of rulesForBuild(computeFeatures(project.glyphs))) {
+    const ids = r.from.map((n) => index.get(n));
+    const by = index.get(r.to);
+    if (by === undefined || ids.some((x) => x === undefined)) continue;
+    if (r.kind === 'single') {
+      sub.addSingle(r.feature, { sub: ids[0] as number, by }, 'arab', 'dflt');
+    } else {
+      sub.addLigature(r.feature, { sub: ids as number[], by }, 'arab', 'dflt');
+    }
+  }
+
   (font.names as unknown as Record<string, Record<string, string>>).postScriptName = {
     en: safePsName(family) + '-Regular',
   };
@@ -181,7 +211,7 @@ const nz = (v: { x: number; y: number }) => (v.x === 0 && v.y === 0 ? null : v);
 /** هل المقبضان على خط واحد تقريباً (نقطة ناعمة)؟ */
 function collinear(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
   const la = Math.hypot(a.x, a.y);
-  const lb = Math.hypot(b.y, b.y);
+  const lb = Math.hypot(b.x, b.y);
   if (la === 0 || lb === 0) return false;
   const cross = Math.abs(a.x * b.y - a.y * b.x) / (la * lb);
   const dot = a.x * b.x + a.y * b.y;

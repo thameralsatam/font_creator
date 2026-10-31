@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ArrowRight, Copy, Download, Layers, Pencil, PenTool, Plus, Sliders, Trash2 } from 'lucide-react';
+import { ArrowRight, Copy, Download, Layers, Pencil, PenTool, Plus, Sliders, Sparkles, Trash2 } from 'lucide-react';
 import { type FontProject, type GlyphCategory, type NewGlyphData } from '../types/font';
-import { type GlyphMeta } from '../utils/glyphLogic';
+import { type GlyphMeta, type SortMode, isReady, sortGlyphs } from '../utils/glyphLogic';
 import { defaultGlyphName, defaultUnicode, validateNewGlyph } from '../utils/fontLogic';
 import { CATEGORY_LABEL } from '../utils/labels';
 import { AnimatedCounter } from './AnimatedCounter';
+import { FeaturesModal } from './FeaturesModal';
 import { GlyphEditModal } from './GlyphEditModal';
 import { GlyphThumb } from './GlyphThumb';
 import { PresetModal } from './PresetModal';
@@ -22,6 +23,7 @@ interface ProjectOverviewProps {
   onAddPreset: (items: NewGlyphData[]) => void;
   onEditGlyph: (glyphId: string, meta: GlyphMeta) => void;
   onDeleteGlyph: (glyphId: string) => void;
+  onDeleteGlyphs: (glyphIds: string[]) => void;
   onDuplicateGlyph: (glyphId: string) => void;
 }
 
@@ -35,8 +37,12 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
   onAddPreset,
   onEditGlyph,
   onDeleteGlyph,
+  onDeleteGlyphs,
   onDuplicateGlyph,
 }) => {
+  const [sort, setSort] = useState<SortMode>('ready');
+  const [confirmEmpty, setConfirmEmpty] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [showPreset, setShowPreset] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -52,6 +58,8 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
   const { metrics, glyphs } = project;
   const activeFeatures = project.features.filter((f) => f.enabled).length;
   const isEmpty = glyphs.length === 0;
+  const shown = sortGlyphs(glyphs, sort);
+  const notReadyIds = glyphs.filter((g) => !isReady(g)).map((g) => g.id);
 
   const closeAdd = () => {
     setShowAdd(false);
@@ -125,6 +133,10 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
             <Sliders className="h-3.5 w-3.5 stroke-[1.5]" />
             <span>المقاييس</span>
           </Button>
+          <Button onClick={() => setShowFeatures(true)}>
+            <Sparkles className="h-3.5 w-3.5 stroke-[1.5]" />
+            <span>الميزات</span>
+          </Button>
           <Button onClick={onOpenExport}>
             <Download className="h-3.5 w-3.5 stroke-[1.5]" />
             <span>تصدير</span>
@@ -164,7 +176,26 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
             {glyphs.length}
           </span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
+          {!isEmpty && (
+            <select
+              aria-label="ترتيب المحارف"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortMode)}
+              className="field"
+              style={{ width: 'auto', height: 36 }}
+            >
+              <option value="ready">الجاهزة أولاً</option>
+              <option value="added">حسب الإضافة</option>
+              <option value="code">حسب اليونيكود</option>
+            </select>
+          )}
+          {notReadyIds.length > 0 && (
+            <Button title="حذف كل المحارف التي لم تُرسم بعد" onClick={() => setConfirmEmpty(true)}>
+              <Trash2 className="h-3.5 w-3.5 stroke-[1.5]" />
+              <span>حذف غير الجاهزة ({notReadyIds.length})</span>
+            </Button>
+          )}
           <Button onClick={() => setShowPreset(true)}>
             <Layers className="h-3.5 w-3.5 stroke-[1.5]" />
             <span>مجموعات جاهزة</span>
@@ -195,7 +226,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {glyphs.map((glyph) => (
+          {shown.map((glyph) => (
             <div
               key={glyph.id}
               className="glass-panel group flex flex-col items-stretch rounded-2xl p-4 transition-all hover:-translate-y-1 hover:border-ink/45 hover:shadow-md"
@@ -236,6 +267,39 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
             </div>
           ))}
         </div>
+      )}
+
+      {showFeatures && (
+        <FeaturesModal
+          project={project}
+          onAddGlyphs={onAddPreset}
+          onOpenGlyph={(id) => {
+            setShowFeatures(false);
+            onEnterStudio(id);
+          }}
+          onClose={() => setShowFeatures(false)}
+        />
+      )}
+
+      {confirmEmpty && (
+        <Modal title="حذف المحارف غير الجاهزة" size="sm" onClose={() => setConfirmEmpty(false)}>
+          <p className="text-sm leading-7">
+            سيُحذف <span className="font-mono">{notReadyIds.length}</span> محرف لم يُرسم فيه مسار مغلق بعد
+            (محرف الفراغ يبقى). لا يمكن التراجع، لكن يمكنك إعادتها من المجموعات الجاهزة.
+          </p>
+          <ModalActions>
+            <Button onClick={() => setConfirmEmpty(false)}>إلغاء</Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                onDeleteGlyphs(notReadyIds);
+                setConfirmEmpty(false);
+              }}
+            >
+              حذف
+            </Button>
+          </ModalActions>
+        </Modal>
       )}
 
       {showPreset && (

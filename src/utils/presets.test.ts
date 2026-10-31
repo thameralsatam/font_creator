@@ -6,9 +6,10 @@ import { PRESETS, missingOf } from './presets';
 test('every preset item is valid and unique across all presets', () => {
   const all = PRESETS.flatMap((p) => p.items);
   const names = new Set(all.map((i) => i.name));
-  const codes = new Set(all.map((i) => i.unicode));
+  const coded = all.filter((i) => i.unicode);
+  const codes = new Set(coded.map((i) => i.unicode));
   assert.equal(names.size, all.length);
-  assert.equal(codes.size, all.length);
+  assert.equal(codes.size, coded.length);
   let acc: ReturnType<typeof createGlyph>[] = [];
   for (const i of all) {
     assert.equal(validateNewGlyph(acc, i), null, i.name);
@@ -19,6 +20,9 @@ test('every preset item is valid and unique across all presets', () => {
 test('missingOf skips glyphs already present by name or code', () => {
   const letters = PRESETS[0].items;
   assert.equal(letters.length, 36);
+  const forms = PRESETS.find((p) => p.id === 'forms')!.items;
+  assert.equal(forms.length, 81);
+  assert.ok(forms.every((f) => !f.unicode && f.form && f.form !== 'isolated'));
   const have = [createGlyph({ char: 'ب', name: 'myBeh', unicode: 'U+0628', category: 'letter' })];
   const rest = missingOf(have, letters);
   assert.equal(rest.length, 35);

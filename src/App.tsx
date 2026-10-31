@@ -79,6 +79,12 @@ export default function App() {
     if (selectedGlyphId === glyphId) setSelectedGlyphId(null);
   };
 
+  const handleDeleteGlyphs = (ids: string[]) => {
+    if (!activeProject) return;
+    store.removeGlyphs(activeProject.id, ids);
+    if (selectedGlyphId && ids.includes(selectedGlyphId)) setSelectedGlyphId(null);
+  };
+
   const handleDuplicateGlyph = (glyphId: string) => {
     if (!activeProject) return;
     const copy = duplicateGlyph(activeProject.glyphs, glyphId);
@@ -133,6 +139,7 @@ export default function App() {
             onAddPreset={handleAddPreset}
             onEditGlyph={handleEditGlyph}
             onDeleteGlyph={handleDeleteGlyph}
+            onDeleteGlyphs={handleDeleteGlyphs}
             onDuplicateGlyph={handleDuplicateGlyph}
           />
         </div>

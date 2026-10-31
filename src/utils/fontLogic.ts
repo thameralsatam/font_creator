@@ -1,4 +1,5 @@
 import { type FontMetrics, type FontProject, type Glyph, type NewGlyphData } from '../types/font';
+import { computeFeatures, rulesToFea } from './features';
 
 export const DEFAULT_METRICS: FontMetrics = {
   upm: 1000,
@@ -40,7 +41,7 @@ export function createGlyph(data: NewGlyphData): Glyph {
     name: data.name,
     unicode: data.unicode,
     category: data.category,
-    form: 'isolated',
+    form: data.form ?? 'isolated',
     advanceWidth: data.advanceWidth ?? 500,
     contours: [],
     anchors: [],
@@ -192,7 +193,8 @@ ${f.code.split('\n').map((line) => `    ${line}`).join('\n')}
     })
     .join('\n\n');
 
-  return header + features;
+  const auto = rulesToFea(computeFeatures(project.glyphs));
+  return header + [auto && `# --- مستخرجة تلقائياً من أسماء المحارف ---\n${auto}`, features].filter(Boolean).join('\n\n');
 }
 
 export function exportProjectJSON(project: FontProject): string {

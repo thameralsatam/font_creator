@@ -41,3 +41,20 @@ test('duplicateGlyph makes an independent copy with a unique name and no unicode
   assert.equal(uniqueCopyName([a, d], 'beh'), 'beh.copy2');
   assert.equal(duplicateGlyph([a], 'zzz'), null);
 });
+
+test('isReady and sortGlyphs', async () => {
+  const { isReady, sortGlyphs } = await import('./glyphLogic');
+  const empty = mk('e', 'U+0041');
+  const drawn = mk('d', 'U+0042');
+  drawn.contours = [
+    { id: 'c', closed: true, nodes: [1, 2, 3].map((i) => ({ id: 'n' + i, x: i, y: i, kind: 'corner' as const, handleIn: null, handleOut: null })) },
+  ];
+  const space = createGlyph({ char: ' ', name: 'space', unicode: 'U+0020', category: 'symbol' });
+  assert.equal(isReady(empty), false);
+  assert.equal(isReady(drawn), true);
+  assert.equal(isReady(space), true);
+  assert.deepEqual(sortGlyphs([empty, drawn, space], 'ready').map((g) => g.name), ['d', 'space', 'e']);
+  assert.deepEqual(sortGlyphs([drawn, space, empty], 'code').map((g) => g.name), ['space', 'e', 'd']);
+  assert.deepEqual(sortGlyphs([drawn, space, empty], 'added').map((g) => g.name), ['d', 'space', 'e']);
+});
+

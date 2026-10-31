@@ -112,6 +112,16 @@ export function useProjects() {
     );
   }, []);
 
+  const removeGlyphs = useCallback((projectId: string, glyphIds: string[]) => {
+    const drop = new Set(glyphIds);
+    setProjects((prev) =>
+      logic.updateProjectById(prev, projectId, (p) => ({
+        ...p,
+        glyphs: p.glyphs.filter((g) => !drop.has(g.id)),
+      }))
+    );
+  }, []);
+
   return {
     projects,
     createProject,
@@ -124,5 +134,6 @@ export function useProjects() {
     addGlyphs,
     updateGlyph,
     removeGlyph,
+    removeGlyphs,
   };
 }

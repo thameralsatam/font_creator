@@ -58,6 +58,8 @@ export interface NewGlyphData {
   category: GlyphCategory;
   /** اختياري: عرض ابتدائي للمحرف (تستعمله المجموعات الجاهزة). */
   advanceWidth?: number;
+  /** اختياري: شكل المحرف (الافتراضي منفصل). */
+  form?: GlyphForm;
 }
 
 /** خط الأساس ثابت عند 0 ولذلك لا يُخزَّن. */

@@ -1,4 +1,5 @@
-import { type Glyph, type GlyphCategory, type NewGlyphData } from '../types/font';
+import { type Glyph, type GlyphCategory, type GlyphForm, type NewGlyphData } from '../types/font';
+import { JOINING, formsFor } from './features';
 
 /*
   مجموعات محارف جاهزة. تُنشأ فارغة (بلا رسم) بأسماء ورموز يونيكود صحيحة،
@@ -13,6 +14,8 @@ export interface PresetSet {
 }
 
 type Row = [number, string];
+
+const FORM_FOR: Record<string, GlyphForm> = { init: 'initial', medi: 'medial', fina: 'final' };
 
 const item = (cp: number, name: string, category: GlyphCategory, advanceWidth?: number): NewGlyphData => ({
   char: String.fromCodePoint(cp),
@@ -39,6 +42,30 @@ const MARKS: Row[] = [
   [0x064f, 'damma'], [0x0650, 'kasra'], [0x0651, 'shadda'], [0x0652, 'sukun'],
 ];
 
+/** أشكال البداية والوسط والنهاية لكل حرف بحسب نوع اتصاله (بلا رمز يونيكود، تُفعَّل بالميزات). */
+const FORMS: NewGlyphData[] = LETTERS.flatMap(([cp, name]) =>
+  formsFor(JOINING[name] ?? 'U').map((s) => ({
+    char: String.fromCodePoint(cp),
+    name: `${name}.${s}`,
+    unicode: '',
+    category: 'letter' as const,
+    form: FORM_FOR[s],
+    advanceWidth: 600,
+  }))
+);
+
+/** لام ألف بأنواعها: المنفصل/البداية بلا اتصال، و.fina حين يتصل بحرف قبله. */
+const LAM_ALEF: Array<[number, number, string, string]> = [
+  [0xfefb, 0xfefc, 'lam_alef', 'ل\u0627'],
+  [0xfef7, 0xfef8, 'lam_alefHamzaAbove', 'ل\u0623'],
+  [0xfef9, 0xfefa, 'lam_alefHamzaBelow', 'ل\u0625'],
+  [0xfef5, 0xfef6, 'lam_alefMadda', 'ل\u0622'],
+];
+const LIGATURES: NewGlyphData[] = LAM_ALEF.flatMap(([iso, fin, name, chars]) => [
+  { ...item(iso, name, 'ligature', 650), char: chars },
+  { ...item(fin, `${name}.fina`, 'ligature', 650), char: chars, form: 'final' as const },
+]);
+
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
 
 export const PRESETS: PresetSet[] = [
@@ -47,6 +74,18 @@ export const PRESETS: PresetSet[] = [
     label: 'الحروف العربية',
     description: 'الحروف الهجائية وأشكال الهمزة والتاء المربوطة والألف المقصورة (36 محرفاً).',
     items: LETTERS.map(([cp, n]) => item(cp, n, 'letter', 600)),
+  },
+  {
+    id: 'forms',
+    label: 'أشكال الحروف (بداية ووسط ونهاية)',
+    description: 'الأشكال التي يحتاجها كل حرف بحسب اتصاله: ثلاثة للمتصل من الجهتين وواحد للمتصل بما قبله فقط. تُفعَّل تلقائياً بميزات init وmedi وfina (81 محرفاً).',
+    items: FORMS,
+  },
+  {
+    id: 'ligatures',
+    label: 'لام ألف (ترابط)',
+    description: 'أربعة ترابطات للام مع الألف وأنواعها، ولكل منها شكل متصل بما قبله. تعمل بميزة rlig وتحتاج أشكال اللام والألف أولاً (8 محارف).',
+    items: LIGATURES,
   },
   {
     id: 'marks',
