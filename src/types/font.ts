@@ -103,4 +103,6 @@ export interface FontProject {
   features: OpenTypeFeature[];
   /** اختيارية: المشاريع القديمة لا تحملها وتُعامل كفارغة. */
   info?: Partial<FontInfo>;
+  /** قواعد الأوبن تايب التي كتبها المستخدم بصيغة FEA. تُدمج مع القواعد التلقائية. */
+  customFea?: string;
 }
