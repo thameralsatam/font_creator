@@ -25,7 +25,7 @@ import { HelpBookButton } from './help/HelpBook';
 import { Button } from './ui/Button';
 import { Dropdown, MenuItem, MenuLabel } from './ui/Dropdown';
 import { Modal, ModalActions } from './ui/Modal';
-import { CountChip, Progress, VersionPill } from './ui/Pill';
+import { CountChip, VersionPill } from './ui/Pill';
 
 interface ProjectOverviewProps {
   project: FontProject;
@@ -50,13 +50,6 @@ const SORTS: Array<{ id: SortMode; label: string }> = [
   { id: 'added', label: 'حسب الإضافة' },
   { id: 'code', label: 'حسب اليونيكود' },
 ];
-
-const Stat: React.FC<{ label: string; value: number }> = ({ label, value }) => (
-  <div className="flex flex-col items-center gap-0.5 px-1">
-    <span className="font-mono text-xl leading-tight sm:text-2xl">{value}</span>
-    <span className="text-[11px] text-ink-soft">{label}</span>
-  </div>
-);
 
 export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const { project, onBackToProjects, onEnterStudio, onOpenMetrics, onOpenExport, onUpdateInfo } = props;
@@ -88,23 +81,15 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const isEmpty = glyphs.length === 0;
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* الترويسة: صف واحد، كل الأزرار بحجم واحد */}
-      <header className="card-flat flex items-center gap-3 rounded-2xl p-3 sm:p-4">
-        <Button variant="secondary" icon title="الرجوع إلى قائمة المشاريع" onClick={onBackToProjects}>
-          <ArrowRight className={icon} />
-        </Button>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg leading-tight sm:text-2xl">{project.name}</h1>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <VersionPill version={project.version} />
-            <span dir="ltr" className="chip chip-ghost font-mono">{info.subfamily}</span>
-            <span className="chip chip-ghost max-w-[10rem] truncate">{project.designer}</span>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <HelpBookButton iconOnly />
-          <Dropdown label="الإعدادات" iconOnly framed icon={<Settings2 className={icon} />} placement="bottom" width={230}>
+    <div className="flex flex-col gap-4 sm:gap-5">
+      {/* الترويسة */}
+      <header className="capsule flex flex-col gap-2.5 p-3 sm:p-4">
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          <Button variant="quiet" icon title="الرجوع إلى قائمة المشاريع" onClick={onBackToProjects}>
+            <ArrowRight className={icon} />
+          </Button>
+          <h1 className="min-w-0 flex-1 truncate text-base sm:text-xl" title={project.name}>{project.name}</h1>
+          <Dropdown label="الإعدادات" iconOnly icon={<Settings2 className={icon} />} placement="bottom" width={230}>
             {(close) => (
               <>
                 <MenuLabel>إعدادات الخط</MenuLabel>
@@ -136,33 +121,42 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
               </>
             )}
           </Dropdown>
+          <HelpBookButton iconOnly />
           <Button variant="primary" icon onClick={onOpenExport} title="تصدير الخط">
             <Download className={icon} />
           </Button>
         </div>
-      </header>
 
-      {/* الإحصائيات: بطاقة واحدة مرتبة */}
-      <section className="card-flat flex flex-col gap-3.5 rounded-2xl p-4">
-        <div className="grid grid-cols-4 divide-x divide-x-reverse divide-ink/10 text-center">
-          <Stat label="المحارف" value={glyphs.length} />
-          <Stat label="المكتمل" value={ready} />
-          <Stat label="الناقص" value={notReadyIds.length} />
-          <Stat label="القواعد" value={rules} />
+        <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-1.5">
+          <VersionPill version={project.version} />
+          <span dir="ltr" className="chip chip-ghost font-mono">{info.subfamily}</span>
+          <span className="chip chip-ghost min-w-0 max-w-full truncate" title={project.designer}>{project.designer}</span>
         </div>
-        <Progress value={ready} max={glyphs.length} />
-      </section>
+
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: 'مكتمل', value: ready },
+            { label: 'ناقص', value: notReadyIds.length },
+            { label: 'قاعدة', value: rules },
+          ].map((t) => (
+            <div key={t.label} className="plate flex flex-col items-center gap-0.5 py-1.5 sm:py-2">
+              <span className="font-mono text-base sm:text-lg leading-none">{t.value}</span>
+              <span className="text-[10px] sm:text-[11px] text-ink-soft">{t.label}</span>
+            </div>
+          ))}
+        </div>
+      </header>
 
       {/* المحارف */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg">المحارف</h2>
+        <div className="flex items-center justify-between gap-2.5 px-0.5">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <h2 className="text-base sm:text-lg">المحارف</h2>
             <CountChip value={glyphs.length} />
           </div>
           {!isEmpty && (
-            <div className="flex items-center gap-1.5">
-              <Dropdown label="ترتيب المحارف" iconOnly framed icon={<ArrowUpDown className={icon} />} placement="bottom" width={200}>
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <Dropdown label="ترتيب وتنظيف" iconOnly framed icon={<ArrowUpDown className={icon} />} placement="bottom" width={210}>
                 {(close) => (
                   <>
                     <MenuLabel>ترتيب العرض</MenuLabel>
@@ -178,20 +172,24 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                         }}
                       />
                     ))}
+                    {notReadyIds.length > 0 && (
+                      <>
+                        <MenuLabel>تنظيف</MenuLabel>
+                        <MenuItem
+                          label="حذف المحارف الفارغة"
+                          icon={<Eraser className={icon} />}
+                          hint={String(notReadyIds.length)}
+                          onClick={() => {
+                            close();
+                            setConfirmEmpty(true);
+                          }}
+                        />
+                      </>
+                    )}
                   </>
                 )}
               </Dropdown>
-              {notReadyIds.length > 0 && (
-                <span className="relative inline-flex">
-                  <Button icon title={`حذف المحارف الفارغة (${notReadyIds.length})`} onClick={() => setConfirmEmpty(true)}>
-                    <Eraser className={icon} />
-                  </Button>
-                  <span className="chip chip-solid pointer-events-none absolute -end-1.5 -top-2 h-4 min-w-4 justify-center px-1 font-mono text-[9px]">
-                    {notReadyIds.length}
-                  </span>
-                </span>
-              )}
-              <Button icon title="مجموعات جاهزة" onClick={() => setShowPreset(true)}>
+              <Button variant="secondary" icon title="مجموعات جاهزة" onClick={() => setShowPreset(true)}>
                 <Layers className={icon} />
               </Button>
               <Button variant="primary" icon title="إضافة محرف" onClick={() => setShowAdd(true)}>
@@ -220,7 +218,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
               {shown.slice(0, limit).map((g) => (
                 <GlyphCard
                   key={g.id}

@@ -4,7 +4,8 @@ import { type FontMetrics, type Glyph } from '../types/font';
 import { isReady } from '../utils/glyphLogic';
 import { CATEGORY_LABEL, FORM_LABEL } from '../utils/labels';
 import { GlyphThumb } from './GlyphThumb';
-import { Button } from './ui/Button';
+import { CardMenu } from './ui/CardMenu';
+import { MenuItem } from './ui/Dropdown';
 
 interface GlyphCardProps {
   glyph: Glyph;
@@ -15,44 +16,48 @@ interface GlyphCardProps {
   onDelete: (id: string) => void;
 }
 
-const ic = 'h-3.5 w-3.5 stroke-[1.5]';
+const ic = 'h-4 w-4 stroke-[1.5]';
 
-/** بطاقة محرف: معاينة في الأعلى، ثم الاسم، ثم كبسولات البيانات، ثم أدوات متساوية الحجم. */
+/**
+ * بطاقة محرف احترافية ومنظمة:
+ * - معاينة واضحة مع شبكة هندسية دقيقة داخل إطار أبيض ناصع.
+ * - زر القائمة الثلاثي موضوع بشكل أنيق في الزاوية دون تداخل.
+ */
 const GlyphCardBase: React.FC<GlyphCardProps> = ({ glyph, metrics, onOpen, onEdit, onDuplicate, onDelete }) => {
   const ready = isReady(glyph);
+  const kind = glyph.form !== 'isolated' ? FORM_LABEL[glyph.form] : CATEGORY_LABEL[glyph.category];
   return (
-    <div className="card-flat flex flex-col overflow-hidden rounded-2xl transition-colors hover:border-ink/50">
+    <div className="capsule relative flex flex-col justify-between">
+      <CardMenu label="إجراءات المحرف" className="absolute top-2 start-2 z-20" />
       <button
         type="button"
         onClick={() => onOpen(glyph.id)}
-        className="flex flex-col items-stretch gap-2.5 p-3 text-start"
+        className="flex w-full flex-col gap-2.5 p-3 text-start"
         title="فتح المحرف في الاستوديو"
       >
-        <div className="flex h-20 items-center justify-center rounded-xl border border-ink/10 bg-sand/15">
-          <GlyphThumb glyph={glyph} metrics={metrics} className="h-full w-full p-1.5" />
+        <div className="plate relative flex h-24 sm:h-28 items-center justify-center p-2 overflow-hidden">
+          <GlyphThumb glyph={glyph} metrics={metrics} className="h-full w-full p-1" />
+          {!ready && (
+            <span className="absolute bottom-2 end-2 rounded-md bg-paper/90 px-1.5 py-0.5 font-mono text-[10px] text-ink-soft shadow-sm">
+              فارغ
+            </span>
+          )}
         </div>
-        <span dir="ltr" className="truncate text-center font-mono text-xs" title={glyph.name}>
-          {glyph.name}
-        </span>
-        <div className="flex flex-wrap justify-center gap-1">
-          <span dir="ltr" className="chip font-mono">{glyph.unicode || '—'}</span>
-          <span className={`chip ${ready ? 'chip-solid' : 'chip-ghost'}`}>{ready ? 'مرسوم' : 'فارغ'}</span>
-          <span className="chip chip-ghost">{CATEGORY_LABEL[glyph.category]}</span>
-          {glyph.form !== 'isolated' && <span className="chip chip-ghost">{FORM_LABEL[glyph.form]}</span>}
-          <span dir="ltr" className="chip chip-ghost font-mono">{glyph.advanceWidth}</span>
+
+        <div className="min-w-0 space-y-1 px-0.5">
+          <div className="flex items-center justify-between gap-2">
+            <span dir="ltr" className="truncate font-mono text-xs font-semibold text-ink sm:text-sm" title={glyph.name}>
+              {glyph.name}
+            </span>
+            <span dir="ltr" className="shrink-0 font-mono text-[11px] text-ink-soft">
+              {glyph.unicode || '—'}
+            </span>
+          </div>
+          <div className="truncate text-[11px] text-ink-soft" title={kind}>
+            {kind}
+          </div>
         </div>
       </button>
-      <div className="mt-auto grid grid-cols-3 divide-x divide-x-reverse divide-ink/10 border-t border-ink/10">
-        <Button variant="quiet" className="rounded-none" title="تعديل بيانات المحرف" onClick={() => onEdit(glyph.id)}>
-          <Pencil className={ic} />
-        </Button>
-        <Button variant="quiet" className="rounded-none" title="تكرار المحرف" onClick={() => onDuplicate(glyph.id)}>
-          <Copy className={ic} />
-        </Button>
-        <Button variant="quiet" className="rounded-none" title="حذف المحرف" onClick={() => onDelete(glyph.id)}>
-          <Trash2 className={ic} />
-        </Button>
-      </div>
     </div>
   );
 };

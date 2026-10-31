@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Copy, FileText, FolderOpen, FolderPlus, PenTool, Plus, Search, Trash2 } from 'lucide-react';
+import { Copy, FileText, FolderPlus, PenTool, Plus, Search, Trash2 } from 'lucide-react';
 import { type FontProject } from '../types/font';
 import { resolveInfo } from '../utils/fontInfo';
 import { isReady } from '../utils/glyphLogic';
@@ -8,8 +8,10 @@ import { GlyphThumb } from './GlyphThumb';
 import { HelpBookButton } from './help/HelpBook';
 import { ImportFontButton } from './ImportFontButton';
 import { Button } from './ui/Button';
+import { CardMenu } from './ui/CardMenu';
+import { MenuItem } from './ui/Dropdown';
 import { Modal, ModalActions } from './ui/Modal';
-import { CountChip, Progress, VersionPill } from './ui/Pill';
+import { CountChip, VersionPill } from './ui/Pill';
 
 interface ProjectsDashboardProps {
   projects: FontProject[];
@@ -33,57 +35,40 @@ const ProjectCard: React.FC<{
   const info = resolveInfo(project);
   const drawn = useMemo(() => project.glyphs.filter(isReady), [project.glyphs]);
   return (
-    <article
-      onClick={() => onOpen(project.id)}
-      className="card-flat flex cursor-pointer flex-col overflow-hidden rounded-2xl transition-colors hover:border-ink/50"
-    >
-      <div className="flex flex-col gap-3 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="min-w-0 flex-1 truncate text-lg">{project.name}</h2>
-          <VersionPill version={project.version} />
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          <span className="chip chip-ghost max-w-[9rem] truncate">{project.designer}</span>
-          <span dir="ltr" className="chip chip-ghost font-mono">{info.subfamily}</span>
-          <span dir="ltr" className="chip chip-ghost font-mono">{project.metrics.upm}</span>
-        </div>
-
-        <div className="flex h-14 items-center gap-1.5 overflow-hidden rounded-xl border border-ink/10 bg-sand/15 px-2.5">
-          {drawn.length > 0 ? (
-            drawn.slice(0, 7).map((g) => (
-              <GlyphThumb key={g.id} glyph={g} metrics={project.metrics} className="h-9 w-9 shrink-0" />
-            ))
-          ) : (
-            <span className="text-[11px] text-ink-soft">لم يُرسم أي محرف بعد</span>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between text-[11px] text-ink-soft">
-            <span>المكتمل</span>
-            <span dir="ltr" className="font-mono">{drawn.length} / {project.glyphs.length}</span>
-          </div>
-          <Progress value={drawn.length} max={project.glyphs.length} />
-        </div>
+    <article onClick={() => onOpen(project.id)} className="capsule relative flex cursor-pointer flex-col gap-2.5 p-3 sm:p-4">
+      <div className="plate flex h-12 sm:h-14 items-center gap-1 overflow-hidden px-2.5">
+        {drawn.length > 0 ? (
+          drawn.slice(0, 8).map((g) => (
+            <GlyphThumb key={g.id} glyph={g} metrics={project.metrics} className="h-8 w-8 sm:h-9 sm:w-9 shrink-0" />
+          ))
+        ) : (
+          <span className="text-[11px] text-ink-soft">لم يُرسم أي محرف بعد</span>
+        )}
       </div>
 
-      <div
-        className="mt-auto grid grid-cols-4 divide-x divide-x-reverse divide-ink/10 border-t border-ink/10"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Button variant="quiet" className="rounded-none" title="تعديل معلومات المشروع" onClick={() => onEdit(project)}>
-          <FileText className={icon} />
-        </Button>
-        <Button variant="quiet" className="rounded-none" title="نسخ المشروع" onClick={() => onDuplicate(project.id)}>
-          <Copy className={icon} />
-        </Button>
-        <Button variant="quiet" className="rounded-none" title="حذف المشروع" onClick={() => onDelete(project)}>
-          <Trash2 className={icon} />
-        </Button>
-        <Button variant="quiet" className="rounded-none" title="فتح المشروع" onClick={() => onOpen(project.id)}>
-          <FolderOpen className={icon} />
-        </Button>
+      <div className="flex items-center gap-2 px-0.5">
+        <h2 className="min-w-0 flex-1 truncate text-base sm:text-lg" title={project.name}>{project.name}</h2>
+        <CardMenu label="إجراءات المشروع">
+          {(close) => (
+            <>
+              <MenuItem label="تعديل المعلومات" icon={<FileText className={icon} />} onClick={() => { close(); onEdit(project); }} />
+              <MenuItem label="نسخ المشروع" icon={<Copy className={icon} />} onClick={() => { close(); onDuplicate(project.id); }} />
+              <MenuItem label="حذف المشروع" icon={<Trash2 className={icon} />} onClick={() => { close(); onDelete(project); }} />
+            </>
+          )}
+        </CardMenu>
+      </div>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-1.5">
+        <VersionPill version={project.version} />
+        <span dir="ltr" className="chip chip-ghost font-mono">{info.subfamily}</span>
+        <span className="chip chip-ghost min-w-0 max-w-full truncate" title={project.designer}>{project.designer}</span>
+      </div>
+
+      <div className="flex items-center gap-1 border-t border-ink/10 pt-2 text-[10px] sm:text-[11px] text-ink-soft">
+        <span className="chip"><span className="font-mono">{drawn.length}</span> مكتمل</span>
+        <span className="chip chip-ghost"><span className="font-mono">{project.glyphs.length - drawn.length}</span> ناقص</span>
+        <span className="chip chip-ghost ms-auto"><span className="font-mono">{project.glyphs.length}</span> محرف</span>
       </div>
     </article>
   );
@@ -134,20 +119,15 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="card-flat flex items-center justify-between gap-3 rounded-2xl p-3.5 sm:p-5">
-        <div className="min-w-0">
-          <div className="mb-1.5 flex items-center gap-2 text-xs text-ink-soft">
-            <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-ink/20 bg-sand/35">
-              <PenTool className="h-3.5 w-3.5 stroke-[1.5]" />
-            </span>
-            <span className="truncate">استوديو هندسة وتصميم الخطوط الطباعية</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl">مشاريع الخطوط</h1>
-            {hasProjects && <CountChip value={projects.length} />}
-          </div>
+      <div className="flex items-center justify-between gap-3 px-0.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-ink/20 bg-sand/30 sm:flex">
+            <PenTool className="h-4 w-4 stroke-[1.5]" />
+          </span>
+          <h1 className="truncate text-lg sm:text-2xl">مشاريع الخطوط</h1>
+          {hasProjects && <CountChip value={projects.length} />}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           <ImportFontButton onImport={onImportProject} iconOnly />
           <HelpBookButton iconOnly />
           {hasProjects && (
