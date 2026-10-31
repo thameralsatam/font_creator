@@ -8,7 +8,10 @@ import { Modal, ModalActions } from './ui/Modal';
 const MAX_BYTES = 8 * 1024 * 1024;
 
 /** استيراد خط OTF أو TTF كمشروع جديد. */
-export const ImportFontButton: React.FC<{ onImport: (project: FontProject) => void }> = ({ onImport }) => {
+export const ImportFontButton: React.FC<{ onImport: (project: FontProject) => void; iconOnly?: boolean }> = ({
+  onImport,
+  iconOnly = false,
+}) => {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ title: string; lines: string[] } | null>(null);
@@ -45,9 +48,14 @@ export const ImportFontButton: React.FC<{ onImport: (project: FontProject) => vo
         className="hidden"
         onChange={(e) => void pick(e.target.files?.[0])}
       />
-      <Button title="استيراد خط OTF أو TTF كمشروع جديد" disabled={busy} onClick={() => input.current?.click()}>
+      <Button
+        icon={iconOnly}
+        title={busy ? 'جارٍ قراءة الخط' : 'استيراد خط OTF أو TTF كمشروع جديد'}
+        disabled={busy}
+        onClick={() => input.current?.click()}
+      >
         <Upload className="h-3.5 w-3.5 stroke-[1.5]" />
-        <span>{busy ? 'جارٍ القراءة' : 'استيراد خط'}</span>
+        {!iconOnly && <span>{busy ? 'جارٍ القراءة' : 'استيراد خط'}</span>}
       </Button>
       {result && (
         <Modal title={result.title} size="sm" onClose={() => setResult(null)}>

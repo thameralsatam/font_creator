@@ -77,13 +77,16 @@ export const HelpBook: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 };
 
 /** زر يفتح كتاب التعليمات. يُوضع في رأس أي صفحة. */
-export const HelpBookButton: React.FC<{ variant?: 'secondary' | 'quiet' }> = ({ variant = 'secondary' }) => {
+export const HelpBookButton: React.FC<{ variant?: 'secondary' | 'quiet'; iconOnly?: boolean }> = ({
+  variant = 'secondary',
+  iconOnly = false,
+}) => {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant={variant} title="كتاب التعليمات" onClick={() => setOpen(true)}>
+      <Button variant={variant} icon={iconOnly} title="كتاب التعليمات" onClick={() => setOpen(true)}>
         <BookOpen className="h-3.5 w-3.5 stroke-[1.5]" />
-        <span>كتاب التعليمات</span>
+        {!iconOnly && <span>كتاب التعليمات</span>}
       </Button>
       {open && <HelpBook onClose={() => setOpen(false)} />}
     </>

@@ -78,6 +78,18 @@ export interface OpenTypeFeature {
   code: string;
 }
 
+/** معلومات الخط الإضافية. الحقول الفارغة تُحسب تلقائياً من اسم الخط. */
+export interface FontInfo {
+  subfamily: string;
+  fullName: string;
+  postScriptName: string;
+  copyright: string;
+  license: string;
+  licenseUrl: string;
+  manufacturer: string;
+  designerUrl: string;
+}
+
 export interface FontProject {
   id: string;
   name: string;
@@ -89,4 +101,6 @@ export interface FontProject {
   metrics: FontMetrics;
   glyphs: Glyph[];
   features: OpenTypeFeature[];
+  /** اختيارية: المشاريع القديمة لا تحملها وتُعامل كفارغة. */
+  info?: Partial<FontInfo>;
 }

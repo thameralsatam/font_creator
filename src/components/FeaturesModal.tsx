@@ -173,8 +173,15 @@ export const FeaturesModal: React.FC<FeaturesModalProps> = ({ project, onAddGlyp
         )}
 
         {tab === 'code' && (
-          <div className="space-y-2">
-            <p className="text-xs text-ink-soft">كود FEA المستخرج. يُضمَّن في ملف الميزات عند التصدير، وهو مكتوب أيضاً داخل الخط.</p>
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-ink/10 bg-sand/25 p-3 text-xs leading-relaxed text-ink-soft">
+              <p className="font-heading text-ink">ما هو هذا الكود؟</p>
+              <p className="mt-1">
+                صيغة Adobe Feature File (FEA) القياسية. تُترجَم تلقائياً وتُحقَن داخل ملف الخط
+                (OTF) عند التصدير، فلا تحتاج لبرامج خارجية. يمكنك نسخ الكود إن أردت استعماله في
+                FontTools أو برامج خطوط أخرى.
+              </p>
+            </div>
             <textarea
               readOnly
               dir="ltr"

@@ -21,6 +21,8 @@ import { useHelp } from '../help/HelpContext';
 interface DropdownProps {
   label: string;
   icon?: React.ReactNode;
+  /** إظهار الأيقونة وحدها وإخفاء النص على كل الشاشات. */
+  iconOnly?: boolean;
   /** إظهار نص الزر على الشاشات الصغيرة أيضاً. افتراضياً تظهر الأيقونة وحدها. */
   labelOnMobile?: boolean;
   /** auto = أسفل الزر، وتنقلب لأعلى إن ضاق المكان. */
@@ -54,6 +56,7 @@ const GAP = 6;
 export const Dropdown: React.FC<DropdownProps> = ({
   label,
   icon,
+  iconOnly = false,
   labelOnMobile = false,
   placement = 'auto',
   align = 'start',
@@ -168,7 +171,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
         }}
       >
         {icon}
-        <span className={labelOnMobile ? '' : 'hidden md:inline'}>{label}</span>
+        {!iconOnly && <span className={labelOnMobile ? '' : 'hidden md:inline'}>{label}</span>}
         <ChevronDown
           className={`h-3 w-3 stroke-[1.5] transition-transform ${open ? 'rotate-180' : ''}`}
         />

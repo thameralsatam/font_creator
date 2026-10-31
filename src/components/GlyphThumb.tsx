@@ -12,7 +12,7 @@ interface GlyphThumbProps {
  * صورة مصغّرة لرسم المحرف الفعلي من مساراته.
  * إن كان المحرف فارغاً يظهر الحرف المقصود بلون باهت كتلميح.
  */
-export const GlyphThumb: React.FC<GlyphThumbProps> = ({ glyph, metrics, className = '' }) => {
+const GlyphThumbBase: React.FC<GlyphThumbProps> = ({ glyph, metrics, className = '' }) => {
   const pad = 40;
   const width = Math.max(glyph.advanceWidth, 100);
   const top = metrics.ascender + pad;
@@ -43,3 +43,6 @@ export const GlyphThumb: React.FC<GlyphThumbProps> = ({ glyph, metrics, classNam
     </svg>
   );
 };
+
+export const GlyphThumb = React.memo(GlyphThumbBase);
+

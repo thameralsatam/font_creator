@@ -101,12 +101,7 @@ export default function App() {
     setView('studio');
   };
 
-  const handleSaveMetrics = (updates: {
-    name: string;
-    designer: string;
-    version: string;
-    metrics: FontMetrics;
-  }) => {
+  const handleSaveMetrics = (updates: { metrics: FontMetrics }) => {
     if (!activeProject) return;
     store.updateProject(activeProject.id, updates);
   };
@@ -119,7 +114,7 @@ export default function App() {
             projects={projects}
             onOpenProject={handleOpenProject}
             onCreateProject={handleCreateProject}
-            onRenameProject={store.renameProject}
+            onUpdateProject={(id, patch) => store.updateProject(id, patch)}
             onDuplicateProject={store.duplicateProject}
             onDeleteProject={handleDeleteProject}
             onImportProject={store.importProject}
@@ -137,6 +132,7 @@ export default function App() {
             onOpenExport={() => setIsExportOpen(true)}
             onAddNewGlyph={handleAddGlyph}
             onAddPreset={handleAddPreset}
+            onUpdateInfo={(patch) => store.updateProject(activeProject.id, patch)}
             onEditGlyph={handleEditGlyph}
             onDeleteGlyph={handleDeleteGlyph}
             onDeleteGlyphs={handleDeleteGlyphs}

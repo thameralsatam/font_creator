@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { type Glyph, type GlyphCategory, type GlyphForm } from '../types/font';
 import { createGlyph } from './fontLogic';
-import { computeFeatures, missingForms, rulesToFea, splitName } from './features';
+import { computeFeatures, formUnicode, missingForms, rulesToFea, splitName } from './features';
 
 const g = (name: string, form: GlyphForm = 'isolated', category: GlyphCategory = 'letter'): Glyph =>
   createGlyph({ char: 'x', name, unicode: '', category, form });
@@ -54,3 +54,29 @@ test('fea output groups by feature', () => {
   assert.ok(fea.startsWith('feature init {'));
   assert.ok(fea.includes('sub beh by beh.init;'));
 });
+
+test('isol naming: beh.isol is the source of the other forms', () => {
+  const r = computeFeatures([
+    g('beh.isol'),
+    g('beh.init', 'initial'),
+    g('beh.medi', 'medial'),
+    g('beh.fina', 'final'),
+  ]);
+  assert.deepEqual(
+    r.rules.map((x) => `${x.feature}:${x.from[0]}>${x.to}`),
+    ['fina:beh.isol>beh.fina', 'medi:beh.isol>beh.medi', 'init:beh.isol>beh.init']
+  );
+  assert.equal(r.gaps.length, 0);
+  assert.equal(r.mismatches.length, 0);
+});
+
+test('missingForms gives presentation-form codes and works from beh.isol', () => {
+  const m = missingForms([g('beh.isol')]);
+  assert.deepEqual(m.map((x) => x.name).sort(), ['beh.fina', 'beh.init', 'beh.medi']);
+  assert.equal(m.find((x) => x.name === 'beh.fina')!.unicode, 'U+FE90');
+  assert.equal(m.find((x) => x.name === 'beh.init')!.unicode, 'U+FE91');
+  assert.equal(m.find((x) => x.name === 'beh.medi')!.unicode, 'U+FE92');
+  assert.equal(formUnicode('beh', 'isol'), 'U+FE8F');
+  assert.equal(formUnicode('unknown', 'isol'), '');
+});
+

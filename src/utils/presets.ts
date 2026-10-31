@@ -1,5 +1,5 @@
 import { type Glyph, type GlyphCategory, type GlyphForm, type NewGlyphData } from '../types/font';
-import { JOINING, formsFor } from './features';
+import { JOINING, formsFor, formUnicode, type FormSuffix } from './features';
 
 /*
   مجموعات محارف جاهزة. تُنشأ فارغة (بلا رسم) بأسماء ورموز يونيكود صحيحة،
@@ -42,12 +42,12 @@ const MARKS: Row[] = [
   [0x064f, 'damma'], [0x0650, 'kasra'], [0x0651, 'shadda'], [0x0652, 'sukun'],
 ];
 
-/** أشكال البداية والوسط والنهاية لكل حرف بحسب نوع اتصاله (بلا رمز يونيكود، تُفعَّل بالميزات). */
+/** أشكال البداية والوسط والنهاية لكل حرف بحسب نوع اتصاله مع رمز يونيكود من أشكال العرض. */
 const FORMS: NewGlyphData[] = LETTERS.flatMap(([cp, name]) =>
   formsFor(JOINING[name] ?? 'U').map((s) => ({
     char: String.fromCodePoint(cp),
     name: `${name}.${s}`,
-    unicode: '',
+    unicode: formUnicode(name, s as FormSuffix),
     category: 'letter' as const,
     form: FORM_FOR[s],
     advanceWidth: 600,
@@ -72,13 +72,13 @@ export const PRESETS: PresetSet[] = [
   {
     id: 'letters',
     label: 'الحروف العربية',
-    description: 'الحروف الهجائية وأشكال الهمزة والتاء المربوطة والألف المقصورة (36 محرفاً).',
-    items: LETTERS.map(([cp, n]) => item(cp, n, 'letter', 600)),
+    description: 'الحروف الهجائية وأشكال الهمزة والتاء المربوطة والألف المقصورة بالصيغة المنفصلة .isol (36 محرفاً).',
+    items: LETTERS.map(([cp, n]) => item(cp, `${n}.isol`, 'letter', 600)),
   },
   {
     id: 'forms',
     label: 'أشكال الحروف (بداية ووسط ونهاية)',
-    description: 'الأشكال التي يحتاجها كل حرف بحسب اتصاله: ثلاثة للمتصل من الجهتين وواحد للمتصل بما قبله فقط. تُفعَّل تلقائياً بميزات init وmedi وfina (81 محرفاً).',
+    description: 'الأشكال التي يحتاجها كل حرف بحسب اتصاله مع رموز يونيكود القياسية لأشكال العرض: ثلاثة للمتصل من الجهتين وواحد للمتصل بما قبله فقط (81 محرفاً).',
     items: FORMS,
   },
   {

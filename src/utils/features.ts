@@ -57,6 +57,65 @@ export function formsFor(j: Joining): FormSuffix[] {
   return j === 'D' ? ['init', 'medi', 'fina'] : j === 'R' ? ['fina'] : [];
 }
 
+/**
+ * رموز يونيكود للأشكال المعزولة والمتصلة من كتلة أشكال العرض أ/ب (Presentation Forms A/B).
+ * القيمة الأساسية هي الشكل المنفصل (isol)، وتُحسب البقية بإضافة الإزاحة:
+ * isol: 0, fina: 1, init: 2, medi: 3 (حسب ترتيب اليونيكود القياسي).
+ */
+export const PRESENTATION: Record<string, number> = {
+  hamza: 0xfe80,
+  alefMadda: 0xfe81, // isol, fina
+  alefHamzaAbove: 0xfe83, // isol, fina
+  wawHamza: 0xfe85, // isol, fina
+  alefHamzaBelow: 0xfe87, // isol, fina
+  alef: 0xfe8d, // isol, fina
+  yehHamza: 0xfe89, // isol, fina, init, medi
+  beh: 0xfe8f,
+  tehMarbuta: 0xfe93, // isol, fina
+  teh: 0xfe95,
+  theh: 0xfe99,
+  jeem: 0xfe9d,
+  hah: 0xfea1,
+  khah: 0xfea5,
+  dal: 0xfea9, // isol, fina
+  thal: 0xfeab, // isol, fina
+  reh: 0xfead, // isol, fina
+  zain: 0xfeaf, // isol, fina
+  seen: 0xfeb1,
+  sheen: 0xfeb5,
+  sad: 0xfeb9,
+  dad: 0xfebd,
+  tah: 0xfec1,
+  zah: 0xfec5,
+  ain: 0xfec9,
+  ghain: 0xfecd,
+  feh: 0xfed1,
+  qaf: 0xfed5,
+  kaf: 0xfed9,
+  lam: 0xfedd,
+  meem: 0xfee1,
+  noon: 0xfee5,
+  heh: 0xfee9,
+  waw: 0xfeed, // isol, fina
+  alefMaksura: 0xfeef, // isol, fina
+  yeh: 0xfef1,
+};
+
+const OFFSET: Record<FormSuffix, number> = {
+  isol: 0,
+  fina: 1,
+  init: 2,
+  medi: 3,
+};
+
+/** يُرجع رمز يونيكود لشكل الحرف (مثل U+FE90 لـ beh.fina) أو نصاً فارغاً إن لم يوجد. */
+export function formUnicode(base: string, suffix: FormSuffix): string {
+  const baseCode = PRESENTATION[base];
+  if (baseCode === undefined) return '';
+  const code = baseCode + OFFSET[suffix];
+  return `U+${code.toString(16).toUpperCase()}`;
+}
+
 export interface Rule {
   feature: FeatureTag;
   kind: 'single' | 'ligature';
@@ -99,11 +158,22 @@ export function computeFeatures(glyphs: Glyph[]): FeatureReport {
     }
 
     if (suffix) {
-      if (!names.has(base)) {
+      // إن كان المحرف هو المنفصل beh.isol، فهو نفسه الأصل لباقي الأشكال إن لم يوجد beh
+      if (suffix === 'isol') {
+        if (names.has(base)) {
+          rules.push({ feature: 'isol', kind: 'single', from: [base], to: g.name });
+        }
+        if (g.form !== 'isolated') mismatches.push(g.name);
+        continue;
+      }
+
+      // الأشكال الأخرى (init, medi, fina) تبحث عن base أو base.isol كأصل
+      const source = names.has(base) ? base : names.has(`${base}.isol`) ? `${base}.isol` : null;
+      if (!source) {
         gaps.push({ glyph: g.name, message: `لا يوجد المحرف الأساسي ${base}` });
         continue;
       }
-      rules.push({ feature: suffix, kind: 'single', from: [base], to: g.name });
+      rules.push({ feature: suffix, kind: 'single', from: [source], to: g.name });
       if (g.form !== FORM_OF[suffix]) mismatches.push(g.name);
     } else if (g.form !== 'isolated') {
       mismatches.push(g.name);
@@ -121,18 +191,22 @@ export function computeFeatures(glyphs: Glyph[]): FeatureReport {
 export function missingForms(glyphs: Glyph[]): NewGlyphData[] {
   const names = new Set(glyphs.map((g) => g.name));
   const out: NewGlyphData[] = [];
+  const handled = new Set<string>();
   for (const g of glyphs) {
-    const { suffix } = splitName(g.name);
-    if (suffix) continue;
-    const j = JOINING[g.name];
+    const { base, suffix } = splitName(g.name);
+    // نتجاهل الأشكال المشتقة عدا المنفصل (beh.isol يصلح أصلاً كالحرف المجرد)
+    if (suffix && suffix !== 'isol') continue;
+    if (handled.has(base)) continue;
+    handled.add(base);
+    const j = JOINING[base];
     if (!j) continue;
     for (const s of formsFor(j)) {
-      const name = `${g.name}.${s}`;
+      const name = `${base}.${s}`;
       if (names.has(name)) continue;
       out.push({
         char: g.char,
         name,
-        unicode: '',
+        unicode: formUnicode(base, s),
         category: 'letter',
         form: FORM_OF[s],
         advanceWidth: g.advanceWidth,

@@ -224,6 +224,12 @@
   border: 1px solid rgba(18, 48, 42, 0.2);
 }
 
+/* بطاقة محرف خفيفة الحساب على المعالج مع دعم التقديم الكسول */
+.card-flat {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
+}
+
 .glass-dropdown {
   background-color: rgba(255, 253, 248, 0.98);
   backdrop-filter: blur(20px);

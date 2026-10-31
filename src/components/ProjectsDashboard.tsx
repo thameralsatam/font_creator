@@ -1,44 +1,107 @@
-import React, { useState } from 'react';
-import {
-  ArrowLeft,
-  Copy,
-  Edit3,
-  FolderPlus,
-  PenTool,
-  Plus,
-  Search,
-  Trash2,
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Copy, FileText, FolderPlus, PenTool, Plus, Search, Trash2 } from 'lucide-react';
 import { type FontProject } from '../types/font';
-import { AnimatedCounter } from './AnimatedCounter';
+import { resolveInfo } from '../utils/fontInfo';
+import { isReady } from '../utils/glyphLogic';
+import { FontInfoModal, type InfoPatch } from './FontInfoModal';
 import { GlyphThumb } from './GlyphThumb';
 import { HelpBookButton } from './help/HelpBook';
 import { ImportFontButton } from './ImportFontButton';
 import { Button } from './ui/Button';
 import { Modal, ModalActions } from './ui/Modal';
+import { CountChip, Progress, VersionPill } from './ui/Pill';
 
 interface ProjectsDashboardProps {
   projects: FontProject[];
   onOpenProject: (projectId: string) => void;
   onCreateProject: (name: string, designer: string, description: string) => void;
-  onRenameProject: (projectId: string, newName: string) => void;
+  onUpdateProject: (projectId: string, patch: InfoPatch) => void;
   onDuplicateProject: (projectId: string) => void;
   onDeleteProject: (projectId: string) => void;
   onImportProject: (project: FontProject) => void;
 }
 
+const icon = 'h-4 w-4 stroke-[1.5]';
+
+const ProjectCard: React.FC<{
+  project: FontProject;
+  onOpen: (id: string) => void;
+  onEdit: (p: FontProject) => void;
+  onDuplicate: (id: string) => void;
+  onDelete: (p: FontProject) => void;
+}> = React.memo(({ project, onOpen, onEdit, onDuplicate, onDelete }) => {
+  const info = resolveInfo(project);
+  const drawn = useMemo(() => project.glyphs.filter(isReady), [project.glyphs]);
+  return (
+    <article
+      onClick={() => onOpen(project.id)}
+      className="card-flat group flex cursor-pointer flex-col justify-between rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:border-ink/45"
+    >
+      <div>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-lg">{project.name}</h2>
+            <p className="mt-0.5 truncate text-[11px] text-ink-soft">
+              {project.designer} · <span dir="ltr" className="font-mono">{info.subfamily}</span>
+            </p>
+          </div>
+          <VersionPill version={project.version} />
+        </div>
+
+        <div className="mb-3.5 flex min-h-[56px] items-center gap-2 rounded-xl border border-ink/15 bg-sand/20 p-2.5">
+          {drawn.length > 0 ? (
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              {drawn.slice(0, 7).map((g) => (
+                <GlyphThumb key={g.id} glyph={g} metrics={project.metrics} className="h-9 w-9 shrink-0" />
+              ))}
+            </div>
+          ) : (
+            <span className="text-[11px] text-ink-soft">لم يُرسم أي محرف بعد</span>
+          )}
+        </div>
+
+        <div className="mb-1 flex items-center justify-between text-[11px] text-ink-soft">
+          <span>
+            المكتمل <span className="font-mono">{drawn.length}</span> من <span className="font-mono">{project.glyphs.length}</span>
+          </span>
+          <span className="font-mono">{project.metrics.upm}</span>
+        </div>
+        <Progress value={drawn.length} max={project.glyphs.length} />
+      </div>
+
+      <div className="mt-4 flex items-center justify-between border-t border-ink/10 pt-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-0.5">
+          <Button variant="quiet" icon title="تعديل معلومات المشروع" onClick={() => onEdit(project)}>
+            <FileText className={icon} />
+          </Button>
+          <Button variant="quiet" icon title="نسخ المشروع" onClick={() => onDuplicate(project.id)}>
+            <Copy className={icon} />
+          </Button>
+          <Button variant="quiet" icon title="حذف المشروع" onClick={() => onDelete(project)}>
+            <Trash2 className={icon} />
+          </Button>
+        </div>
+        <Button variant="secondary" onClick={() => onOpen(project.id)}>
+          <span>فتح</span>
+        </Button>
+      </div>
+    </article>
+  );
+});
+ProjectCard.displayName = 'ProjectCard';
+
 export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
   projects,
   onOpenProject,
   onCreateProject,
-  onRenameProject,
+  onUpdateProject,
   onDuplicateProject,
   onDeleteProject,
   onImportProject,
 }) => {
   const [query, setQuery] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [editing, setEditing] = useState<FontProject | null>(null);
   const [deleting, setDeleting] = useState<FontProject | null>(null);
 
   const [newName, setNewName] = useState('');
@@ -69,140 +132,65 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
     closeCreate();
   };
 
-  const submitRename = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (renaming && renaming.name.trim()) {
-      onRenameProject(renaming.id, renaming.name);
-      setRenaming(null);
-    }
-  };
-
   return (
-    <div className="flex flex-col gap-6">
-      {/* اللافتة العلوية */}
-      <div className="glass-panel flex flex-col justify-between gap-4 rounded-2xl p-6 sm:p-8 md:flex-row md:items-center">
-        <div>
+    <div className="flex flex-col gap-5">
+      <div className="card-flat flex items-center justify-between gap-4 rounded-2xl p-4 sm:p-6">
+        <div className="min-w-0">
           <div className="mb-1.5 flex items-center gap-2 text-xs text-ink-soft">
             <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-ink/20 bg-sand/35">
               <PenTool className="h-3.5 w-3.5 stroke-[1.5]" />
             </span>
-            <span>استوديو هندسة وتصميم الخطوط الطباعية</span>
+            <span className="truncate">استوديو هندسة وتصميم الخطوط الطباعية</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl">مشاريع الخطوط</h1>
-          <p className="mt-1 max-w-xl text-xs leading-relaxed text-ink-soft sm:text-sm">
-            مساحة هادئة لرسم المحارف وضبط المقاييس وبرمجة قواعد التبديل السياقي.
-          </p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl">مشاريع الخطوط</h1>
+            {hasProjects && <CountChip value={projects.length} />}
+          </div>
         </div>
-
-        {/* لا يظهر هنا عند عدم وجود مشاريع حتى لا يتكرر مع الحالة الفارغة */}
-        <div className="flex flex-wrap items-center gap-2">
-          <ImportFontButton onImport={onImportProject} />
-          <HelpBookButton />
+        <div className="flex shrink-0 items-center gap-2">
+          <ImportFontButton onImport={onImportProject} iconOnly />
+          <HelpBookButton iconOnly />
+          {hasProjects && (
+            <Button variant="primary" icon title="مشروع خط جديد" onClick={() => setShowCreate(true)}>
+              <Plus className={icon} />
+            </Button>
+          )}
         </div>
-        {hasProjects && (
-          <Button variant="primary" className="self-start md:self-auto" onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4 stroke-[1.5]" />
-            <span>مشروع خط جديد</span>
-          </Button>
-        )}
       </div>
 
       {hasProjects ? (
         <>
-          <div className="glass-panel flex flex-col justify-between gap-3 rounded-2xl p-3 px-4 sm:flex-row sm:items-center">
-            <div className="relative max-w-md flex-1">
-              <Search className="pointer-events-none absolute end-auto start-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 stroke-[1.5] opacity-50" />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="ابحث باسم الخط أو المصمم أو الوصف"
-                aria-label="بحث في المشاريع"
-                className="field ps-9"
-              />
-            </div>
-            <div className="flex items-center gap-2 px-1 text-xs text-ink-soft">
-              <span>إجمالي المشاريع:</span>
-              <AnimatedCounter value={projects.length} duration={900} className="font-mono text-sm" />
-            </div>
+          <div className="relative max-w-md">
+            <Search className="pointer-events-none absolute start-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 stroke-[1.5] opacity-50" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="ابحث باسم الخط أو المصمم أو الوصف"
+              aria-label="بحث في المشاريع"
+              className="field ps-9"
+            />
           </div>
 
           {filtered.length === 0 ? (
             <p className="py-10 text-center text-sm text-ink-soft">لا توجد مشاريع تطابق بحثك.</p>
           ) : (
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filtered.map((project) => (
-                <article
+                <ProjectCard
                   key={project.id}
-                  onClick={() => onOpenProject(project.id)}
-                  className="glass-panel group flex cursor-pointer flex-col justify-between rounded-2xl p-5 transition-all hover:-translate-y-1 hover:border-ink/45 hover:shadow-md"
-                >
-                  <div>
-                    <div className="mb-2.5 flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h2 className="truncate text-lg">{project.name}</h2>
-                        <p className="mt-0.5 text-[11px] text-ink-soft">
-                          المصمم: {project.designer} · الإصدار {project.version}
-                        </p>
-                      </div>
-                      <span className="rounded-lg border border-ink/15 bg-sand/35 px-2 py-0.5 font-mono text-[10px]">
-                        {project.metrics.upm} UPM
-                      </span>
-                    </div>
-
-                    <p className="mb-3.5 line-clamp-2 min-h-[34px] text-xs leading-relaxed text-ink-soft">
-                      {project.description || 'مشروع خط عربي طباعي قيد التطوير.'}
-                    </p>
-
-                    <div className="mb-4 flex min-h-[54px] items-center gap-2 rounded-xl border border-ink/15 bg-sand/20 p-2.5">
-                      {project.glyphs.length > 0 ? (
-                        <div className="flex items-center gap-1.5 overflow-hidden">
-                          {project.glyphs.slice(0, 6).map((g) => (
-                            <GlyphThumb key={g.id} glyph={g} metrics={project.metrics} className="h-8 w-8 shrink-0" />
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-ink-soft">لا توجد محارف مرسومة بعد</span>
-                      )}
-                      <span className="ms-auto whitespace-nowrap text-[11px] text-ink-soft">
-                        {project.glyphs.length} محرف
-                      </span>
-                    </div>
-                  </div>
-
-                  <div
-                    className="flex items-center justify-between border-t border-ink/10 pt-3"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-center gap-0.5">
-                      <Button
-                        variant="quiet"
-                        icon
-                        title="إعادة تسمية المشروع"
-                        onClick={() => setRenaming({ id: project.id, name: project.name })}
-                      >
-                        <Edit3 className="h-3.5 w-3.5 stroke-[1.5]" />
-                      </Button>
-                      <Button variant="quiet" icon title="تكرار المشروع كنسخة" onClick={() => onDuplicateProject(project.id)}>
-                        <Copy className="h-3.5 w-3.5 stroke-[1.5]" />
-                      </Button>
-                      <Button variant="quiet" icon title="حذف المشروع" onClick={() => setDeleting(project)}>
-                        <Trash2 className="h-3.5 w-3.5 stroke-[1.5]" />
-                      </Button>
-                    </div>
-
-                    <Button variant="secondary" onClick={() => onOpenProject(project.id)}>
-                      <span>فتح الخط</span>
-                      <ArrowLeft className="h-3.5 w-3.5 stroke-[1.5]" />
-                    </Button>
-                  </div>
-                </article>
+                  project={project}
+                  onOpen={onOpenProject}
+                  onEdit={setEditing}
+                  onDuplicate={onDuplicateProject}
+                  onDelete={setDeleting}
+                />
               ))}
             </div>
           )}
         </>
       ) : (
-        <div className="glass-panel mx-auto my-6 flex w-full max-w-lg flex-col items-center rounded-2xl p-10 text-center sm:p-14">
+        <div className="card-flat mx-auto my-6 flex w-full max-w-lg flex-col items-center rounded-2xl p-10 text-center sm:p-14">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-ink/20 bg-sand/35">
             <FolderPlus className="h-6 w-6 stroke-[1.5]" />
           </div>
@@ -211,7 +199,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
             ابدأ مشروع خطك الأول، ثم ارسم المحارف واضبط المقاييس وابنِ منها خطاً حقيقياً.
           </p>
           <Button variant="primary" onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4 stroke-[1.5]" />
+            <Plus className={icon} />
             <span>إنشاء مشروع خط جديد</span>
           </Button>
         </div>
@@ -261,23 +249,12 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
         </Modal>
       )}
 
-      {renaming && (
-        <Modal title="إعادة تسمية المشروع" size="sm" onClose={() => setRenaming(null)}>
-          <form onSubmit={submitRename}>
-            <input
-              autoFocus
-              required
-              aria-label="الاسم الجديد"
-              value={renaming.name}
-              onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
-              className="field"
-            />
-            <ModalActions>
-              <Button onClick={() => setRenaming(null)}>إلغاء</Button>
-              <Button type="submit" variant="primary">حفظ الاسم</Button>
-            </ModalActions>
-          </form>
-        </Modal>
+      {editing && (
+        <FontInfoModal
+          project={editing}
+          onSave={(patch) => onUpdateProject(editing.id, patch)}
+          onClose={() => setEditing(null)}
+        />
       )}
 
       {deleting && (

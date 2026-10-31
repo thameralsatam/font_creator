@@ -9,6 +9,7 @@ import {
 } from '../types/font';
 import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
 import { computeFeatures, rulesForBuild } from './features';
+import { infoOf, parseVersion, resolveInfo, safePsName } from './fontInfo';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
 
 /*
@@ -84,11 +85,7 @@ export function checkProject(project: FontProject): BuildReport {
    من المشروع إلى ملف
    ============================================================ */
 
-/** اسم PostScript: حروف لاتينية وأرقام وشرطة فقط، بحد 63 حرفاً. */
-export function safePsName(name: string): string {
-  const s = name.replace(/[^A-Za-z0-9-]/g, '').slice(0, 63);
-  return s || 'FontStudio';
-}
+export { safePsName };
 
 function contourToOT(ot: OT, path: InstanceType<OT['Path']>, c: Contour): void {
   const n = c.nodes;
@@ -137,6 +134,11 @@ export function glyphToOT(ot: OT, g: Glyph) {
   });
 }
 
+/** اسم ملف الخط المقترح للتصدير (مثل MyFont-Regular.otf). */
+export function fontFileName(project: FontProject): string {
+  return `${resolveInfo(project).postScriptName}.otf`;
+}
+
 export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer> {
   const ot = await loadOpenType();
   const m = project.metrics;
@@ -149,18 +151,30 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
   const without = project.glyphs.filter((g) => parseUnicode(g.unicode) === null);
   const glyphs = [notdef, ...[...withCode, ...without].map((g) => glyphToOT(ot, g))];
 
-  const family = project.name.trim() || 'Font Studio';
+  const info = resolveInfo(project);
   const font = new ot.Font({
-    familyName: family,
-    styleName: 'Regular',
+    familyName: info.family,
+    styleName: info.subfamily,
     unitsPerEm: m.upm,
     ascender: m.ascender,
     descender: m.descender,
-    designer: project.designer,
-    description: project.description,
-    version: `Version ${project.version}`,
+    designer: info.designer,
+    description: info.description,
+    version: `Version ${info.version}`,
     glyphs,
   });
+  // جدول الأسماء: كل معلومات الخط تُكتب فيه، والفارغ منها لا يُكتب
+  const names = font.names as unknown as Record<string, Record<string, string>>;
+  names.fullName = { en: info.fullName };
+  names.postScriptName = { en: info.postScriptName };
+  const optional: Array<[string, string]> = [
+    ['copyright', info.copyright],
+    ['license', info.license],
+    ['licenseURL', info.licenseUrl],
+    ['manufacturer', info.manufacturer],
+    ['designerURL', info.designerUrl],
+  ];
+  for (const [key, value] of optional) if (value.trim()) names[key] = { en: value.trim() };
   // ارتفاعا الحروف الصغيرة والكبيرة يُكتبان كما ضبطتهما، وإلا خمّنتهما المكتبة من حروف لاتينية
   (font.tables as unknown as Record<string, unknown>).os2 = {
     sxHeight: m.xHeight,
@@ -186,9 +200,6 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
     }
   }
 
-  (font.names as unknown as Record<string, Record<string, string>>).postScriptName = {
-    en: safePsName(family) + '-Regular',
-  };
   return font.toArrayBuffer();
 }
 
@@ -315,6 +326,18 @@ export function fontToProject(font: OpenType.Font, fileName: string): ImportResu
   };
   const familyName = pick('fontFamily') || fileName.replace(/\.[^.]+$/, '') || 'خط مستورد';
   const project = createProject(familyName, pick('designer') ?? '', pick('description') ?? '');
+  project.version = parseVersion(pick('version'));
+  project.info = {
+    ...infoOf(project),
+    subfamily: pick('fontSubfamily') || 'Regular',
+    fullName: pick('fullName') ?? '',
+    postScriptName: /^[A-Za-z0-9-]{1,63}$/.test(pick('postScriptName') ?? '') ? pick('postScriptName')! : '',
+    copyright: pick('copyright') ?? '',
+    license: pick('license') ?? '',
+    licenseUrl: pick('licenseURL') ?? '',
+    manufacturer: pick('manufacturer') ?? '',
+    designerUrl: pick('designerURL') ?? '',
+  };
 
   const os2 = (font.tables as unknown as { os2?: { sCapHeight?: number; sxHeight?: number } }).os2;
   const metrics: FontMetrics = {

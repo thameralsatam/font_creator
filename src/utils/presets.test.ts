@@ -20,9 +20,10 @@ test('every preset item is valid and unique across all presets', () => {
 test('missingOf skips glyphs already present by name or code', () => {
   const letters = PRESETS[0].items;
   assert.equal(letters.length, 36);
+  assert.equal(letters[0].name, 'hamza.isol');
   const forms = PRESETS.find((p) => p.id === 'forms')!.items;
   assert.equal(forms.length, 81);
-  assert.ok(forms.every((f) => !f.unicode && f.form && f.form !== 'isolated'));
+  assert.ok(forms.every((f) => /^U\+FE[0-9A-F]{2}$/.test(f.unicode) && f.form && f.form !== 'isolated'));
   const have = [createGlyph({ char: 'ب', name: 'myBeh', unicode: 'U+0628', category: 'letter' })];
   const rest = missingOf(have, letters);
   assert.equal(rest.length, 35);

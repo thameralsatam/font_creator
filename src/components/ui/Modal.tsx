@@ -1,4 +1,4 @@
-import React, { useEffect, useId } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from './Button';
@@ -28,6 +28,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
 }) => {
   const titleId = useId();
+  const downOnBackdrop = useRef(false);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -47,7 +48,11 @@ export const Modal: React.FC<ModalProps> = ({
     <div
       className="animate-backdrop-fade fixed inset-0 z-[90] flex items-center justify-center bg-ink/35 p-4 backdrop-blur-sm"
       onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        downOnBackdrop.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (downOnBackdrop.current && e.target === e.currentTarget) onClose();
+        downOnBackdrop.current = false;
       }}
     >
       <div
