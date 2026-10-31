@@ -133,6 +133,10 @@ export default function App() {
             onAddNewGlyph={handleAddGlyph}
             onAddPreset={handleAddPreset}
             onUpdateInfo={(patch) => store.updateProject(activeProject.id, patch)}
+            onUpdateProject={(patch) => store.updateProject(activeProject.id, patch)}
+            onSetGlyphSvg={(id, contours, advanceWidth) =>
+              store.updateGlyph(activeProject.id, id, (g) => ({ ...g, contours, advanceWidth }))
+            }
             onEditGlyph={handleEditGlyph}
             onDeleteGlyph={handleDeleteGlyph}
             onDeleteGlyphs={handleDeleteGlyphs}

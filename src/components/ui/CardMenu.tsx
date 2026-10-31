@@ -61,7 +61,7 @@ export const CardMenu: React.FC<{
         title={label}
         aria-label={label}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-soft transition-colors hover:bg-ink/10 hover:text-ink focus:outline-none"
+        className="flex h-8 w-8 items-center justify-center rounded-xl border border-ink/15 bg-paper/90 text-ink-soft transition-colors hover:bg-sand/40 hover:text-ink focus:outline-none"
       >
         <MoreHorizontal className="h-4 w-4 stroke-[1.5]" />
       </button>

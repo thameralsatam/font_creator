@@ -117,7 +117,7 @@ export function formUnicode(base: string, suffix: FormSuffix): string {
 }
 
 export interface Rule {
-  feature: FeatureTag;
+  feature: string;
   kind: 'single' | 'ligature';
   from: string[];
   to: string;
@@ -182,7 +182,7 @@ export function computeFeatures(glyphs: Glyph[]): FeatureReport {
 
   rules.sort(
     (a, b) =>
-      FEATURE_ORDER.indexOf(a.feature) - FEATURE_ORDER.indexOf(b.feature) || a.to.localeCompare(b.to)
+      (FEATURE_ORDER as string[]).indexOf(a.feature) - (FEATURE_ORDER as string[]).indexOf(b.feature) || a.to.localeCompare(b.to)
   );
   return { rules, gaps, mismatches };
 }
