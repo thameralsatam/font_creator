@@ -9,6 +9,7 @@ import {
 } from '../types/font';
 import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
 import { computeFeatures, rulesForBuild } from './features';
+import { projectRules } from './feaParse';
 import { infoOf, parseVersion, resolveInfo, safePsName } from './fontInfo';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
 
@@ -72,10 +73,12 @@ export function checkProject(project: FontProject): BuildReport {
 
   const noCode = glyphs.filter((g) => parseUnicode(g.unicode) === null);
   const feats = computeFeatures(glyphs);
-  const unnamed = noCode.filter((g) => !feats.rules.some((r) => r.to === g.name));
+  const fea = projectRules(project);
+  const unnamed = noCode.filter((g) => !fea.rules.some((r) => r.to === g.name));
   if (unnamed.length && noCode.length < glyphs.length) {
     warnings.push(`محارف بلا رمز يونيكود ولا ميزة تستدعيها فلن تظهر أبداً: ${list(unnamed.map((g) => g.name))}. سمِّها بلاحقة .init أو .medi أو .fina.`);
   }
+  if (fea.errors.length) warnings.push(`في قواعد الأوبن تايب التي كتبتها ${fea.errors.length} خطأ، وهذه القواعد لن تُكتب في الخط. راجعها في تبويب الكود.`);
   if (feats.gaps.length) warnings.push(`ميزات ناقصة: ${list(feats.gaps.map((x) => `${x.glyph} (${x.message})`))}.`);
   if (feats.mismatches.length) warnings.push(`شكل المحرف لا يطابق لاحقة اسمه: ${list(feats.mismatches)}.`);
   return { errors, warnings };
@@ -189,7 +192,7 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
     addLigature(f: string, s: { sub: number[]; by: number }, script: string, lang: string): void;
   };
   const index = new Map(glyphs.map((gl, i) => [gl.name, i]));
-  for (const r of rulesForBuild(computeFeatures(project.glyphs))) {
+  for (const r of rulesForBuild({ rules: projectRules(project).rules, gaps: [], mismatches: [] })) {
     const ids = r.from.map((n) => index.get(n));
     const by = index.get(r.to);
     if (by === undefined || ids.some((x) => x === undefined)) continue;

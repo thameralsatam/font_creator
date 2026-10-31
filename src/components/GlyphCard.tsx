@@ -1,5 +1,5 @@
 import React from 'react';
-import { Copy, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Download, Pencil, Trash2, Upload } from 'lucide-react';
 import { type FontMetrics, type Glyph } from '../types/font';
 import { isReady } from '../utils/glyphLogic';
 import { CATEGORY_LABEL, FORM_LABEL } from '../utils/labels';
@@ -14,6 +14,8 @@ interface GlyphCardProps {
   onEdit: (id: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
+  onExportSvg: (id: string) => void;
+  onImportSvg: (id: string) => void;
 }
 
 const ic = 'h-4 w-4 stroke-[1.5]';
@@ -23,12 +25,22 @@ const ic = 'h-4 w-4 stroke-[1.5]';
  * - معاينة واضحة مع شبكة هندسية دقيقة داخل إطار أبيض ناصع.
  * - زر القائمة الثلاثي موضوع بشكل أنيق في الزاوية دون تداخل.
  */
-const GlyphCardBase: React.FC<GlyphCardProps> = ({ glyph, metrics, onOpen, onEdit, onDuplicate, onDelete }) => {
+const GlyphCardBase: React.FC<GlyphCardProps> = ({ glyph, metrics, onOpen, onEdit, onDuplicate, onDelete, onExportSvg, onImportSvg }) => {
   const ready = isReady(glyph);
   const kind = glyph.form !== 'isolated' ? FORM_LABEL[glyph.form] : CATEGORY_LABEL[glyph.category];
   return (
     <div className="capsule relative flex flex-col justify-between">
-      <CardMenu label="إجراءات المحرف" className="absolute top-2 start-2 z-20" />
+      <CardMenu label="إجراءات المحرف" className="absolute start-4 top-4 z-20">
+        {(close) => (
+          <>
+            <MenuItem label="تعديل البيانات" icon={<Pencil className={ic} />} onClick={() => { close(); onEdit(glyph.id); }} />
+            <MenuItem label="تكرار" icon={<Copy className={ic} />} onClick={() => { close(); onDuplicate(glyph.id); }} />
+            <MenuItem label="تصدير SVG" icon={<Download className={ic} />} onClick={() => { close(); onExportSvg(glyph.id); }} />
+            <MenuItem label="استبدال الرسم من SVG" icon={<Upload className={ic} />} onClick={() => { close(); onImportSvg(glyph.id); }} />
+            <MenuItem label="حذف" icon={<Trash2 className={ic} />} onClick={() => { close(); onDelete(glyph.id); }} />
+          </>
+        )}
+      </CardMenu>
       <button
         type="button"
         onClick={() => onOpen(glyph.id)}

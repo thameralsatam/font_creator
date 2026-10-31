@@ -11,11 +11,14 @@ import {
   Sliders,
   Sparkles,
 } from 'lucide-react';
-import { type FontProject, type NewGlyphData } from '../types/font';
-import { computeFeatures } from '../utils/features';
+import { type Contour, type FontProject, type NewGlyphData } from '../types/font';
+import { downloadTextFile } from '../utils/download';
+import { projectRules } from '../utils/feaParse';
 import { resolveInfo } from '../utils/fontInfo';
+import { glyphToSvg, svgToGlyph } from '../utils/svgGlyph';
 import { type GlyphMeta, type SortMode, isReady, sortGlyphs } from '../utils/glyphLogic';
 import { FeaturesModal } from './FeaturesModal';
+import { FontTestPanel } from './FontTestPanel';
 import { FontInfoModal, type InfoPatch } from './FontInfoModal';
 import { GlyphAddModal } from './GlyphAddModal';
 import { GlyphCard } from './GlyphCard';
@@ -40,6 +43,8 @@ interface ProjectOverviewProps {
   onDeleteGlyphs: (glyphIds: string[]) => void;
   onDuplicateGlyph: (glyphId: string) => void;
   onUpdateInfo: (patch: InfoPatch) => void;
+  onUpdateProject: (patch: Partial<FontProject>) => void;
+  onSetGlyphSvg: (glyphId: string, contours: Contour[], advanceWidth: number) => void;
 }
 
 const PAGE = 60;
@@ -64,18 +69,46 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [svgError, setSvgError] = useState<string | null>(null);
+  const [svgPending, setSvgPending] = useState<{ id: string; contours: Contour[]; advanceWidth: number } | null>(null);
+  const svgInput = useRef<HTMLInputElement>(null);
+  const svgTarget = useRef<string | null>(null);
 
   // الدوال المرسلة للبطاقات ثابتة حتى لا تُعاد رسم مئات البطاقات مع كل تغيير
   const latest = useRef(props);
   latest.current = props;
   const open = useCallback((id: string) => latest.current.onEnterStudio(id), []);
   const duplicate = useCallback((id: string) => latest.current.onDuplicateGlyph(id), []);
+  const exportSvg = useCallback((id: string) => {
+    const { project: p } = latest.current;
+    const g = p.glyphs.find((x) => x.id === id);
+    if (g) downloadTextFile(glyphToSvg(g, p.metrics), `${g.name}.svg`, 'image/svg+xml');
+  }, []);
+  const importSvg = useCallback((id: string) => {
+    svgTarget.current = id;
+    svgInput.current?.click();
+  }, []);
+
+  const onSvgFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    const id = svgTarget.current;
+    if (!file || !id) return;
+    const res = svgToGlyph(await file.text(), metrics);
+    if (!res.ok) {
+      setSvgError(res.error);
+      return;
+    }
+    const target = glyphs.find((g) => g.id === id);
+    if (target && target.contours.length > 0) setSvgPending({ id, contours: res.contours, advanceWidth: res.advanceWidth });
+    else props.onSetGlyphSvg(id, res.contours, res.advanceWidth);
+  };
 
   const info = resolveInfo(project);
   const shown = useMemo(() => sortGlyphs(glyphs, sort), [glyphs, sort]);
   const notReadyIds = useMemo(() => glyphs.filter((g) => !isReady(g)).map((g) => g.id), [glyphs]);
   const ready = glyphs.length - notReadyIds.length;
-  const rules = useMemo(() => computeFeatures(glyphs).rules.length, [glyphs]);
+  const rules = useMemo(() => projectRules({ glyphs, customFea: project.customFea }).rules.length, [glyphs, project.customFea]);
   const editing = glyphs.find((g) => g.id === editingId) ?? null;
   const deleting = glyphs.find((g) => g.id === deletingId) ?? null;
   const isEmpty = glyphs.length === 0;
@@ -146,6 +179,8 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
           ))}
         </div>
       </header>
+
+      <FontTestPanel project={project} />
 
       {/* المحارف */}
       <section className="flex flex-col gap-3">
@@ -228,6 +263,8 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   onEdit={setEditingId}
                   onDuplicate={duplicate}
                   onDelete={setDeletingId}
+                  onExportSvg={exportSvg}
+                  onImportSvg={importSvg}
                 />
               ))}
             </div>
@@ -253,6 +290,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             setShowFeatures(false);
             onEnterStudio(id);
           }}
+          onSaveCustomFea={(t) => props.onUpdateProject({ customFea: t })}
           onClose={() => setShowFeatures(false)}
         />
       )}
@@ -264,6 +302,35 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
           onSave={(meta) => props.onEditGlyph(editing.id, meta)}
           onClose={() => setEditingId(null)}
         />
+      )}
+
+      <input ref={svgInput} type="file" accept=".svg,image/svg+xml" className="hidden" onChange={(e) => void onSvgFile(e)} />
+
+      {svgError && (
+        <Modal title="تعذّر استيراد SVG" size="sm" onClose={() => setSvgError(null)}>
+          <p className="text-sm leading-7">{svgError}</p>
+          <ModalActions>
+            <Button variant="primary" onClick={() => setSvgError(null)}>حسناً</Button>
+          </ModalActions>
+        </Modal>
+      )}
+
+      {svgPending && (
+        <Modal title="استبدال الرسم" size="sm" onClose={() => setSvgPending(null)}>
+          <p className="text-sm leading-7">هذا المحرف مرسوم أصلاً. سيُستبدل رسمه بمحتوى الملف ولا يمكن التراجع.</p>
+          <ModalActions>
+            <Button onClick={() => setSvgPending(null)}>إلغاء</Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                props.onSetGlyphSvg(svgPending.id, svgPending.contours, svgPending.advanceWidth);
+                setSvgPending(null);
+              }}
+            >
+              استبدال
+            </Button>
+          </ModalActions>
+        </Modal>
       )}
 
       {deleting && (

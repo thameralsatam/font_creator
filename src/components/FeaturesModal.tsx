@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Check, Copy, Plus, Sparkles } from 'lucide-react';
 import { type FontProject, type NewGlyphData } from '../types/font';
-import { buildFontBuffer } from '../utils/fontBuild';
+import { parseFea, projectRules } from '../utils/feaParse';
 import { copyText } from '../utils/download';
 import {
   FEATURE_INFO,
@@ -20,29 +20,29 @@ interface FeaturesModalProps {
   project: FontProject;
   onAddGlyphs: (items: NewGlyphData[]) => void;
   onOpenGlyph: (glyphId: string) => void;
+  onSaveCustomFea: (text: string) => void;
   onClose: () => void;
 }
 
-type Tab = 'overview' | FeatureTag | 'missing' | 'code' | 'test';
+type Tab = 'overview' | FeatureTag | 'missing' | 'code';
 
-const TAB_LABEL: Record<'overview' | 'missing' | 'code' | 'test', string> = {
+const TAB_LABEL: Record<'overview' | 'missing' | 'code', string> = {
   overview: 'نظرة عامة',
   missing: 'الناقص',
   code: 'الكود',
-  test: 'اختبار',
 };
 
 /** مكان ميزات الأوبن تايب: ما يعمل منها، وما ينقص، وكودها، واختبارها بالخط الحقيقي. */
-export const FeaturesModal: React.FC<FeaturesModalProps> = ({ project, onAddGlyphs, onOpenGlyph, onClose }) => {
+export const FeaturesModal: React.FC<FeaturesModalProps> = ({ project, onAddGlyphs, onOpenGlyph, onSaveCustomFea, onClose }) => {
   const [tab, setTab] = useState<Tab>('overview');
   const report = useMemo(() => computeFeatures(project.glyphs), [project.glyphs]);
   const missing = useMemo(() => missingForms(project.glyphs), [project.glyphs]);
   const fea = useMemo(() => rulesToFea(report), [report]);
   const byName = useMemo(() => new Map(project.glyphs.map((g) => [g.name, g])), [project.glyphs]);
-  const [copied, setCopied] = useState(false);
+  const rules = useMemo(() => projectRules(project).rules, [project]);
 
-  const count = (t: FeatureTag) => report.rules.filter((r) => r.feature === t).length;
-  const tabs: Tab[] = ['overview', ...FEATURE_ORDER, 'missing', 'code', 'test'];
+  const count = (t: FeatureTag) => rules.filter((r) => r.feature === t).length;
+  const tabs: Tab[] = ['overview', ...FEATURE_ORDER, 'missing', 'code'];
   const label = (t: Tab) => (t in TAB_LABEL ? TAB_LABEL[t as keyof typeof TAB_LABEL] : FEATURE_INFO[t as FeatureTag].label);
 
   return (
@@ -113,7 +113,7 @@ export const FeaturesModal: React.FC<FeaturesModalProps> = ({ project, onAddGlyp
               <p className="text-sm text-ink-soft">لا توجد قواعد لهذه الميزة بعد.</p>
             ) : (
               <ul className="divide-y divide-ink/10 rounded-2xl border border-ink/15">
-                {report.rules
+                {rules
                   .filter((r) => r.feature === tab)
                   .map((r) => {
                     const target = byName.get(r.to);
@@ -172,106 +172,114 @@ export const FeaturesModal: React.FC<FeaturesModalProps> = ({ project, onAddGlyp
           </div>
         )}
 
-        {tab === 'code' && (
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-ink/10 bg-sand/25 p-3 text-xs leading-relaxed text-ink-soft">
-              <p className="font-heading text-ink">ما هو هذا الكود؟</p>
-              <p className="mt-1">
-                صيغة Adobe Feature File (FEA) القياسية. تُترجَم تلقائياً وتُحقَن داخل ملف الخط
-                (OTF) عند التصدير، فلا تحتاج لبرامج خارجية. يمكنك نسخ الكود إن أردت استعماله في
-                FontTools أو برامج خطوط أخرى.
-              </p>
-            </div>
-            <textarea
-              readOnly
-              dir="ltr"
-              value={fea || '# لا توجد قواعد بعد'}
-              className="field h-56 w-full resize-y font-mono text-xs"
-              style={{ height: 224 }}
-            />
-            <Button
-              onClick={async () => {
-                const ok = await copyText(fea);
-                setCopied(ok);
-                window.setTimeout(() => setCopied(false), 1800);
-              }}
-            >
-              {copied ? <Check className="h-3.5 w-3.5 stroke-[1.5]" /> : <Copy className="h-3.5 w-3.5 stroke-[1.5]" />}
-              <span>نسخ</span>
-            </Button>
-          </div>
-        )}
-
-        {tab === 'test' && <TestPane project={project} />}
+        {tab === 'code' && <CodePane project={project} auto={fea} onSave={onSaveCustomFea} />}
       </div>
     </Modal>
   );
 };
 
-/** اختبار الخط بكتابة نص: يُبنى الخط الحقيقي ويُحمَّل في المتصفح فيطبّق الميزات مثل أي برنامج. */
-const TestPane: React.FC<{ project: FontProject }> = ({ project }) => {
-  const [text, setText] = useState('بسم الله الرحمن الرحيم');
-  const [size, setSize] = useState(56);
-  const [state, setState] = useState<'idle' | 'busy' | 'ready' | 'error'>('idle');
-  const [family, setFamily] = useState<string | null>(null);
-  const counter = useRef(0);
-  const added = useRef<FontFace[]>([]);
-
-  const rebuild = async () => {
-    setState('busy');
-    try {
-      const buf = await buildFontBuffer(project);
-      const name = `FSPreview${++counter.current}`;
-      const face = new FontFace(name, buf);
-      await face.load();
-      document.fonts.add(face);
-      added.current.push(face);
-      setFamily(name);
-      setState('ready');
-    } catch {
-      setState('error');
-    }
-  };
-
-  useEffect(() => {
-    void rebuild();
-    const faces = added.current;
-    return () => faces.forEach((f) => document.fonts.delete(f));
-    // يُبنى مرة عند فتح التبويب، ثم عند زر التحديث
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+/** كود FEA: القواعد التلقائية للقراءة والنسخ، وصندوق قواعدك للتعديل والإضافة. */
+const CodePane: React.FC<{ project: FontProject; auto: string; onSave: (t: string) => void }> = ({ project, auto, onSave }) => {
+  const saved = project.customFea ?? '';
+  const [draft, setDraft] = useState(saved);
+  const [copied, setCopied] = useState(false);
+  const names = useMemo(() => new Set(project.glyphs.map((g) => g.name)), [project.glyphs]);
+  const parsed = useMemo(() => parseFea(draft, names), [draft, names]);
+  const dirty = draft !== saved;
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          className="field min-w-0 flex-1"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          aria-label="نص الاختبار"
-        />
-        <input
-          type="range"
-          min={20}
-          max={120}
-          value={size}
-          onChange={(e) => setSize(Number(e.target.value))}
-          aria-label="حجم الخط"
-        />
-        <Button onClick={() => void rebuild()} disabled={state === 'busy'}>
-          {state === 'busy' ? 'جارٍ البناء' : 'تحديث الخط'}
-        </Button>
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-ink/10 bg-sand/25 p-3 text-xs leading-relaxed text-ink-soft">
+        <p className="font-heading text-ink">كيف تعمل القواعد؟</p>
+        <p className="mt-1">
+          التطبيق يكتب القواعد تلقائياً من أسماء المحارف (الأول)، وأنت تضيف قواعدك أو تعدّلها (الثاني). الاثنان يُدمجان
+          عند التصدير. وإن كتبت قاعدة لنفس الميزة والمصدر فقاعدتك تحلّ محل التلقائية.
+        </p>
+        <p className="mt-1">
+          المدعوم: <span dir="ltr" className="font-mono">sub أ by ب;</span> للاستبدال، و{' '}
+          <span dir="ltr" className="font-mono">sub أ ب by ج;</span> للدمج، داخل{' '}
+          <span dir="ltr" className="font-mono">feature xxxx {'{ ... }'} xxxx;</span>. قواعد المواضع (GPOS) غير مدعومة بعد.
+        </p>
       </div>
-      <div
-        dir="rtl"
-        className="min-h-32 overflow-auto rounded-2xl border border-ink/20 bg-canvas p-4"
-        style={{ fontFamily: family ? `"${family}"` : undefined, fontSize: size, lineHeight: 1.6 }}
-      >
-        {state === 'error' ? 'تعذّر بناء الخط. راجع التنبيهات في نافذة التصدير.' : text}
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm">القواعد التلقائية</span>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="quiet"
+              disabled={!auto}
+              title="يضيف القواعد التلقائية إلى صندوق قواعدك لتعدّلها"
+              onClick={() => setDraft((d) => (d.trim() ? `${d.trimEnd()}\n\n${auto}\n` : `${auto}\n`))}
+            >
+              <Plus className="h-3.5 w-3.5 stroke-[1.5]" />
+              <span>نقل للتعديل</span>
+            </Button>
+            <Button
+              variant="quiet"
+              icon
+              title="نسخ"
+              onClick={async () => {
+                const ok = await copyText(auto);
+                setCopied(ok);
+                window.setTimeout(() => setCopied(false), 1800);
+              }}
+            >
+              {copied ? <Check className="h-3.5 w-3.5 stroke-[1.5]" /> : <Copy className="h-3.5 w-3.5 stroke-[1.5]" />}
+            </Button>
+          </div>
+        </div>
+        <textarea
+          readOnly
+          dir="ltr"
+          value={auto || '# لا توجد قواعد تلقائية بعد'}
+          className="field w-full resize-y bg-sand/10 font-mono text-xs"
+          style={{ height: 150 }}
+        />
       </div>
-      <p className="text-xs leading-6 text-ink-soft">
-        الحروف التي لم تُرسم تظهر فراغاً. بعد تعديل رسم في الاستوديو اضغط تحديث الخط.
-      </p>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm">قواعدك</span>
+          <span className="font-mono text-[11px] text-ink-soft">{parsed.rules.length}</span>
+        </div>
+        <textarea
+          dir="ltr"
+          spellCheck={false}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={'feature init {\n    sub beh.isol by beh.init;\n} init;'}
+          className="field w-full resize-y font-mono text-xs"
+          style={{ height: 170 }}
+        />
+        {parsed.errors.length > 0 && (
+          <ul className="space-y-1 rounded-2xl border border-ink/20 p-3 text-xs">
+            {parsed.errors.map((e, i) => (
+              <li key={i} className="flex gap-2">
+                <AlertTriangle className="mt-1 h-3.5 w-3.5 shrink-0 stroke-[1.5]" />
+                <span>
+                  السطر <span className="font-mono">{e.line}</span>: {e.message}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex items-center justify-end gap-2">
+          {dirty && (
+            <Button variant="quiet" onClick={() => setDraft(saved)}>
+              تراجع
+            </Button>
+          )}
+          <Button
+            variant="primary"
+            disabled={!dirty || parsed.errors.length > 0}
+            title={parsed.errors.length > 0 ? 'أصلح الأخطاء أولاً' : undefined}
+            onClick={() => onSave(draft)}
+          >
+            حفظ القواعد
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };
