@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Copy, FileText, FolderPlus, PenTool, Plus, Search, Trash2 } from 'lucide-react';
+import { Copy, FileText, FolderOpen, FolderPlus, PenTool, Plus, Search, Trash2 } from 'lucide-react';
 import { type FontProject } from '../types/font';
 import { resolveInfo } from '../utils/fontInfo';
 import { isReady } from '../utils/glyphLogic';
@@ -35,54 +35,54 @@ const ProjectCard: React.FC<{
   return (
     <article
       onClick={() => onOpen(project.id)}
-      className="card-flat group flex cursor-pointer flex-col justify-between rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:border-ink/45"
+      className="card-flat flex cursor-pointer flex-col overflow-hidden rounded-2xl transition-colors hover:border-ink/50"
     >
-      <div>
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h2 className="truncate text-lg">{project.name}</h2>
-            <p className="mt-0.5 truncate text-[11px] text-ink-soft">
-              {project.designer} · <span dir="ltr" className="font-mono">{info.subfamily}</span>
-            </p>
-          </div>
+      <div className="flex flex-col gap-3 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="min-w-0 flex-1 truncate text-lg">{project.name}</h2>
           <VersionPill version={project.version} />
         </div>
 
-        <div className="mb-3.5 flex min-h-[56px] items-center gap-2 rounded-xl border border-ink/15 bg-sand/20 p-2.5">
+        <div className="flex flex-wrap gap-1.5">
+          <span className="chip chip-ghost max-w-[9rem] truncate">{project.designer}</span>
+          <span dir="ltr" className="chip chip-ghost font-mono">{info.subfamily}</span>
+          <span dir="ltr" className="chip chip-ghost font-mono">{project.metrics.upm}</span>
+        </div>
+
+        <div className="flex h-14 items-center gap-1.5 overflow-hidden rounded-xl border border-ink/10 bg-sand/15 px-2.5">
           {drawn.length > 0 ? (
-            <div className="flex items-center gap-1.5 overflow-hidden">
-              {drawn.slice(0, 7).map((g) => (
-                <GlyphThumb key={g.id} glyph={g} metrics={project.metrics} className="h-9 w-9 shrink-0" />
-              ))}
-            </div>
+            drawn.slice(0, 7).map((g) => (
+              <GlyphThumb key={g.id} glyph={g} metrics={project.metrics} className="h-9 w-9 shrink-0" />
+            ))
           ) : (
             <span className="text-[11px] text-ink-soft">لم يُرسم أي محرف بعد</span>
           )}
         </div>
 
-        <div className="mb-1 flex items-center justify-between text-[11px] text-ink-soft">
-          <span>
-            المكتمل <span className="font-mono">{drawn.length}</span> من <span className="font-mono">{project.glyphs.length}</span>
-          </span>
-          <span className="font-mono">{project.metrics.upm}</span>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between text-[11px] text-ink-soft">
+            <span>المكتمل</span>
+            <span dir="ltr" className="font-mono">{drawn.length} / {project.glyphs.length}</span>
+          </div>
+          <Progress value={drawn.length} max={project.glyphs.length} />
         </div>
-        <Progress value={drawn.length} max={project.glyphs.length} />
       </div>
 
-      <div className="mt-4 flex items-center justify-between border-t border-ink/10 pt-3" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-0.5">
-          <Button variant="quiet" icon title="تعديل معلومات المشروع" onClick={() => onEdit(project)}>
-            <FileText className={icon} />
-          </Button>
-          <Button variant="quiet" icon title="نسخ المشروع" onClick={() => onDuplicate(project.id)}>
-            <Copy className={icon} />
-          </Button>
-          <Button variant="quiet" icon title="حذف المشروع" onClick={() => onDelete(project)}>
-            <Trash2 className={icon} />
-          </Button>
-        </div>
-        <Button variant="secondary" onClick={() => onOpen(project.id)}>
-          <span>فتح</span>
+      <div
+        className="mt-auto grid grid-cols-4 divide-x divide-x-reverse divide-ink/10 border-t border-ink/10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Button variant="quiet" className="rounded-none" title="تعديل معلومات المشروع" onClick={() => onEdit(project)}>
+          <FileText className={icon} />
+        </Button>
+        <Button variant="quiet" className="rounded-none" title="نسخ المشروع" onClick={() => onDuplicate(project.id)}>
+          <Copy className={icon} />
+        </Button>
+        <Button variant="quiet" className="rounded-none" title="حذف المشروع" onClick={() => onDelete(project)}>
+          <Trash2 className={icon} />
+        </Button>
+        <Button variant="quiet" className="rounded-none" title="فتح المشروع" onClick={() => onOpen(project.id)}>
+          <FolderOpen className={icon} />
         </Button>
       </div>
     </article>
@@ -134,7 +134,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="card-flat flex items-center justify-between gap-4 rounded-2xl p-4 sm:p-6">
+      <div className="card-flat flex items-center justify-between gap-3 rounded-2xl p-3.5 sm:p-5">
         <div className="min-w-0">
           <div className="mb-1.5 flex items-center gap-2 text-xs text-ink-soft">
             <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-ink/20 bg-sand/35">

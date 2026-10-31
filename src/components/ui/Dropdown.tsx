@@ -23,6 +23,8 @@ interface DropdownProps {
   icon?: React.ReactNode;
   /** إظهار الأيقونة وحدها وإخفاء النص على كل الشاشات. */
   iconOnly?: boolean;
+  /** إطار مثل الأزرار الثانوية، ليتطابق مع الأزرار المجاورة في أشرطة الأدوات. */
+  framed?: boolean;
   /** إظهار نص الزر على الشاشات الصغيرة أيضاً. افتراضياً تظهر الأيقونة وحدها. */
   labelOnMobile?: boolean;
   /** auto = أسفل الزر، وتنقلب لأعلى إن ضاق المكان. */
@@ -57,6 +59,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
   label,
   icon,
   iconOnly = false,
+  framed = false,
   labelOnMobile = false,
   placement = 'auto',
   align = 'start',
@@ -154,7 +157,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
     <>
       <Button
         ref={triggerRef}
-        variant="quiet"
+        variant={framed ? 'secondary' : 'quiet'}
+        icon={iconOnly}
         soon={soon}
         active={open || active}
         title={label}
@@ -172,9 +176,11 @@ export const Dropdown: React.FC<DropdownProps> = ({
       >
         {icon}
         {!iconOnly && <span className={labelOnMobile ? '' : 'hidden md:inline'}>{label}</span>}
-        <ChevronDown
-          className={`h-3 w-3 stroke-[1.5] transition-transform ${open ? 'rotate-180' : ''}`}
-        />
+        {!iconOnly && (
+          <ChevronDown
+            className={`h-3 w-3 stroke-[1.5] transition-transform ${open ? 'rotate-180' : ''}`}
+          />
+        )}
       </Button>
 
       {open &&

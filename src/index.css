@@ -222,12 +222,30 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(18, 48, 42, 0.2);
+  box-shadow: 0 1px 2px rgba(18, 48, 42, 0.05);
 }
 
-/* بطاقة محرف خفيفة الحساب على المعالج مع دعم التقديم الكسول */
-.card-flat {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 220px;
+/* كبسولة صغيرة موحّدة لكل البيانات الثانوية */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.375rem;
+  padding: 0 0.55rem;
+  border: 1px solid rgba(18, 48, 42, 0.22);
+  border-radius: 999px;
+  background-color: rgba(232, 205, 154, 0.3);
+  font-size: 0.6875rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+.chip-solid {
+  background-color: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-paper);
+}
+.chip-ghost {
+  background-color: transparent;
 }
 
 .glass-dropdown {
