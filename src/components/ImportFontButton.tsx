@@ -44,7 +44,7 @@ export const ImportFontButton: React.FC<{ onImport: (project: FontProject) => vo
       <input
         ref={input}
         type="file"
-        accept=".otf,.ttf"
+        accept=".otf,.ttf,.woff,.woff2"
         className="hidden"
         onChange={(e) => void pick(e.target.files?.[0])}
       />

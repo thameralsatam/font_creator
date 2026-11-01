@@ -8,7 +8,7 @@ import {
   type PathNode,
 } from '../types/font';
 import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
-import { computeFeatures, rulesForBuild } from './features';
+import { type Rule, computeFeatures, ruleToFea, rulesForBuild } from './features';
 import { projectRules } from './feaParse';
 import { infoOf, parseVersion, resolveInfo, safePsName } from './fontInfo';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
@@ -356,6 +356,7 @@ export function fontToProject(font: OpenType.Font, fileName: string): ImportResu
 
   const range = coordRange(metrics);
   const taken = new Set<string>();
+  const nameByIndex = new Map<number, string>();
   const codes = new Set<number>();
   const glyphs: Glyph[] = [];
   let skippedLimits = 0;
@@ -386,6 +387,7 @@ export function fontToProject(font: OpenType.Font, fileName: string): ImportResu
     contours = fixDirections(contours);
     if (cp !== null) codes.add(cp);
     const name = cleanName(g.name ?? undefined, cp, taken, i);
+    nameByIndex.set(i, name);
     const glyph = createGlyph({
       char: cp !== null ? String.fromCodePoint(cp) : name,
       name,
@@ -400,19 +402,129 @@ export function fontToProject(font: OpenType.Font, fileName: string): ImportResu
   if (skippedRange) notes.push(`${skippedRange} محرف خارج المجال المسموح للإحداثيات فلم يُستورد.`);
   if (skippedCap) notes.push(`${skippedCap} محرف زائد عن الحد الأقصى (${MAX_IMPORT_GLYPHS}) فلم يُستورد.`);
   if (!validateMetrics(metrics).isValid) notes.push('مقاييس الخط المستورد غير متناسقة، راجعها من نافذة المقاييس.');
-  notes.push('قواعد الخط (ميزات التبديل) لا تُستورد، وتُضاف داخل المشروع لاحقاً.');
-
   project.glyphs = glyphs;
+  const fea = readFontRules(font, nameByIndex, glyphs);
+  if (fea.count > 0) {
+    project.customFea = fea.text;
+    notes.push(`استُوردت ${fea.count} قاعدة من الخط إلى صندوق «قواعدك» في ميزات الأوبن تايب.`);
+  } else {
+    notes.push('لم أجد في الخط قواعد تبديل أو دمج قابلة للاستيراد.');
+  }
+  if ((font.tables as unknown as { gpos?: unknown }).gpos) {
+    notes.push('قواعد المواضع (التقارب وتموضع الحركات) موجودة في الخط الأصلي ولا تُستورد بعد.');
+  }
   return { project, notes, imported: glyphs.length };
 }
 
+/** يقرأ قواعد التبديل المفرد والدمج من جدول GSUB ويكتبها بصيغة FEA. القواعد المطابقة للتلقائية تُستبعد. */
+export function readFontRules(
+  font: OpenType.Font,
+  nameByIndex: Map<number, string>,
+  glyphs: Glyph[]
+): { text: string; count: number } {
+  const gsub = font.tables.gsub as unknown as { scripts?: Array<{ tag: string }>; features?: Array<{ tag: string }> } | undefined;
+  if (!gsub?.features || !gsub.scripts) return { text: '', count: 0 };
+  const sub = font.substitution as unknown as {
+    getSingle(f: string, s: string, l: string): Array<{ sub: number; by: number }>;
+    getLigatures(f: string, s: string, l: string): Array<{ sub: number[]; by: number }>;
+  };
+  const okName = (n: string | undefined): n is string => !!n && /^[^\s;{}#'[\]]+$/.test(n);
+  const auto = new Set(computeFeatures(glyphs).rules.map((r) => `${r.feature}|${r.from.join(' ')}|${r.to}`));
+  const tags = [...new Set(gsub.features.map((f) => f.tag))].sort();
+  const seen = new Set<string>();
+  const byTag = new Map<string, Rule[]>();
+
+  const add = (tag: string, from: number[], to: number) => {
+    const f = from.map((i) => nameByIndex.get(i));
+    const t = nameByIndex.get(to);
+    if (!f.every(okName) || !okName(t)) return;
+    const names = f as string[];
+    const key = `${tag}|${names.join(' ')}`;
+    if (seen.has(key) || auto.has(`${key}|${t}`)) return;
+    seen.add(key);
+    const list = byTag.get(tag) ?? [];
+    list.push({ feature: tag, kind: names.length === 1 ? 'single' : 'ligature', from: names, to: t });
+    byTag.set(tag, list);
+  };
+
+  for (const tag of tags) {
+    for (const script of gsub.scripts) {
+      try {
+        for (const r of sub.getSingle(tag, script.tag, 'dflt')) add(tag, [r.sub], r.by);
+        for (const r of sub.getLigatures(tag, script.tag, 'dflt')) add(tag, r.sub, r.by);
+      } catch {
+        /* نص لا يحوي هذه الميزة */
+      }
+    }
+  }
+
+  let count = 0;
+  const blocks: string[] = [];
+  for (const tag of tags) {
+    const rules = byTag.get(tag);
+    if (!rules?.length) continue;
+    count += rules.length;
+    blocks.push(`feature ${tag} {\n${rules.map((r) => `    ${ruleToFea(r)}`).join('\n')}\n} ${tag};`);
+  }
+  return { text: blocks.join('\n\n'), count };
+}
+
+/** ينتظر اكتمال تهيئة وحدة الضغط (قد تكتمل قبل أن نصل إليها، فلا نعتمد على الحدث وحده). */
+function emReady(em: { calledRun?: boolean; onRuntimeInitialized?: () => void }): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (em.calledRun) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(() => reject(new Error('تعذّر تشغيل وحدة الضغط.')), 20000);
+    const prev = em.onRuntimeInitialized;
+    em.onRuntimeInitialized = () => {
+      clearTimeout(timer);
+      prev?.();
+      resolve();
+    };
+  });
+}
+
+/** WOFF2 للويب: وحدات الضغط والفك تُحمَّل عند الحاجة فقط. */
+export async function toWoff2(buf: ArrayBuffer): Promise<Uint8Array> {
+  const mod = await import('../vendor/woff2/compress_binding.js');
+  const em = (mod as { default?: typeof mod.default }).default ?? (mod as unknown as typeof mod.default);
+  await emReady(em);
+  const out = em.compress(new Uint8Array(buf));
+  if (out === false) throw new Error('فشل تحويل الخط إلى WOFF2.');
+  return out;
+}
+
+async function fromWoff2(buf: ArrayBuffer): Promise<Uint8Array> {
+  const mod = await import('../vendor/woff2/decompress_binding.js');
+  const em = (mod as { default?: typeof mod.default }).default ?? (mod as unknown as typeof mod.default);
+  await emReady(em);
+  const out = em.decompress(new Uint8Array(buf));
+  if (out === false) throw new Error('فشل فك WOFF2.');
+  return out;
+}
+
+const isWoff2 = (buf: ArrayBuffer) => {
+  const b = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
+  return b.length === 4 && b[0] === 0x77 && b[1] === 0x4f && b[2] === 0x46 && b[3] === 0x32;
+};
+
 export async function importFontBuffer(buf: ArrayBuffer, fileName: string): Promise<ImportResult> {
+  if (isWoff2(buf)) {
+    try {
+      const raw = await fromWoff2(buf);
+      buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
+    } catch {
+      throw new Error('تعذّرت قراءة ملف WOFF2. الملف تالف.');
+    }
+  }
   const ot = await loadOpenType();
   let font: OpenType.Font;
   try {
     font = ot.parse(buf);
   } catch {
-    throw new Error('تعذّرت قراءة الملف. المدعوم هو OTF وTTF فقط، وهذا الملف تالف أو بصيغة أخرى.');
+    throw new Error('تعذّرت قراءة الملف. المدعوم هو OTF وTTF وWOFF وWOFF2، وهذا الملف تالف أو بصيغة أخرى.');
   }
   return fontToProject(font, fileName);
 }
