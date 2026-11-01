@@ -1,5 +1,6 @@
 import { type Glyph, type GlyphCategory, type GlyphForm } from '../types/font';
 import { uid, validateNewGlyph } from './fontLogic';
+import { CATEGORY_LABEL, FORM_LABEL } from './labels';
 
 /** بيانات المحرف القابلة للتعديل من نافذة التعديل. الرسم والعرض لا يمسّهما. */
 export interface GlyphMeta {
@@ -89,4 +90,31 @@ export function sortGlyphs(glyphs: Glyph[], mode: SortMode): Glyph[] {
       .map((x) => x.g);
   }
   return list;
+}
+
+export interface GlyphFilter {
+  query: string;
+  status: 'all' | 'ready' | 'empty';
+  category: 'all' | GlyphCategory;
+  form: 'all' | GlyphForm;
+}
+
+export const NO_FILTER: GlyphFilter = { query: '', status: 'all', category: 'all', form: 'all' };
+
+export const isFiltering = (f: GlyphFilter): boolean =>
+  f.query.trim() !== '' || f.status !== 'all' || f.category !== 'all' || f.form !== 'all';
+
+/** يصفّي المحارف: النص يُطابق الاسم أو الحرف أو الرمز أو اسم التصنيف أو الشكل. */
+export function filterGlyphs(glyphs: Glyph[], f: GlyphFilter): Glyph[] {
+  const q = f.query.trim().toLowerCase();
+  return glyphs.filter((g) => {
+    if (f.status === 'ready' && !isReady(g)) return false;
+    if (f.status === 'empty' && isReady(g)) return false;
+    if (f.category !== 'all' && g.category !== f.category) return false;
+    if (f.form !== 'all' && g.form !== f.form) return false;
+    if (!q) return true;
+    return [g.name, g.char, g.unicode, CATEGORY_LABEL[g.category], FORM_LABEL[g.form]].some((v) =>
+      v.toLowerCase().includes(q)
+    );
+  });
 }

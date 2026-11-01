@@ -2,6 +2,9 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   ArrowUpDown,
+  Filter,
+  Search,
+  X,
   Download,
   Eraser,
   FileText,
@@ -12,7 +15,7 @@ import {
   Sparkles,
   Upload,
 } from 'lucide-react';
-import { type Contour, type FontProject, type NewGlyphData } from '../types/font';
+import { type Contour, type FontProject, type Glyph, type GlyphCategory, type GlyphForm, type NewGlyphData } from '../types/font';
 import { downloadBlob, downloadTextFile } from '../utils/download';
 import { zipStore } from '../utils/zip';
 import { FORM_OF, splitName } from '../utils/features';
@@ -21,7 +24,8 @@ import { defaultUnicode } from '../utils/fontLogic';
 import { projectRules } from '../utils/feaParse';
 import { resolveInfo } from '../utils/fontInfo';
 import { glyphToSvg, svgToGlyph } from '../utils/svgGlyph';
-import { type GlyphMeta, type SortMode, isReady, sortGlyphs } from '../utils/glyphLogic';
+import { type GlyphFilter, type GlyphMeta, type SortMode, NO_FILTER, filterGlyphs, isFiltering, isReady, sortGlyphs } from '../utils/glyphLogic';
+import { CATEGORY_LABEL, FORM_LABEL } from '../utils/labels';
 import { FeaturesModal } from './FeaturesModal';
 import { FontTestPanel } from './FontTestPanel';
 import { FontInfoModal, type InfoPatch } from './FontInfoModal';
@@ -34,6 +38,7 @@ import { Button } from './ui/Button';
 import { Dropdown, MenuItem, MenuLabel } from './ui/Dropdown';
 import { Modal, ModalActions } from './ui/Modal';
 import { CountChip, VersionPill } from './ui/Pill';
+import { Toast } from './ui/Toast';
 
 interface ProjectOverviewProps {
   project: FontProject;
@@ -50,6 +55,7 @@ interface ProjectOverviewProps {
   onUpdateInfo: (patch: InfoPatch) => void;
   onUpdateProject: (patch: Partial<FontProject>) => void;
   onSetGlyphSvg: (glyphId: string, contours: Contour[], advanceWidth: number) => void;
+  onRestoreGlyphs: (items: Array<{ glyph: Glyph; index: number }>) => void;
   onApplySvgBatch: (
     adds: Array<{ data: NewGlyphData; contours: Contour[]; advanceWidth: number }>,
     replaces: Array<{ id: string; contours: Contour[]; advanceWidth: number }>
@@ -80,6 +86,9 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [svgError, setSvgError] = useState<string | null>(null);
   const [svgPending, setSvgPending] = useState<{ id: string; contours: Contour[]; advanceWidth: number } | null>(null);
+  const [filter, setFilter] = useState<GlyphFilter>(NO_FILTER);
+  const [undo, setUndo] = useState<{ message: string; items: Array<{ glyph: Glyph; index: number }> } | null>(null);
+  const undoTimer = useRef<number | undefined>(undefined);
   const svgInput = useRef<HTMLInputElement>(null);
   const batchInput = useRef<HTMLInputElement>(null);
   const [batch, setBatch] = useState<{
@@ -170,7 +179,25 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   };
 
   const info = resolveInfo(project);
-  const shown = useMemo(() => sortGlyphs(glyphs, sort), [glyphs, sort]);
+  const sorted = useMemo(() => sortGlyphs(glyphs, sort), [glyphs, sort]);
+  const shown = useMemo(() => filterGlyphs(sorted, filter), [sorted, filter]);
+  const filtering = isFiltering(filter);
+  const patchFilter = (p: Partial<GlyphFilter>) => {
+    setFilter((f) => ({ ...f, ...p }));
+    setLimit(PAGE);
+  };
+
+  /** يحذف محارف ويعرض شريط التراجع خمس ثوانٍ. */
+  const deleteWithUndo = (ids: string[], message: string) => {
+    const items = glyphs.flatMap((g, index) => (ids.includes(g.id) ? [{ glyph: g, index }] : []));
+    if (items.length === 0) return;
+    if (ids.length === 1) props.onDeleteGlyph(ids[0]);
+    else props.onDeleteGlyphs(ids);
+    window.clearTimeout(undoTimer.current);
+    setUndo({ message, items });
+    undoTimer.current = window.setTimeout(() => setUndo(null), 5000);
+  };
+
   const notReadyIds = useMemo(() => glyphs.filter((g) => !isReady(g)).map((g) => g.id), [glyphs]);
   const ready = glyphs.length - notReadyIds.length;
   const rules = useMemo(() => projectRules({ glyphs, customFea: project.customFea }).rules.length, [glyphs, project.customFea]);
@@ -316,6 +343,62 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
           )}
         </div>
 
+        {!isEmpty && (
+          <div className="flex items-center gap-1.5">
+            <label className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 stroke-[1.5] text-ink-soft" />
+              <input
+                type="search"
+                value={filter.query}
+                onChange={(e) => patchFilter({ query: e.target.value })}
+                placeholder="ابحث بالاسم أو الحرف أو الرمز"
+                aria-label="بحث في المحارف"
+                className="field ps-9"
+              />
+            </label>
+            <Dropdown
+              label="تصفية المحارف"
+              iconOnly
+              framed
+              active={filter.status !== 'all' || filter.category !== 'all' || filter.form !== 'all'}
+              icon={<Filter className={icon} />}
+              placement="bottom"
+              width={220}
+            >
+              {() => (
+                <>
+                  <MenuLabel>الحالة</MenuLabel>
+                  {([['all', 'الكل'], ['ready', 'المرسومة'], ['empty', 'الفارغة']] as const).map(([id, label]) => (
+                    <MenuItem key={id} label={label} active={filter.status === id} onClick={() => patchFilter({ status: id })} />
+                  ))}
+                  <MenuLabel>التصنيف</MenuLabel>
+                  <MenuItem label="الكل" active={filter.category === 'all'} onClick={() => patchFilter({ category: 'all' })} />
+                  {(Object.keys(CATEGORY_LABEL) as GlyphCategory[]).map((id) => (
+                    <MenuItem key={id} label={CATEGORY_LABEL[id]} active={filter.category === id} onClick={() => patchFilter({ category: id })} />
+                  ))}
+                  <MenuLabel>الشكل</MenuLabel>
+                  <MenuItem label="الكل" active={filter.form === 'all'} onClick={() => patchFilter({ form: 'all' })} />
+                  {(Object.keys(FORM_LABEL) as GlyphForm[]).map((id) => (
+                    <MenuItem key={id} label={FORM_LABEL[id]} active={filter.form === id} onClick={() => patchFilter({ form: id })} />
+                  ))}
+                </>
+              )}
+            </Dropdown>
+          </div>
+        )}
+
+        {filtering && (
+          <div className="flex items-center justify-between gap-2 px-0.5 text-xs text-ink-soft">
+            <span>
+              <span className="font-mono text-ink">{shown.length}</span> من <span className="font-mono">{glyphs.length}</span> محرف
+            </span>
+            <Button variant="quiet" onClick={() => patchFilter(NO_FILTER)}>
+              <X className="h-3.5 w-3.5 stroke-[1.5]" />
+              <span>مسح التصفية</span>
+            </Button>
+          </div>
+        )}
+
         {isEmpty ? (
           <div className="card-flat flex flex-col items-center rounded-2xl p-8 text-center sm:p-10">
             <p className="mb-1 text-base">لا توجد محارف في هذا المشروع حتى الآن</p>
@@ -334,6 +417,9 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             </div>
           </div>
         ) : (
+          shown.length === 0 ? (
+            <p className="py-10 text-center text-sm text-ink-soft">لا توجد محارف تطابق البحث أو التصفية.</p>
+          ) : (
           <>
             <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
               {shown.slice(0, limit).map((g) => (
@@ -358,8 +444,21 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
               </div>
             )}
           </>
+          )
         )}
       </section>
+
+      {undo && (
+        <Toast
+          message={undo.message}
+          actionLabel="تراجع"
+          onAction={() => {
+            props.onRestoreGlyphs(undo.items);
+            window.clearTimeout(undoTimer.current);
+            setUndo(null);
+          }}
+        />
+      )}
 
       {showAdd && <GlyphAddModal glyphs={glyphs} onAdd={props.onAddNewGlyph} onClose={() => setShowAdd(false)} />}
       {showPreset && <PresetModal existing={glyphs} onAdd={props.onAddPreset} onClose={() => setShowPreset(false)} />}
@@ -459,7 +558,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             <Button
               variant="primary"
               onClick={() => {
-                props.onDeleteGlyph(deleting.id);
+                deleteWithUndo([deleting.id], `حُذف المحرف ${deleting.name}`);
                 setDeletingId(null);
               }}
             >
@@ -480,7 +579,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             <Button
               variant="primary"
               onClick={() => {
-                props.onDeleteGlyphs(notReadyIds);
+                deleteWithUndo(notReadyIds, `حُذف ${notReadyIds.length} محرف فارغ`);
                 setConfirmEmpty(false);
               }}
             >

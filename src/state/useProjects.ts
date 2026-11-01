@@ -142,9 +142,25 @@ export function useProjects() {
     );
   }, []);
 
+  /** يعيد محارف محذوفة إلى أماكنها (للتراجع). ما كان موجوداً لا يتكرر. */
+  const restoreGlyphs = useCallback((projectId: string, items: Array<{ glyph: Glyph; index: number }>) => {
+    setProjects((prev) =>
+      logic.updateProjectById(prev, projectId, (p) => {
+        const next = [...p.glyphs];
+        [...items]
+          .sort((a, b) => a.index - b.index)
+          .forEach(({ glyph, index }) => {
+            if (!next.some((g) => g.id === glyph.id)) next.splice(Math.min(index, next.length), 0, glyph);
+          });
+        return { ...p, glyphs: next };
+      })
+    );
+  }, []);
+
   return {
     projects,
     ready,
+    restoreGlyphs,
     createProject,
     importProject,
     renameProject,
