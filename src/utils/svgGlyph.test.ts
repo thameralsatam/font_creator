@@ -38,6 +38,13 @@ test('circle and arc commands become curves with the right extent', () => {
   assert.ok(a.ok);
 });
 
+test('use pointing to a path in defs is rendered with its transform', () => {
+  const svg = '<?xml version="1.0"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "x.dtd"><svg viewBox="0 0 1920 1920" xmlns:xlink="http://www.w3.org/1999/xlink"><use transform="matrix(1,0,0,1,900,900) scale(0.5,0.5)" xlink:href="#s" x="0" y="0"/><defs><path d="m-500-100l1000 0 0 200 -1000 0z" id="s"/></defs></svg>';
+  const r = svgToGlyph(svg, m);
+  if (!r.ok) throw new Error(r.error);
+  assert.equal(r.contours.length, 1);
+});
+
 test('rect, defs and fill none are handled', () => {
   const svg = '<svg viewBox="0 0 1000 1000"><defs><path d="M0 0 L9 0 L9 9 Z"/></defs><path fill="none" d="M0 0 L5 0 L5 5 Z"/><rect x="100" y="100" width="300" height="200"/></svg>';
   const r = svgToGlyph(svg, m);

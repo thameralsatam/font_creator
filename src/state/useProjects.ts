@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type FontProject, type Glyph, type NewGlyphData } from '../types/font';
-import { loadProjects, saveProjects } from '../utils/storage';
+import { loadProjectsAsync, requestPersistence, saveProjectsAsync } from '../utils/storage';
 import * as logic from '../utils/fontLogic';
 
 const SAVE_DELAY_MS = 400;
@@ -10,19 +10,39 @@ const SAVE_DELAY_MS = 400;
  * كل تعديل يمر من هنا، والحفظ المحلي تلقائي (مؤجَّل 400 مللي ثانية).
  */
 export function useProjects() {
-  const [projects, setProjects] = useState<FontProject[]>(() => loadProjects());
+  const [projects, setProjects] = useState<FontProject[]>([]);
+  const [ready, setReady] = useState(false);
   const latest = useRef(projects);
   latest.current = projects;
+  const readyRef = useRef(false);
+  readyRef.current = ready;
 
-  // حفظ مؤجَّل بعد كل تغيير
+  // التحميل الأول من IndexedDB (والترحيل من التخزين القديم إن لزم)
   useEffect(() => {
-    const timer = window.setTimeout(() => saveProjects(projects), SAVE_DELAY_MS);
+    let alive = true;
+    void loadProjectsAsync().then((list) => {
+      if (!alive) return;
+      setProjects(list);
+      setReady(true);
+      void requestPersistence();
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // حفظ مؤجَّل بعد كل تغيير (لا يُحفظ شيء قبل اكتمال التحميل حتى لا تُمحى المشاريع بقائمة فارغة)
+  useEffect(() => {
+    if (!ready) return;
+    const timer = window.setTimeout(() => void saveProjectsAsync(projects), SAVE_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [projects]);
+  }, [projects, ready]);
 
   // حفظ فوري عند إغلاق الصفحة أو إخفائها
   useEffect(() => {
-    const flush = () => saveProjects(latest.current);
+    const flush = () => {
+      if (readyRef.current) void saveProjectsAsync(latest.current);
+    };
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') flush();
     };
@@ -124,6 +144,7 @@ export function useProjects() {
 
   return {
     projects,
+    ready,
     createProject,
     importProject,
     renameProject,

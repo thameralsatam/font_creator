@@ -1,15 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { Copy, FileText, FolderPlus, PenTool, Plus, Search, Trash2 } from 'lucide-react';
+import { BookOpen, Copy, FileText, FolderPlus, HardDrive, PenTool, Plus, Search, Settings2, Trash2 } from 'lucide-react';
 import { type FontProject } from '../types/font';
 import { resolveInfo } from '../utils/fontInfo';
 import { isReady } from '../utils/glyphLogic';
 import { FontInfoModal, type InfoPatch } from './FontInfoModal';
 import { GlyphThumb } from './GlyphThumb';
-import { HelpBookButton } from './help/HelpBook';
+import { HelpBook } from './help/HelpBook';
+import { StorageModal } from './StorageModal';
 import { ImportFontButton } from './ImportFontButton';
 import { Button } from './ui/Button';
 import { CardMenu } from './ui/CardMenu';
-import { MenuItem } from './ui/Dropdown';
+import { Dropdown, MenuItem, MenuLabel } from './ui/Dropdown';
 import { Modal, ModalActions } from './ui/Modal';
 import { CountChip, VersionPill } from './ui/Pill';
 
@@ -88,6 +89,8 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<FontProject | null>(null);
   const [deleting, setDeleting] = useState<FontProject | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showStorage, setShowStorage] = useState(false);
 
   const [newName, setNewName] = useState('');
   const [newDesigner, setNewDesigner] = useState('');
@@ -129,7 +132,29 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <ImportFontButton onImport={onImportProject} iconOnly />
-          <HelpBookButton iconOnly />
+          <Dropdown label="الإعدادات" iconOnly framed icon={<Settings2 className={icon} />} placement="bottom" width={220}>
+            {(close) => (
+              <>
+                <MenuLabel>الموقع</MenuLabel>
+                <MenuItem
+                  label="كتاب التعليمات"
+                  icon={<BookOpen className={icon} />}
+                  onClick={() => {
+                    close();
+                    setShowHelp(true);
+                  }}
+                />
+                <MenuItem
+                  label="التخزين"
+                  icon={<HardDrive className={icon} />}
+                  onClick={() => {
+                    close();
+                    setShowStorage(true);
+                  }}
+                />
+              </>
+            )}
+          </Dropdown>
           {hasProjects && (
             <Button variant="primary" icon title="مشروع خط جديد" onClick={() => setShowCreate(true)}>
               <Plus className={icon} />
@@ -184,6 +209,9 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
           </Button>
         </div>
       )}
+
+      {showHelp && <HelpBook onClose={() => setShowHelp(false)} />}
+      {showStorage && <StorageModal projects={projects} onClose={() => setShowStorage(false)} />}
 
       {showCreate && (
         <Modal title="إنشاء مشروع خط جديد" onClose={closeCreate}>
