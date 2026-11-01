@@ -54,3 +54,25 @@ test('commandsToContours converts commands properly', () => {
   assert.equal(contours[0].closed, true);
   assert.equal(contours[0].nodes.length, 4);
 });
+
+test('rules from the font are imported into custom FEA, and woff2 round-trips', async () => {
+  const p = sample();
+  const b = createGlyph({ char: 'b', name: 'b', unicode: 'U+0062', category: 'letter', advanceWidth: 500 });
+  b.contours = [rect('b1', 0, 0, 100, 200)];
+  const ab = createGlyph({ char: 'x', name: 'ab', unicode: 'U+0078', category: 'ligature', advanceWidth: 700 });
+  ab.contours = [rect('c1', 0, 0, 300, 200)];
+  p.glyphs.push(b, ab);
+  p.customFea = 'feature liga {\n    sub a b by ab;\n} liga;\nfeature ss01 {\n    sub a by b;\n} ss01;';
+  const buf = await buildFontBuffer(p);
+  const back = await importFontBuffer(buf, 'm.otf');
+  assert.match(back.project.customFea ?? '', /sub a b by ab;/);
+  assert.match(back.project.customFea ?? '', /sub a by b;/);
+
+  const { toWoff2 } = await import('./fontBuild');
+  const w = await toWoff2(buf);
+  assert.equal(String.fromCharCode(w[0], w[1], w[2], w[3]), 'wOF2');
+  assert.ok(w.length < buf.byteLength);
+  const again = await importFontBuffer(w.buffer.slice(w.byteOffset, w.byteOffset + w.byteLength) as ArrayBuffer, 'm.woff2');
+  assert.equal(again.imported, 3);
+  assert.match(again.project.customFea ?? '', /sub a b by ab;/);
+});
