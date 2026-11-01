@@ -10,9 +10,14 @@ import {
   Settings2,
   Sliders,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 import { type Contour, type FontProject, type NewGlyphData } from '../types/font';
-import { downloadTextFile } from '../utils/download';
+import { downloadBlob, downloadTextFile } from '../utils/download';
+import { zipStore } from '../utils/zip';
+import { FORM_OF, splitName } from '../utils/features';
+import { PRESETS } from '../utils/presets';
+import { defaultUnicode } from '../utils/fontLogic';
 import { projectRules } from '../utils/feaParse';
 import { resolveInfo } from '../utils/fontInfo';
 import { glyphToSvg, svgToGlyph } from '../utils/svgGlyph';
@@ -45,6 +50,10 @@ interface ProjectOverviewProps {
   onUpdateInfo: (patch: InfoPatch) => void;
   onUpdateProject: (patch: Partial<FontProject>) => void;
   onSetGlyphSvg: (glyphId: string, contours: Contour[], advanceWidth: number) => void;
+  onApplySvgBatch: (
+    adds: Array<{ data: NewGlyphData; contours: Contour[]; advanceWidth: number }>,
+    replaces: Array<{ id: string; contours: Contour[]; advanceWidth: number }>
+  ) => void;
 }
 
 const PAGE = 60;
@@ -72,6 +81,12 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const [svgError, setSvgError] = useState<string | null>(null);
   const [svgPending, setSvgPending] = useState<{ id: string; contours: Contour[]; advanceWidth: number } | null>(null);
   const svgInput = useRef<HTMLInputElement>(null);
+  const batchInput = useRef<HTMLInputElement>(null);
+  const [batch, setBatch] = useState<{
+    adds: Array<{ data: NewGlyphData; contours: Contour[]; advanceWidth: number }>;
+    replaces: Array<{ id: string; name: string; contours: Contour[]; advanceWidth: number }>;
+    failed: string[];
+  } | null>(null);
   const svgTarget = useRef<string | null>(null);
 
   // الدوال المرسلة للبطاقات ثابتة حتى لا تُعاد رسم مئات البطاقات مع كل تغيير
@@ -88,6 +103,56 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
     svgTarget.current = id;
     svgInput.current?.click();
   }, []);
+
+  const exportAllSvg = () => {
+    const files = glyphs
+      .filter((g) => g.contours.length > 0)
+      .map((g) => ({ name: `${g.name}.svg`, data: new TextEncoder().encode(glyphToSvg(g, metrics)) }));
+    if (files.length === 0) return;
+    downloadBlob(new Blob([zipStore(files) as BlobPart], { type: 'application/zip' }), `${project.name}-svg.zip`);
+  };
+
+  const onBatchFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (list.length === 0) return;
+    const presetByName = new Map(PRESETS.flatMap((p) => p.items).map((i) => [i.name, i]));
+    const byName = new Map(glyphs.map((g) => [g.name, g]));
+    const seen = new Set<string>();
+    const out: NonNullable<typeof batch> = { adds: [], replaces: [], failed: [] };
+    for (const f of list) {
+      const name = f.name.replace(/\.svg$/i, '').trim().replace(/[^A-Za-z0-9._-]/g, '_');
+      if (!name || seen.has(name)) {
+        out.failed.push(`${f.name}: اسم غير صالح أو مكرر`);
+        continue;
+      }
+      seen.add(name);
+      const res = svgToGlyph(await f.text(), metrics);
+      if (!res.ok) {
+        out.failed.push(`${f.name}: ${res.error}`);
+        continue;
+      }
+      const existing = byName.get(name);
+      if (existing) {
+        out.replaces.push({ id: existing.id, name, contours: res.contours, advanceWidth: res.advanceWidth });
+        continue;
+      }
+      const preset = presetByName.get(name);
+      const suffix = splitName(name).suffix;
+      const one = name.length === 1 ? name : '';
+      const data: NewGlyphData = preset
+        ? { ...preset }
+        : {
+            char: one,
+            name,
+            unicode: one ? defaultUnicode(one) : '',
+            category: 'letter',
+            form: suffix ? FORM_OF[suffix] : 'isolated',
+          };
+      out.adds.push({ data, contours: res.contours, advanceWidth: res.advanceWidth });
+    }
+    setBatch(out);
+  };
 
   const onSvgFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -191,7 +256,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
           </div>
           {!isEmpty && (
             <div className="flex items-center gap-1 sm:gap-1.5">
-              <Dropdown label="ترتيب وتنظيف" iconOnly framed icon={<ArrowUpDown className={icon} />} placement="bottom" width={210}>
+              <Dropdown label="ترتيب وملفات وتنظيف" iconOnly framed icon={<ArrowUpDown className={icon} />} placement="bottom" width={210}>
                 {(close) => (
                   <>
                     <MenuLabel>ترتيب العرض</MenuLabel>
@@ -207,6 +272,23 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                         }}
                       />
                     ))}
+                    <MenuLabel>ملفات SVG</MenuLabel>
+                    <MenuItem
+                      label="استيراد عدة ملفات"
+                      icon={<Upload className={icon} />}
+                      onClick={() => {
+                        close();
+                        batchInput.current?.click();
+                      }}
+                    />
+                    <MenuItem
+                      label="تصدير كل المحارف"
+                      icon={<Download className={icon} />}
+                      onClick={() => {
+                        close();
+                        exportAllSvg();
+                      }}
+                    />
                     {notReadyIds.length > 0 && (
                       <>
                         <MenuLabel>تنظيف</MenuLabel>
@@ -305,6 +387,40 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
       )}
 
       <input ref={svgInput} type="file" accept=".svg,image/svg+xml" className="hidden" onChange={(e) => void onSvgFile(e)} />
+
+      <input ref={batchInput} type="file" multiple accept=".svg,image/svg+xml" className="hidden" onChange={(e) => void onBatchFiles(e)} />
+
+      {batch && (
+        <Modal title="استيراد ملفات SVG" size="sm" onClose={() => setBatch(null)}>
+          <div className="space-y-2 text-sm leading-7">
+            <p>
+              <span className="font-mono">{batch.adds.length}</span> محرف جديد سيُضاف،
+              و<span className="font-mono">{batch.replaces.length}</span> محرف موجود سيُستبدل رسمه
+              {batch.replaces.length > 0 && ' (لا يمكن التراجع)'}.
+            </p>
+            {batch.failed.length > 0 && (
+              <ul className="space-y-1 rounded-2xl border border-ink/20 p-3 text-xs">
+                {batch.failed.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <ModalActions>
+            <Button onClick={() => setBatch(null)}>إلغاء</Button>
+            <Button
+              variant="primary"
+              disabled={batch.adds.length + batch.replaces.length === 0}
+              onClick={() => {
+                props.onApplySvgBatch(batch.adds, batch.replaces);
+                setBatch(null);
+              }}
+            >
+              تنفيذ
+            </Button>
+          </ModalActions>
+        </Modal>
+      )}
 
       {svgError && (
         <Modal title="تعذّر استيراد SVG" size="sm" onClose={() => setSvgError(null)}>

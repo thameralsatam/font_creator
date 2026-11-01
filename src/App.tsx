@@ -134,6 +134,15 @@ export default function App() {
             onAddPreset={handleAddPreset}
             onUpdateInfo={(patch) => store.updateProject(activeProject.id, patch)}
             onUpdateProject={(patch) => store.updateProject(activeProject.id, patch)}
+            onApplySvgBatch={(adds, replaces) => {
+              store.addGlyphs(
+                activeProject.id,
+                adds.map((a) => ({ ...createGlyph({ ...a.data, advanceWidth: a.advanceWidth }), contours: a.contours }))
+              );
+              replaces.forEach((r) =>
+                store.updateGlyph(activeProject.id, r.id, (g) => ({ ...g, contours: r.contours, advanceWidth: r.advanceWidth }))
+              );
+            }}
             onSetGlyphSvg={(id, contours, advanceWidth) =>
               store.updateGlyph(activeProject.id, id, (g) => ({ ...g, contours, advanceWidth }))
             }
