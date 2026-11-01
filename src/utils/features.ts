@@ -26,7 +26,7 @@ export const FEATURE_INFO: Record<FeatureTag, { label: string; description: stri
 export const FEATURE_ORDER: FeatureTag[] = ['isol', 'fina', 'medi', 'init', 'rlig'];
 
 const SUFFIXES: readonly string[] = ['init', 'medi', 'fina', 'isol'];
-const FORM_OF: Record<FormSuffix, GlyphForm> = {
+export const FORM_OF: Record<FormSuffix, GlyphForm> = {
   init: 'initial',
   medi: 'medial',
   fina: 'final',

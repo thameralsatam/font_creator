@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Check, Copy, Plus, Sparkles } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Copy, Plus, Sparkles } from 'lucide-react';
 import { type FontProject, type NewGlyphData } from '../types/font';
 import { parseFea, projectRules } from '../utils/feaParse';
 import { copyText } from '../utils/download';
@@ -183,6 +183,7 @@ const CodePane: React.FC<{ project: FontProject; auto: string; onSave: (t: strin
   const saved = project.customFea ?? '';
   const [draft, setDraft] = useState(saved);
   const [copied, setCopied] = useState(false);
+  const [showAuto, setShowAuto] = useState(false);
   const names = useMemo(() => new Set(project.glyphs.map((g) => g.name)), [project.glyphs]);
   const parsed = useMemo(() => parseFea(draft, names), [draft, names]);
   const dirty = draft !== saved;
@@ -202,40 +203,53 @@ const CodePane: React.FC<{ project: FontProject; auto: string; onSave: (t: strin
         </p>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm">القواعد التلقائية</span>
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="quiet"
-              disabled={!auto}
-              title="يضيف القواعد التلقائية إلى صندوق قواعدك لتعدّلها"
-              onClick={() => setDraft((d) => (d.trim() ? `${d.trimEnd()}\n\n${auto}\n` : `${auto}\n`))}
-            >
-              <Plus className="h-3.5 w-3.5 stroke-[1.5]" />
-              <span>نقل للتعديل</span>
-            </Button>
-            <Button
-              variant="quiet"
-              icon
-              title="نسخ"
-              onClick={async () => {
-                const ok = await copyText(auto);
-                setCopied(ok);
-                window.setTimeout(() => setCopied(false), 1800);
-              }}
-            >
-              {copied ? <Check className="h-3.5 w-3.5 stroke-[1.5]" /> : <Copy className="h-3.5 w-3.5 stroke-[1.5]" />}
-            </Button>
-          </div>
+      <div className="rounded-2xl border border-ink/15">
+        <div className="flex items-center gap-2 p-2.5">
+          <button
+            type="button"
+            onClick={() => setShowAuto((v) => !v)}
+            aria-expanded={showAuto}
+            className="flex min-w-0 flex-1 items-center gap-2 text-start text-sm"
+          >
+            <ChevronDown className={`h-4 w-4 shrink-0 stroke-[1.5] transition-transform ${showAuto ? 'rotate-180' : ''}`} />
+            <span>القواعد التلقائية</span>
+            <span className="chip chip-ghost font-mono">{auto ? auto.split('\n').filter((l) => l.includes(' by ')).length : 0}</span>
+          </button>
+          {showAuto && (
+            <>
+              <Button
+                variant="quiet"
+                disabled={!auto}
+                title="يضيف القواعد التلقائية إلى صندوق قواعدك لتعدّلها"
+                onClick={() => setDraft((d) => (d.trim() ? `${d.trimEnd()}\n\n${auto}\n` : `${auto}\n`))}
+              >
+                <Plus className="h-3.5 w-3.5 stroke-[1.5]" />
+                <span>نقل للتعديل</span>
+              </Button>
+              <Button
+                variant="quiet"
+                icon
+                title="نسخ"
+                onClick={async () => {
+                  const ok = await copyText(auto);
+                  setCopied(ok);
+                  window.setTimeout(() => setCopied(false), 1800);
+                }}
+              >
+                {copied ? <Check className="h-3.5 w-3.5 stroke-[1.5]" /> : <Copy className="h-3.5 w-3.5 stroke-[1.5]" />}
+              </Button>
+            </>
+          )}
         </div>
-        <textarea
-          readOnly
-          dir="ltr"
-          value={auto || '# لا توجد قواعد تلقائية بعد'}
-          className="field w-full resize-y bg-sand/10 font-mono text-xs"
-          style={{ height: 150 }}
-        />
+        {showAuto && (
+          <textarea
+            readOnly
+            dir="ltr"
+            value={auto || '# لا توجد قواعد تلقائية بعد'}
+            className="field w-full resize-y rounded-t-none border-0 border-t border-ink/10 bg-sand/10 font-mono text-xs"
+            style={{ height: 150 }}
+          />
+        )}
       </div>
 
       <div className="space-y-2">

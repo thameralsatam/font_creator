@@ -30,13 +30,106 @@ export function glyphToSvg(glyph: Glyph, m: FontMetrics): string {
   );
 }
 
-type Cmd = { type: string; x?: number; y?: number; x1?: number; y1?: number; x2?: number; y2?: number };
+/* ---------------- المصفوفات والتحويلات ---------------- */
+
+type Mat = [number, number, number, number, number, number];
+const ID: Mat = [1, 0, 0, 1, 0, 0];
+
+/** حاصل ضرب P ثم C: تُطبَّق C أولاً ثم P. */
+const mul = (p: Mat, c: Mat): Mat => [
+  p[0] * c[0] + p[2] * c[1],
+  p[1] * c[0] + p[3] * c[1],
+  p[0] * c[2] + p[2] * c[3],
+  p[1] * c[2] + p[3] * c[3],
+  p[0] * c[4] + p[2] * c[5] + p[4],
+  p[1] * c[4] + p[3] * c[5] + p[5],
+];
 
 const NUM = /[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g;
-const ARGS: Record<string, number> = { M: 2, L: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, T: 2, Z: 0 };
+const nums = (s: string) => (s.match(NUM) ?? []).map(Number);
 
-/** نص d في SVG إلى أوامر مطلقة (M L C Q Z). تُرجع null إن وُجد أمر قوس (A) غير المدعوم. */
-function parseD(d: string): Cmd[] | null {
+function parseTransform(s: string | null): Mat {
+  let m: Mat = ID;
+  if (!s) return m;
+  for (const t of s.matchAll(/(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^)]*)\)/g)) {
+    const a = nums(t[2]);
+    let n: Mat = ID;
+    if (t[1] === 'matrix' && a.length >= 6) n = [a[0], a[1], a[2], a[3], a[4], a[5]];
+    else if (t[1] === 'translate') n = [1, 0, 0, 1, a[0] ?? 0, a[1] ?? 0];
+    else if (t[1] === 'scale') n = [a[0] ?? 1, 0, 0, a[1] ?? a[0] ?? 1, 0, 0];
+    else if (t[1] === 'skewX') n = [1, 0, Math.tan(((a[0] ?? 0) * Math.PI) / 180), 1, 0, 0];
+    else if (t[1] === 'skewY') n = [1, Math.tan(((a[0] ?? 0) * Math.PI) / 180), 0, 1, 0, 0];
+    else if (t[1] === 'rotate') {
+      const r = ((a[0] ?? 0) * Math.PI) / 180;
+      const rot: Mat = [Math.cos(r), Math.sin(r), -Math.sin(r), Math.cos(r), 0, 0];
+      const cx = a[1] ?? 0;
+      const cy = a[2] ?? 0;
+      n = mul(mul([1, 0, 0, 1, cx, cy], rot), [1, 0, 0, 1, -cx, -cy]);
+    }
+    m = mul(m, n);
+  }
+  return m;
+}
+
+/* ---------------- المسارات ---------------- */
+
+type Cmd = { type: string; x?: number; y?: number; x1?: number; y1?: number; x2?: number; y2?: number };
+const ARGS: Record<string, number> = { M: 2, L: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, T: 2, A: 7, Z: 0 };
+
+/** قوس بيضاوي إلى منحنيات تكعيبية (قطعة لكل ربع دورة). */
+function arcToCubics(x0: number, y0: number, rxIn: number, ryIn: number, phiDeg: number, fa: number, fs: number, x: number, y: number): Cmd[] {
+  let rx = Math.abs(rxIn);
+  let ry = Math.abs(ryIn);
+  if (rx === 0 || ry === 0 || (x0 === x && y0 === y)) return [{ type: 'L', x, y }];
+  const phi = (phiDeg * Math.PI) / 180;
+  const cos = Math.cos(phi);
+  const sin = Math.sin(phi);
+  const dx = (x0 - x) / 2;
+  const dy = (y0 - y) / 2;
+  const x1p = cos * dx + sin * dy;
+  const y1p = -sin * dx + cos * dy;
+  const lam = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
+  if (lam > 1) {
+    const s = Math.sqrt(lam);
+    rx *= s;
+    ry *= s;
+  }
+  const num = rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p;
+  const den = rx * rx * y1p * y1p + ry * ry * x1p * x1p;
+  const coef = (fa === fs ? -1 : 1) * Math.sqrt(Math.max(0, num / den));
+  const cxp = (coef * rx * y1p) / ry;
+  const cyp = (-coef * ry * x1p) / rx;
+  const cx = cos * cxp - sin * cyp + (x0 + x) / 2;
+  const cy = sin * cxp + cos * cyp + (y0 + y) / 2;
+  const ux = (x1p - cxp) / rx;
+  const uy = (y1p - cyp) / ry;
+  const vx = (-x1p - cxp) / rx;
+  const vy = (-y1p - cyp) / ry;
+  const theta1 = Math.atan2(uy, ux);
+  let dtheta = Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy);
+  if (!fs && dtheta > 0) dtheta -= 2 * Math.PI;
+  if (fs && dtheta < 0) dtheta += 2 * Math.PI;
+  const n = Math.max(1, Math.ceil(Math.abs(dtheta) / (Math.PI / 2) - 1e-9));
+  const delta = dtheta / n;
+  const k = (4 / 3) * Math.tan(delta / 4);
+  const map = (px: number, py: number) => ({
+    x: cx + rx * px * cos - ry * py * sin,
+    y: cy + rx * px * sin + ry * py * cos,
+  });
+  const out: Cmd[] = [];
+  for (let i = 0; i < n; i++) {
+    const a1 = theta1 + i * delta;
+    const a2 = a1 + delta;
+    const p1 = map(Math.cos(a1) - k * Math.sin(a1), Math.sin(a1) + k * Math.cos(a1));
+    const p2 = map(Math.cos(a2) + k * Math.sin(a2), Math.sin(a2) - k * Math.cos(a2));
+    const p3 = i === n - 1 ? { x, y } : map(Math.cos(a2), Math.sin(a2));
+    out.push({ type: 'C', x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, x: p3.x, y: p3.y });
+  }
+  return out;
+}
+
+/** نص d في SVG إلى أوامر مطلقة (M L C Q Z). الأقواس تتحول إلى منحنيات. */
+function parseD(d: string): Cmd[] {
   const out: Cmd[] = [];
   let cx = 0, cy = 0, sx = 0, sy = 0;
   let lastC: { x: number; y: number } | null = null;
@@ -44,25 +137,22 @@ function parseD(d: string): Cmd[] | null {
   const re = /([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(d))) {
-    const cmd = m[1];
-    const up = cmd.toUpperCase();
-    if (up === 'A') return null;
-    const rel = cmd !== up;
-    const nums = (m[2].match(NUM) ?? []).map(Number);
+    const up = m[1].toUpperCase();
+    const rel = m[1] !== up;
+    const v = nums(m[2]);
     const n = ARGS[up];
     if (up === 'Z') {
       out.push({ type: 'Z' });
       cx = sx; cy = sy; lastC = lastQ = null;
       continue;
     }
-    for (let i = 0; i + n <= nums.length; i += n) {
-      const a = nums.slice(i, i + n);
+    for (let i = 0; i + n <= v.length; i += n) {
+      const a = v.slice(i, i + n);
       const ox = rel ? cx : 0;
       const oy = rel ? cy : 0;
       if (up === 'M') {
-        const first = i === 0;
         cx = a[0] + ox; cy = a[1] + oy;
-        if (first) { sx = cx; sy = cy; out.push({ type: 'M', x: cx, y: cy }); }
+        if (i === 0) { sx = cx; sy = cy; out.push({ type: 'M', x: cx, y: cy }); }
         else out.push({ type: 'L', x: cx, y: cy });
         lastC = lastQ = null;
       } else if (up === 'L' || up === 'H' || up === 'V') {
@@ -72,24 +162,81 @@ function parseD(d: string): Cmd[] | null {
         out.push({ type: 'L', x: cx, y: cy });
         lastC = lastQ = null;
       } else if (up === 'C' || up === 'S') {
-        let x1: number, y1: number;
-        let k = 0;
+        let x1: number, y1: number, k = 0;
         if (up === 'C') { x1 = a[0] + ox; y1 = a[1] + oy; k = 2; }
         else { x1 = lastC ? 2 * cx - lastC.x : cx; y1 = lastC ? 2 * cy - lastC.y : cy; }
         const x2 = a[k] + ox, y2 = a[k + 1] + oy, x = a[k + 2] + ox, y = a[k + 3] + oy;
         out.push({ type: 'C', x1, y1, x2, y2, x, y });
         lastC = { x: x2, y: y2 }; lastQ = null; cx = x; cy = y;
-      } else {
+      } else if (up === 'Q' || up === 'T') {
         let x1: number, y1: number, k = 0;
         if (up === 'Q') { x1 = a[0] + ox; y1 = a[1] + oy; k = 2; }
         else { x1 = lastQ ? 2 * cx - lastQ.x : cx; y1 = lastQ ? 2 * cy - lastQ.y : cy; }
         const x = a[k] + ox, y = a[k + 1] + oy;
         out.push({ type: 'Q', x1, y1, x, y });
         lastQ = { x: x1, y: y1 }; lastC = null; cx = x; cy = y;
+      } else {
+        const x = a[5] + ox, y = a[6] + oy;
+        out.push(...arcToCubics(cx, cy, a[0], a[1], a[2], a[3] ? 1 : 0, a[4] ? 1 : 0, x, y));
+        cx = x; cy = y; lastC = lastQ = null;
       }
     }
   }
   return out;
+}
+
+function applyMat(c: Cmd, m: Mat): Cmd {
+  const t: Cmd = { type: c.type };
+  const p = (x: number, y: number) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+  if (c.x !== undefined && c.y !== undefined) [t.x, t.y] = p(c.x, c.y);
+  if (c.x1 !== undefined && c.y1 !== undefined) [t.x1, t.y1] = p(c.x1, c.y1);
+  if (c.x2 !== undefined && c.y2 !== undefined) [t.x2, t.y2] = p(c.x2, c.y2);
+  return t;
+}
+
+/* ---------------- قراءة الملف ---------------- */
+
+const attr = (src: string, name: string): string | null => {
+  const m = src.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`));
+  return m ? (m[1] ?? m[2] ?? '') : null;
+};
+const num = (src: string, name: string): number => Number(attr(src, name)) || 0;
+const CONTAINERS = new Set(['svg', 'g', 'defs', 'clipPath', 'mask', 'symbol', 'pattern', 'marker', 'a', 'switch']);
+const HIDDEN = new Set(['defs', 'clipPath', 'mask', 'symbol', 'pattern', 'marker']);
+
+/** الأشكال الأساسية إلى نص مسار. */
+function shapeToD(name: string, a: string): string | null {
+  if (name === 'path') return attr(a, 'd');
+  if (name === 'rect') {
+    const x = num(a, 'x'), y = num(a, 'y'), w = num(a, 'width'), h = num(a, 'height');
+    let rx = num(a, 'rx'), ry = num(a, 'ry');
+    if (!(w > 0 && h > 0)) return null;
+    if (rx && !ry) ry = rx;
+    if (ry && !rx) rx = ry;
+    rx = Math.min(rx, w / 2);
+    ry = Math.min(ry, h / 2);
+    if (!rx || !ry) return `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h} Z`;
+    return (
+      `M ${x + rx} ${y} L ${x + w - rx} ${y} A ${rx} ${ry} 0 0 1 ${x + w} ${y + ry} L ${x + w} ${y + h - ry} ` +
+      `A ${rx} ${ry} 0 0 1 ${x + w - rx} ${y + h} L ${x + rx} ${y + h} A ${rx} ${ry} 0 0 1 ${x} ${y + h - ry} ` +
+      `L ${x} ${y + ry} A ${rx} ${ry} 0 0 1 ${x + rx} ${y} Z`
+    );
+  }
+  if (name === 'circle' || name === 'ellipse') {
+    const cx = num(a, 'cx'), cy = num(a, 'cy');
+    const rx = name === 'circle' ? num(a, 'r') : num(a, 'rx');
+    const ry = name === 'circle' ? rx : num(a, 'ry');
+    if (!(rx > 0 && ry > 0)) return null;
+    return `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`;
+  }
+  if (name === 'polygon' || name === 'polyline') {
+    const p = nums(attr(a, 'points') ?? '');
+    if (p.length < 6) return null;
+    let d = `M ${p[0]} ${p[1]}`;
+    for (let i = 2; i + 1 < p.length; i += 2) d += ` L ${p[i]} ${p[i + 1]}`;
+    return d + ' Z';
+  }
+  return null;
 }
 
 export type SvgImportResult =
@@ -99,13 +246,11 @@ export type SvgImportResult =
 /**
  * يقرأ ملف SVG ويحوّله إلى مسارات محرف.
  * يُقاس الرسم بحيث يملأ ارتفاع صندوق الـ viewBox ارتفاع الخط (الصاعد + النازل)، وتبقى النسبة محفوظة.
- * المدعوم: عناصر path فقط، وأوامر M L H V C S Q T Z (مطلقة ونسبية). الأقواس والتحويلات غير مدعومة.
+ * المدعوم: path وrect وcircle وellipse وpolygon وpolyline، مع التحويلات (حتى داخل المجموعات)
+ * وكل أوامر المسار بما فيها الأقواس. الألوان تُتجاهل، والأشكال بلا تعبئة (fill="none") تُتجاوز.
  */
 export function svgToGlyph(text: string, m: FontMetrics): SvgImportResult {
   if (!/<svg[\s>]/i.test(text)) return { ok: false, error: 'الملف ليس SVG صالحاً.' };
-  if (/\stransform\s*=/i.test(text)) {
-    return { ok: false, error: 'الملف يحوي تحويلات (transform). في برنامج الرسم حوّل الأشكال إلى مسارات وافصل التحويلات ثم أعد التصدير.' };
-  }
   let vb = text.match(/viewBox\s*=\s*["']\s*([-\d.eE+]+)[\s,]+([-\d.eE+]+)[\s,]+([-\d.eE+]+)[\s,]+([-\d.eE+]+)\s*["']/i)?.slice(1).map(Number);
   if (!vb) {
     const w = Number(text.match(/<svg[^>]*\swidth\s*=\s*["']([\d.]+)/i)?.[1]);
@@ -114,28 +259,44 @@ export function svgToGlyph(text: string, m: FontMetrics): SvgImportResult {
   }
   if (!vb || !(vb[2] > 0) || !(vb[3] > 0)) return { ok: false, error: 'لم أجد مقاس الرسم (viewBox) في الملف.' };
   const [vx, vy, vw, vh] = vb;
-
-  const ds = [...text.matchAll(/<path\b[^>]*?\sd\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)].map((x) => x[1] ?? x[2] ?? '');
-  if (ds.length === 0) return { ok: false, error: 'لا توجد مسارات (path) في الملف. حوّل الأشكال إلى مسارات أولاً.' };
-
   const s = (m.ascender - m.descender) / vh;
+  const toFont: Mat = [s, 0, 0, -s, -vx * s, m.ascender + vy * s];
+
+  const stack: Array<{ name: string; m: Mat; hidden: boolean }> = [{ name: '#root', m: ID, hidden: false }];
   const cmds: Cmd[] = [];
-  for (const d of ds) {
-    const parsed = parseD(d);
-    if (!parsed) return { ok: false, error: 'الملف يستعمل أقواساً (arc) غير مدعومة. حوّلها إلى منحنيات.' };
-    for (const c of parsed) {
-      const t: Cmd = { type: c.type };
-      const fx = (v: number) => (v - vx) * s;
-      const fy = (v: number) => m.ascender - (v - vy) * s;
-      if (c.x !== undefined) t.x = fx(c.x);
-      if (c.y !== undefined) t.y = fy(c.y);
-      if (c.x1 !== undefined) t.x1 = fx(c.x1);
-      if (c.y1 !== undefined) t.y1 = fy(c.y1);
-      if (c.x2 !== undefined) t.x2 = fx(c.x2);
-      if (c.y2 !== undefined) t.y2 = fy(c.y2);
-      cmds.push(t);
+  let shapes = 0;
+
+  for (const t of text.matchAll(/<(\/?)([a-zA-Z][\w:-]*)([^>]*?)(\/?)>/g)) {
+    const closing = t[1] === '/';
+    const name = t[2];
+    const a = t[3];
+    const selfClose = t[4] === '/';
+    if (CONTAINERS.has(name)) {
+      if (closing) {
+        if (stack.length > 1) stack.pop();
+      } else if (!selfClose) {
+        const top = stack[stack.length - 1];
+        stack.push({
+          name,
+          m: mul(top.m, parseTransform(attr(a, 'transform'))),
+          hidden: top.hidden || HIDDEN.has(name) || attr(a, 'display') === 'none',
+        });
+      }
+      continue;
     }
+    if (closing) continue;
+    const top = stack[stack.length - 1];
+    if (top.hidden) continue;
+    const fill = attr(a, 'fill');
+    if (fill === 'none' || /fill\s*:\s*none/.test(attr(a, 'style') ?? '')) continue;
+    const d = shapeToD(name, a);
+    if (!d) continue;
+    shapes++;
+    const mat = mul(toFont, mul(top.m, parseTransform(attr(a, 'transform'))));
+    for (const c of parseD(d)) cmds.push(applyMat(c, mat));
   }
+
+  if (shapes === 0) return { ok: false, error: 'لا توجد أشكال قابلة للقراءة في الملف (path أو rect أو circle...).' };
   const raw = commandsToContours(cmds).map((c) => ({ ...c, closed: true }));
   if (raw.length === 0) return { ok: false, error: 'لم أجد في الملف مساراً صالحاً.' };
   if (raw.length > LIMITS.maxContours) return { ok: false, error: `عدد المسارات ${raw.length} يتجاوز الحد (${LIMITS.maxContours}).` };
