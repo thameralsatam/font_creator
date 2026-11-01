@@ -141,6 +141,7 @@ export default function App() {
             onAddNewGlyph={handleAddGlyph}
             onAddPreset={handleAddPreset}
             onUpdateInfo={(patch) => store.updateProject(activeProject.id, patch)}
+            onRestoreGlyphs={(items) => store.restoreGlyphs(activeProject.id, items)}
             onUpdateProject={(patch) => store.updateProject(activeProject.id, patch)}
             onApplySvgBatch={(adds, replaces) => {
               store.addGlyphs(

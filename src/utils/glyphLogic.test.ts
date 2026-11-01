@@ -58,3 +58,21 @@ test('isReady and sortGlyphs', async () => {
   assert.deepEqual(sortGlyphs([drawn, space, empty], 'added').map((g) => g.name), ['d', 'space', 'e']);
 });
 
+
+test('filterGlyphs matches by text, status, category and form', async () => {
+  const { filterGlyphs, NO_FILTER } = await import('./glyphLogic');
+  const { createGlyph } = await import('./fontLogic');
+  const a = createGlyph({ char: 'ب', name: 'beh.init', unicode: 'U+FE91', category: 'letter', form: 'initial' });
+  const b = createGlyph({ char: '1', name: 'one', unicode: 'U+0031', category: 'number' });
+  b.contours = [{ id: 'c', closed: true, nodes: [
+    { id: '1', x: 0, y: 0, kind: 'corner', handleIn: null, handleOut: null },
+    { id: '2', x: 10, y: 0, kind: 'corner', handleIn: null, handleOut: null },
+    { id: '3', x: 10, y: 10, kind: 'corner', handleIn: null, handleOut: null },
+  ] }];
+  const all = [a, b];
+  assert.equal(filterGlyphs(all, NO_FILTER).length, 2);
+  assert.deepEqual(filterGlyphs(all, { ...NO_FILTER, query: 'FE91' }).map((g) => g.name), ['beh.init']);
+  assert.deepEqual(filterGlyphs(all, { ...NO_FILTER, query: 'رقم' }).map((g) => g.name), ['one']);
+  assert.deepEqual(filterGlyphs(all, { ...NO_FILTER, status: 'ready' }).map((g) => g.name), ['one']);
+  assert.deepEqual(filterGlyphs(all, { ...NO_FILTER, form: 'initial' }).map((g) => g.name), ['beh.init']);
+});
