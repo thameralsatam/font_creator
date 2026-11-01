@@ -262,6 +262,13 @@ export function svgToGlyph(text: string, m: FontMetrics): SvgImportResult {
   const s = (m.ascender - m.descender) / vh;
   const toFont: Mat = [s, 0, 0, -s, -vx * s, m.ascender + vy * s];
 
+  // الأشكال المعرَّفة بمعرّف (id) لتُستدعى بعنصر use
+  const byId = new Map<string, { name: string; a: string }>();
+  for (const t of text.matchAll(/<([a-zA-Z][\w:-]*)([^>]*?)\/?>/g)) {
+    const id = attr(t[2], 'id');
+    if (id && !CONTAINERS.has(t[1])) byId.set(id, { name: t[1], a: t[2] });
+  }
+
   const stack: Array<{ name: string; m: Mat; hidden: boolean }> = [{ name: '#root', m: ID, hidden: false }];
   const cmds: Cmd[] = [];
   let shapes = 0;
@@ -287,16 +294,27 @@ export function svgToGlyph(text: string, m: FontMetrics): SvgImportResult {
     if (closing) continue;
     const top = stack[stack.length - 1];
     if (top.hidden) continue;
-    const fill = attr(a, 'fill');
-    if (fill === 'none' || /fill\s*:\s*none/.test(attr(a, 'style') ?? '')) continue;
-    const d = shapeToD(name, a);
+    const noFill = (x: string) => attr(x, 'fill') === 'none' || /fill\s*:\s*none/.test(attr(x, 'style') ?? '');
+    if (noFill(a)) continue;
+    let shapeName = name;
+    let shapeAttrs = a;
+    let own = parseTransform(attr(a, 'transform'));
+    if (name === 'use') {
+      const ref = (attr(a, 'href') ?? attr(a, 'xlink:href') ?? '').replace(/^#/, '');
+      const target = byId.get(ref);
+      if (!target || noFill(target.a)) continue;
+      shapeName = target.name;
+      shapeAttrs = target.a;
+      own = mul(mul(own, [1, 0, 0, 1, num(a, 'x'), num(a, 'y')]), parseTransform(attr(target.a, 'transform')));
+    }
+    const d = shapeToD(shapeName, shapeAttrs);
     if (!d) continue;
     shapes++;
-    const mat = mul(toFont, mul(top.m, parseTransform(attr(a, 'transform'))));
+    const mat = mul(toFont, mul(top.m, own));
     for (const c of parseD(d)) cmds.push(applyMat(c, mat));
   }
 
-  if (shapes === 0) return { ok: false, error: 'لا توجد أشكال قابلة للقراءة في الملف (path أو rect أو circle...).' };
+  if (shapes === 0) return { ok: false, error: 'لا توجد أشكال قابلة للقراءة في الملف. المدعوم: path وrect وcircle وellipse وpolygon، وuse إذا أشار إلى واحد منها (المجموعات المستدعاة غير مدعومة).' };
   const raw = commandsToContours(cmds).map((c) => ({ ...c, closed: true }));
   if (raw.length === 0) return { ok: false, error: 'لم أجد في الملف مساراً صالحاً.' };
   if (raw.length > LIMITS.maxContours) return { ok: false, error: `عدد المسارات ${raw.length} يتجاوز الحد (${LIMITS.maxContours}).` };

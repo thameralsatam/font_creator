@@ -106,6 +106,14 @@ export default function App() {
     store.updateProject(activeProject.id, updates);
   };
 
+  if (!store.ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-paper text-sm text-ink-soft">
+        جارٍ تحميل مشاريعك
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-paper text-ink antialiased flex flex-col">
       {screen === 'dashboard' && (
