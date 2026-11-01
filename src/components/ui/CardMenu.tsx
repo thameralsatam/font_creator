@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreHorizontal } from 'lucide-react';
 
@@ -9,7 +9,13 @@ export const CardMenu: React.FC<{
   children: ((close: () => void) => React.ReactNode) | React.ReactNode;
 }> = ({ label, className = '', children }) => {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [pos, setPos] = useState<{
+    left: number;
+    top?: number;
+    bottom?: number;
+    maxHeight: number;
+    up: boolean;
+  } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -24,15 +30,39 @@ export const CardMenu: React.FC<{
     const rtl = getComputedStyle(btn).direction === 'rtl';
     let left = rtl ? r.right - w : r.left;
     left = Math.max(8, Math.min(left, vw - w - 8));
+    const vh = window.innerHeight;
+    const gap = 4;
+    const margin = 8;
+    const below = vh - r.bottom - margin - gap;
+    const above = r.top - margin - gap;
+    // تُفتح للأعلى إن ضاق المكان أسفل الزر وكان الأعلى أرحب
+    const up = below < 300 && above > below;
+    const space = up ? above : below;
     setPos({
       left,
-      top: r.bottom + 4,
+      up,
+      maxHeight: Math.max(140, space),
+      top: up ? undefined : r.bottom + gap,
+      bottom: up ? vh - r.top + gap : undefined,
     });
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (open) compute();
+    else setPos(null);
   }, [open, compute]);
+
+  // التمرير يحرّك الزر، فتُغلق القائمة بدل أن تبقى في مكان قديم
+  useEffect(() => {
+    if (!open) return;
+    const onScroll = () => setOpen(false);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,7 +106,10 @@ export const CardMenu: React.FC<{
               position: 'fixed',
               left: pos.left,
               top: pos.top,
+              bottom: pos.bottom,
               width: 190,
+              maxHeight: pos.maxHeight,
+              transformOrigin: pos.up ? 'bottom' : 'top',
             }}
             className="glass-dropdown animate-dropdown-slide z-[80] overflow-y-auto rounded-2xl p-1.5 shadow-xl"
           >

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { ProjectsDashboard } from './components/ProjectsDashboard';
 import { ProjectOverview } from './components/ProjectOverview';
-import { StudioScreen } from './components/studio/StudioScreen';
+const StudioScreen = lazy(() =>
+  import('./components/studio/StudioScreen').then((m) => ({ default: m.StudioScreen }))
+);
 import { MetricsModal } from './components/MetricsModal';
 import { ExportModal } from './components/ExportModal';
 import { useProjects } from './state/useProjects';
@@ -164,6 +166,7 @@ export default function App() {
       )}
 
       {screen === 'studio' && activeProject && activeGlyph && (
+        <Suspense fallback={<div className="grid min-h-screen place-items-center text-sm text-ink-soft">جارٍ التحميل...</div>}>
         <StudioScreen
           project={activeProject}
           glyph={activeGlyph}
@@ -171,6 +174,7 @@ export default function App() {
           onUpdateGlyph={(updater) => store.updateGlyph(activeProject.id, activeGlyph.id, updater)}
           onBack={() => setView('overview')}
         />
+        </Suspense>
       )}
 
       {/* تُركَّب النوافذ فقط عند فتحها حتى تبدأ كل مرة بقيم المشروع الحالية */}
