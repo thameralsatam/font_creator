@@ -3,6 +3,9 @@ import { uid, validateNewGlyph } from './fontLogic';
 import { CATEGORY_LABEL, FORM_LABEL } from './labels';
 
 /** بيانات المحرف القابلة للتعديل من نافذة التعديل. الرسم والعرض لا يمسّهما. */
+/** أقصى عدد وصلات في المشروع. */
+export const MAX_CONNECTORS = 12;
+
 export interface GlyphMeta {
   char: string;
   name: string;

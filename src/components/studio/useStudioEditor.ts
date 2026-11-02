@@ -41,6 +41,12 @@ import {
   setSymmetricHandles,
   signedArea,
   smoothNodes,
+  mirrorNodes,
+  cloneContours,
+  boundsOf,
+  contoursWithNodes,
+  translateAll,
+  coordRange,
   snapPoint,
   transformNodes,
   wholeContourIds,
@@ -51,7 +57,12 @@ import {
   type SnapResult,
 } from '../../utils/pathEdit';
 
-export type ToolId = 'select' | 'move' | 'pen' | 'hand';
+export type ToolId = 'select' | 'move' | 'pen' | 'hand' | 'ruler';
+
+export interface Measure {
+  a: Vec;
+  b: Vec;
+}
 
 /** replace = تحديد جديد، add = جمع إلى ما سبق، subtract = طرح مما سبق. */
 export type SelectMode = 'replace' | 'add' | 'subtract';
@@ -92,6 +103,7 @@ interface Options {
 
 type Gesture =
   | { kind: 'none' }
+  | { kind: 'measure'; pre: Snapshot; start: Vec }
   | {
       kind: 'drag';
       pre: Snapshot;
@@ -189,6 +201,12 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
   const [penId, setPenIdState] = useState<string | null>(null);
   const penRef = useRef<string | null>(null);
   const [marquee, setMarquee] = useState<Rect | null>(null);
+  const [measure, setMeasureState] = useState<Measure | null>(null);
+  const measureRef = useRef<Measure | null>(null);
+  const setMeasure = (m: Measure | null) => {
+    measureRef.current = m;
+    setMeasureState(m);
+  };
   const [preview, setPreview] = useState<PenPreview | null>(null);
   const [snapMark, setSnapMark] = useState<SnapResult | null>(null);
   const [hover, setHoverState] = useState<HoverTarget | null>(null);
@@ -307,6 +325,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     finishPen();
     toolRef.current = t;
     setToolState(t);
+    setMeasure(null);
     setMarquee(null);
     setSnapMark(null);
     setHover(null);
@@ -336,6 +355,14 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     const pre = work.current;
 
     if (t === 'pen') return penDown(info);
+
+    if (t === 'ruler') {
+      const s = snapPoint(info.world, snapCtx(), info.alt);
+      const start = { x: s.x, y: s.y };
+      gesture.current = { kind: 'measure', pre, start };
+      setMeasure({ a: start, b: start });
+      return;
+    }
 
     if (t === 'select') {
       const now = Date.now();
@@ -572,7 +599,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
       const node = contours.flatMap((c) => c.nodes).find((x) => x.id === hn.nodeId)!;
       const ids = new Set([hn.nodeId]);
       const next =
-        node.kind === 'smooth'
+        node.kind !== 'corner'
           ? cornerNodes(contours, ids)
           : node.handleIn || node.handleOut
             ? smoothNodes(contours, ids)
@@ -644,6 +671,14 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
             : null
         );
       }
+      return;
+    }
+
+    if (g.kind === 'measure') {
+      const s = snapPoint(info.world, snapCtx(), info.alt);
+      const t = info.shift ? constrainAngle(g.start, s) : s;
+      setMeasure({ a: g.start, b: { x: t.x, y: t.y } });
+      setSnapMark(s.kind === 'point' || s.kind === 'metric' ? s : null);
       return;
     }
 
@@ -719,6 +754,11 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     setMarquee(null);
     setSnapMark(null);
 
+    if (g.kind === 'measure') {
+      const m = measureRef.current;
+      if (m && dist(m.a, m.b) < 1) setMeasure(null);
+      return;
+    }
     if (g.kind === 'drag' && !g.moved && g.toggleId) {
       const next = new Set(selRef.current);
       next.delete(g.toggleId);
@@ -776,6 +816,27 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
   };
 
   const clearSelection = () => setSelection(EMPTY);
+  const hasMeasure = () => measureRef.current !== null;
+  const clearMeasure = () => setMeasure(null);
+
+  /** المسارات التي فيها تحديد (لحفظها وصلة). */
+  const selectedContours = (): Contour[] => contoursWithNodes(work.current.contours, liveSelection());
+
+  /** يدرج وصلة (مراكزها عند الأصل) في وسط المحرف ويحددها لتحريكها. */
+  const insertConnector = (incoming: Contour[]) => {
+    if (incoming.length === 0) return;
+    const m = metricsRef.current;
+    const at = { x: Math.round(work.current.advanceWidth / 2), y: Math.round(m.xHeight / 2) };
+    const placed = cloneContours(translateAll(incoming, at.x, at.y));
+    const b = boundsOf(placed);
+    const r = coordRange(m);
+    if (b && (b.xMin < r.xMin || b.xMax > r.xMax || b.yMin < r.yMin || b.yMax > r.yMax)) return flash(MSG.outOfRange);
+    const next = [...work.current.contours, ...placed];
+    if (next.length > LIMITS.maxContours) return flash(MSG.maxContours);
+    if (countNodes(next) > LIMITS.maxNodes) return flash(MSG.maxNodes);
+    commit({ contours: fixDirections(next) });
+    setSelection(allNodeIds(placed));
+  };
 
   const deleteSelection = () => {
     const sel = liveSelection();
@@ -842,6 +903,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
   };
 
   const smooth = () => nodeOp(smoothNodes);
+  const mirror = () => nodeOp(mirrorNodes);
   const corner = () => nodeOp(cornerNodes);
   const autoSmooth = () => nodeOp((c, ids) => autoSmoothNodes(c, ids, metricsRef.current));
 
@@ -933,6 +995,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     penRef.current = null;
     selRef.current = EMPTY;
     setPenIdState(null);
+    setMeasure(null);
     setSelectionState(EMPTY);
     setPreview(null);
     setMarquee(null);
@@ -944,9 +1007,9 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
 
   /* ---------- لوحة المفاتيح ---------- */
   const latest = useRef({
-    undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate,
+    undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate, hasMeasure, clearMeasure,
   });
-  latest.current = { undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate };
+  latest.current = { undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate, hasMeasure, clearMeasure };
 
   useEffect(() => {
     const typing = (t: EventTarget | null) =>
@@ -994,6 +1057,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
         case 'Escape':
           if (document.querySelector('[role="menu"]')) return;
           if (penRef.current) L.finishPen();
+          else if (L.hasMeasure()) L.clearMeasure();
           else L.clearSelection();
           return;
         case 'Enter':
@@ -1021,6 +1085,9 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
           return;
         case 'KeyH':
           L.setTool('hand');
+          return;
+        case 'KeyR':
+          L.setTool('ruler');
           return;
       }
     };
@@ -1101,6 +1168,11 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     openAtSelected,
     duplicate,
     importContours,
+    insertConnector,
+    selectedContours,
+    measure,
+    clearMeasure,
+    mirror,
     setAdvance,
     changeLsb,
     changeRsb,

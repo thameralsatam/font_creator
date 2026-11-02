@@ -131,7 +131,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   /* ---------- المؤشر المرئي ---------- */
   let cursor = 'cursor-default';
   if (editor.tool === 'hand' || editor.spaceHeld) cursor = 'cursor-grab';
-  else if (editor.tool === 'pen') cursor = 'cursor-crosshair';
+  else if (editor.tool === 'pen' || editor.tool === 'ruler') cursor = 'cursor-crosshair';
   else if (editor.hover) cursor = editor.tool === 'move' ? 'cursor-move' : 'cursor-pointer';
 
   const hoverContourId = editor.hover?.kind === 'contour' ? editor.hover.id : null;
@@ -316,7 +316,8 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
                     y={sy(n.y) - size2 / 2}
                     width={size2}
                     height={size2}
-                    rx={n.kind === 'smooth' ? size2 / 2 : 1}
+                    rx={n.kind === 'corner' ? 1 : n.kind === 'smooth' ? size2 / 2 : 1}
+                    transform={n.kind === 'mirror' ? `rotate(45 ${sx(n.x)} ${sy(n.y)})` : undefined}
                     className={selected ? 'fill-sand-deep stroke-ink' : 'fill-paper stroke-ink'}
                     strokeWidth="1.5"
                   />
@@ -401,6 +402,32 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
           strokeDasharray="4 3"
         />
       )}
+
+      {editor.measure && (() => {
+        const { a, b } = editor.measure;
+        const dx = Math.round(b.x - a.x);
+        const dy = Math.round(b.y - a.y);
+        const d = Math.hypot(b.x - a.x, b.y - a.y);
+        const ang = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+        const mx = (sx(a.x) + sx(b.x)) / 2;
+        const my = (sy(a.y) + sy(b.y)) / 2;
+        const t1 = Math.round(d).toString();
+        // علامة الاتجاه (U+200E) تمنع الاتجاه العربي من قلب الأرقام والإشارات
+        const t2 = `س \u200E${dx}   ص \u200E${dy}   \u200E${ang.toFixed(1)}°`;
+        const w = Math.max(t2.length * 6.6, 70) + 16;
+        return (
+          <g className="pointer-events-none">
+            <line x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)} className="stroke-ink" strokeWidth="1.5" />
+            <line x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(a.y)} className="stroke-ink-soft" strokeWidth="1" strokeDasharray="3 3" />
+            <line x1={sx(b.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)} className="stroke-ink-soft" strokeWidth="1" strokeDasharray="3 3" />
+            <circle cx={sx(a.x)} cy={sy(a.y)} r="3.5" className="fill-ink" />
+            <circle cx={sx(b.x)} cy={sy(b.y)} r="3.5" className="fill-ink" />
+            <rect x={mx - w / 2} y={my - 34} width={w} height="32" rx="8" className="fill-paper stroke-ink/30" strokeWidth="1" />
+            <text x={mx} y={my - 20} textAnchor="middle" fontSize="13" className="fill-ink font-mono">{t1}</text>
+            <text x={mx} y={my - 7} textAnchor="middle" fontSize="10.5" className="fill-ink-soft">{t2}</text>
+          </g>
+        );
+      })()}
 
       {glyph.contours.length === 0 && size.w > 0 && editor.tool !== 'pen' && (
         <text

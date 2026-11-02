@@ -172,6 +172,7 @@ export default function App() {
           glyph={activeGlyph}
           onSelectGlyph={setSelectedGlyphId}
           onUpdateGlyph={(updater) => store.updateGlyph(activeProject.id, activeGlyph.id, updater)}
+          onUpdateProject={(patch) => store.updateProject(activeProject.id, patch)}
           onBack={() => setView('overview')}
         />
         </Suspense>

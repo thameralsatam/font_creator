@@ -165,3 +165,23 @@ test('close, open and duplicate', () => {
   assert.equal(d.contours[1].nodes[0].x, 40);
   assert.equal(duplicateContours([open], new Set(), 99999, 0, M), null);
 });
+
+test('mirror nodes keep handles opposite and equal; setHandle follows', async () => {
+  const { mirrorNodes, setHandle, centerOnOrigin, cloneContours, contoursWithNodes } = await import('./pathEdit');
+  const m = { upm: 1000, ascender: 800, descender: -200, capHeight: 700, xHeight: 500 };
+  const node = (id: string, x: number, y: number, hi: any = null, ho: any = null) => ({ id, x, y, kind: 'corner' as const, handleIn: hi, handleOut: ho });
+  const c = { id: 'c', closed: true, nodes: [node('a', 0, 0, { x: -30, y: 0 }, { x: 50, y: 20 }), node('b', 100, 0), node('c', 100, 100)] };
+  const mir = mirrorNodes([c], new Set(['a']));
+  assert.equal(mir[0].nodes[0].kind, 'mirror');
+  assert.deepEqual(mir[0].nodes[0].handleIn, { x: -50, y: -20 });
+  const moved = setHandle(mir, 'a', 'in', { x: -10, y: 40 }, m);
+  assert.deepEqual(moved[0].nodes[0].handleOut, { x: 10, y: -40 });
+  const centered = centerOnOrigin([c]);
+  const cb = boundsOf(centered)!;
+  assert.ok(Math.abs((cb.xMin + cb.xMax) / 2) <= 1 && Math.abs((cb.yMin + cb.yMax) / 2) <= 1);
+  const cl = cloneContours([c]);
+  assert.notEqual(cl[0].id, c.id);
+  assert.notEqual(cl[0].nodes[0].id, 'a');
+  assert.equal(contoursWithNodes([c], new Set(['b'])).length, 1);
+  assert.equal(contoursWithNodes([c], new Set(['zz'])).length, 0);
+});
