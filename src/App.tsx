@@ -119,7 +119,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-paper text-ink antialiased flex flex-col">
       {screen === 'dashboard' && (
-        <div className="flex-1 mx-auto w-full max-w-7xl px-2.5 py-3 sm:px-4 sm:py-6 md:px-8 animate-view-fade">
+        <div className="flex-1 mx-auto w-full max-w-[1680px] px-2.5 py-3 sm:px-4 sm:py-6 md:px-8 animate-view-fade">
           <ProjectsDashboard
             projects={projects}
             onOpenProject={handleOpenProject}
@@ -133,7 +133,7 @@ export default function App() {
       )}
 
       {screen === 'overview' && activeProject && (
-        <div className="flex-1 mx-auto w-full max-w-7xl px-2.5 py-3 sm:px-4 sm:py-6 md:px-8 animate-view-fade">
+        <div className="flex-1 mx-auto w-full max-w-[1680px] px-2.5 py-3 sm:px-4 sm:py-6 md:px-8 animate-view-fade">
           <ProjectOverview
             project={activeProject}
             onBackToProjects={() => setView('dashboard')}

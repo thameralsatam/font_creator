@@ -180,7 +180,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
           {filtered.length === 0 ? (
             <p className="py-10 text-center text-sm text-ink-soft">لا توجد مشاريع تطابق بحثك.</p>
           ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filtered.map((project) => (
                 <ProjectCard
                   key={project.id}

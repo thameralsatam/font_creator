@@ -206,7 +206,8 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const isEmpty = glyphs.length === 0;
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-5">
+    <div className="flex flex-col gap-4 sm:gap-5 lg:grid lg:grid-cols-[21rem_minmax(0,1fr)] lg:items-start lg:gap-6">
+      <div className="flex min-w-0 flex-col gap-4 sm:gap-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
       {/* الترويسة */}
       <header className="capsule flex flex-col gap-2.5 p-3 sm:p-4">
         <div className="flex items-center gap-2 sm:gap-2.5">
@@ -273,9 +274,10 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
       </header>
 
       <FontTestPanel project={project} />
+      </div>
 
       {/* المحارف */}
-      <section className="flex flex-col gap-3">
+      <section className="flex min-w-0 flex-col gap-3">
         <div className="flex items-center justify-between gap-2.5 px-0.5">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <h2 className="text-base sm:text-lg">المحارف</h2>
@@ -421,7 +423,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             <p className="py-10 text-center text-sm text-ink-soft">لا توجد محارف تطابق البحث أو التصفية.</p>
           ) : (
           <>
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7">
               {shown.slice(0, limit).map((g) => (
                 <GlyphCard
                   key={g.id}

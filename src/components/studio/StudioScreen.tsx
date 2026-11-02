@@ -8,6 +8,9 @@ import {
   CircleHelp,
   Copy,
   Eye,
+  FileDown,
+  FileUp,
+  FileInput,
   FlipHorizontal2,
   FlipVertical2,
   Hand,
@@ -29,6 +32,8 @@ import {
 } from 'lucide-react';
 import { type FontProject, type Glyph } from '../../types/font';
 import { boundsOf } from '../../utils/pathEdit';
+import { downloadTextFile } from '../../utils/download';
+import { glyphToSvg, svgToGlyph } from '../../utils/svgGlyph';
 import { FORM_LABEL } from '../../utils/labels';
 import { HelpProvider, useHelp } from '../help/HelpContext';
 import { HelpBook } from '../help/HelpBook';
@@ -124,6 +129,8 @@ const StudioInner: React.FC<StudioScreenProps> = ({
   const help = useHelp();
   const [showBook, setShowBook] = useState(false);
   const [nudgeStep, setNudgeStep] = useState(10);
+  const svgInput = useRef<HTMLInputElement>(null);
+  const svgMode = useRef<'add' | 'replace'>('add');
 
   // Esc في وضع التعليمات: يغلق الشرح أولاً ثم يطفئ الوضع
   useEffect(() => {
@@ -169,6 +176,22 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     enabled: !help.on,
     onUpdateGlyph,
   });
+
+  const onSvgFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const res = svgToGlyph(await file.text(), metrics);
+    if (!res.ok) {
+      editor.notify(res.error);
+      return;
+    }
+    editor.importContours(res.contours, res.advanceWidth, svgMode.current === 'replace');
+  };
+  const pickSvg = (mode: 'add' | 'replace') => {
+    svgMode.current = mode;
+    svgInput.current?.click();
+  };
 
   const nodeCount = glyph.contours.reduce((sum, c) => sum + c.nodes.length, 0);
   const pathState =
@@ -493,6 +516,43 @@ const StudioInner: React.FC<StudioScreenProps> = ({
           )}
         </Dropdown>
 
+        <Dropdown label="ملف" helpId="file" icon={<FileInput className={icon} />} placement="bottom" width={230}>
+          {(close) => (
+            <>
+              <MenuLabel>ملفات SVG</MenuLabel>
+              <MenuItem
+                label="إضافة من SVG"
+                helpId="file.add"
+                icon={<FileUp className={icon} />}
+                onClick={() => {
+                  close();
+                  pickSvg('add');
+                }}
+              />
+              <MenuItem
+                label="استبدال الرسم من SVG"
+                helpId="file.replace"
+                icon={<FileUp className={icon} />}
+                disabled={!hasDrawing}
+                onClick={() => {
+                  close();
+                  pickSvg('replace');
+                }}
+              />
+              <MenuItem
+                label="تصدير SVG"
+                helpId="file.export"
+                icon={<FileDown className={icon} />}
+                disabled={!hasDrawing}
+                onClick={() => {
+                  downloadTextFile(glyphToSvg(glyph, metrics), `${glyph.name}.svg`, 'image/svg+xml');
+                  close();
+                }}
+              />
+            </>
+          )}
+        </Dropdown>
+
         <Dropdown label="الإعدادات" helpId="settings" icon={<Settings2 className={icon} />} placement="bottom">
           {() => (
             <>
@@ -548,27 +608,51 @@ const StudioInner: React.FC<StudioScreenProps> = ({
         </Button>
       </DragScroll>
 
-      {/* اللوحة */}
-      <main className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-ink/25 bg-canvas shadow-sm">
-        <StudioCanvas
-          glyph={glyph}
-          metrics={metrics}
-          viewport={viewport}
-          options={options}
-          editor={editor}
-          panMode={panMode}
-          onHelp={help.on ? () => help.show('canvas') : undefined}
-        />
-        <HelpPanel onOpenBook={() => setShowBook(true)} />
-        {editor.notice && (
-          <div
-            role="status"
-            className="glass-panel pointer-events-none absolute inset-x-0 top-3 z-10 mx-auto w-fit max-w-[90%] rounded-xl px-4 py-2 text-xs"
-          >
-            {editor.notice}
+      <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
+        {/* قائمة المحارف الجانبية للشاشات الكبيرة */}
+        <aside className="glass-panel hidden w-52 shrink-0 flex-col overflow-hidden rounded-2xl lg:flex xl:w-60">
+          <p className="shrink-0 px-3 pb-1 pt-3 text-xs text-ink-soft">المحارف ({project.glyphs.length})</p>
+          <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-1.5 overflow-y-auto p-2">
+            {project.glyphs.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                title={g.name}
+                onClick={() => (help.on ? help.show('glyphItem') : onSelectGlyph(g.id))}
+                className={`flex flex-col items-center gap-0.5 rounded-xl border p-1 transition-colors ${
+                  g.id === glyph.id ? 'border-ink bg-sand/50' : 'border-ink/10 hover:bg-sand/30'
+                }`}
+              >
+                <GlyphThumb glyph={g} metrics={metrics} showGrid={false} className="h-14 w-full" />
+                <span dir="ltr" className="w-full truncate text-center font-mono text-[10px] text-ink-soft">{g.name}</span>
+              </button>
+            ))}
           </div>
-        )}
-      </main>
+        </aside>
+
+        <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-ink/25 bg-canvas shadow-sm">
+          <StudioCanvas
+            glyph={glyph}
+            metrics={metrics}
+            viewport={viewport}
+            options={options}
+            editor={editor}
+            panMode={panMode}
+            onHelp={help.on ? () => help.show('canvas') : undefined}
+          />
+          <HelpPanel onOpenBook={() => setShowBook(true)} />
+          {editor.notice && (
+            <div
+              role="status"
+              className="glass-panel pointer-events-none absolute inset-x-0 top-3 z-10 mx-auto w-fit max-w-[90%] rounded-xl px-4 py-2 text-xs"
+            >
+              {editor.notice}
+            </div>
+          )}
+        </main>
+      </div>
+
+      <input ref={svgInput} type="file" accept=".svg,image/svg+xml" className="hidden" onChange={onSvgFile} />
 
       {/* الشريط السفلي */}
       <DragScroll label="الشريط السفلي" className="glass-panel shrink-0 rounded-2xl">

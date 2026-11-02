@@ -897,6 +897,19 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     setSelection(res.newIds);
   };
 
+  /** يضيف مسارات (من ملف SVG مثلاً) إلى الرسم أو يستبدله بها. يُسجَّل في التراجع. */
+  const importContours = (incoming: Contour[], advanceWidth: number, replace: boolean) => {
+    const base = replace ? [] : work.current.contours;
+    const next = [...base, ...incoming];
+    if (next.length > LIMITS.maxContours) return flash(MSG.maxContours);
+    if (countNodes(next) > LIMITS.maxNodes) return flash(MSG.maxNodes);
+    const fixed = fixDirections(next);
+    const patch: Partial<Snapshot> = { contours: fixed };
+    if (replace || base.length === 0) patch.advanceWidth = clampAdvance(advanceWidth, metricsRef.current);
+    commit(patch);
+    setSelection(allNodeIds(incoming.length ? fixed.filter((c) => incoming.some((i) => i.id === c.id)) : []));
+  };
+
   const setAdvance = (v: number) => {
     const next = clampAdvance(v, metricsRef.current);
     if (next === work.current.advanceWidth) return;
@@ -1054,6 +1067,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     snapMark,
     hover,
     notice,
+    notify: flash,
     spaceHeld,
     canUndo: counts.past > 0,
     canRedo: counts.future > 0,
@@ -1086,6 +1100,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     closeSelected,
     openAtSelected,
     duplicate,
+    importContours,
     setAdvance,
     changeLsb,
     changeRsb,
