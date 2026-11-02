@@ -477,7 +477,10 @@ export function setHandle(
     const own = zero ? null : h;
     let next: PathNode = which === 'in' ? { ...n, handleIn: own } : { ...n, handleOut: own };
     const other = which === 'in' ? n.handleOut : n.handleIn;
-    if (n.kind === 'smooth' && !zero && other) {
+    if (n.kind === 'mirror' && !zero && other) {
+      const opp = { x: -h.x, y: -h.y };
+      next = which === 'in' ? { ...next, handleOut: opp } : { ...next, handleIn: opp };
+    } else if (n.kind === 'smooth' && !zero && other) {
       const k = -Math.hypot(other.x, other.y) / Math.hypot(h.x, h.y);
       const opp = { x: Math.round(h.x * k), y: Math.round(h.y * k) };
       next = which === 'in' ? { ...next, handleOut: opp } : { ...next, handleIn: opp };
@@ -639,6 +642,18 @@ export function smoothNodes(contours: Contour[], ids: ReadonlySet<string>): Cont
       return { ...n, kind: 'smooth' as const, handleOut: { x: -inn.x, y: -inn.y } };
     }
     return { ...n, kind: 'smooth' as const };
+  });
+}
+
+/** مقبضان متماثلان: متقابلان تماماً وبطولين متساويين. يتبع المقبض الداخلي الخارجَ. */
+export function mirrorNodes(contours: Contour[], ids: ReadonlySet<string>): Contour[] {
+  return mapNodesIn(contours, ids, (n, c, i) => {
+    const { hasPrev, hasNext } = neighbors(c, i);
+    const out = n.handleOut;
+    const inn = n.handleIn;
+    if (out && hasPrev) return { ...n, kind: 'mirror' as const, handleIn: { x: -out.x, y: -out.y } };
+    if (inn && hasNext) return { ...n, kind: 'mirror' as const, handleOut: { x: -inn.x, y: -inn.y } };
+    return { ...n, kind: 'mirror' as const };
   });
 }
 
@@ -958,4 +973,28 @@ export function contourArrow(c: Contour): { at: Vec; dir: Vec } | null {
   const len = Math.hypot(q.x - p.x, q.y - p.y);
   if (len === 0) return null;
   return { at: p, dir: { x: (q.x - p.x) / len, y: (q.y - p.y) / len } };
+}
+
+
+/* ---------- الوصلات ---------- */
+
+/** نسخة بمعرّفات جديدة، حتى لا تتكرر المعرّفات حين تُدرج الوصلة أكثر من مرة. */
+export function cloneContours(contours: Contour[]): Contour[] {
+  return contours.map((c) => ({
+    ...c,
+    id: uid('contour'),
+    nodes: c.nodes.map((n) => ({ ...n, id: uid('node') })),
+  }));
+}
+
+/** يزيح المسارات بحيث يقع مركز حدودها عند الأصل (لتخزين الوصلة). */
+export function centerOnOrigin(contours: Contour[]): Contour[] {
+  const b = boundsOf(contours);
+  if (!b) return contours;
+  return translateAll(contours, -Math.round((b.xMin + b.xMax) / 2), -Math.round((b.yMin + b.yMax) / 2));
+}
+
+/** المسارات التي فيها نقطة محددة. */
+export function contoursWithNodes(contours: Contour[], ids: ReadonlySet<string>): Contour[] {
+  return contours.filter((c) => c.nodes.some((n) => ids.has(n.id)));
 }

@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
+  Link2,
   ArrowRight,
   ArrowUpDown,
   Filter,
@@ -29,6 +30,7 @@ import { CATEGORY_LABEL, FORM_LABEL } from '../utils/labels';
 import { FeaturesModal } from './FeaturesModal';
 import { FontTestPanel } from './FontTestPanel';
 import { FontInfoModal, type InfoPatch } from './FontInfoModal';
+import { ConnectorsModal } from './ConnectorsModal';
 import { GlyphAddModal } from './GlyphAddModal';
 import { GlyphCard } from './GlyphCard';
 import { GlyphEditModal } from './GlyphEditModal';
@@ -81,6 +83,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const [showPreset, setShowPreset] = useState(false);
   const [showFeatures, setShowFeatures] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [showConnectors, setShowConnectors] = useState(false);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -233,6 +236,15 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   onClick={() => {
                     close();
                     onOpenMetrics();
+                  }}
+                />
+                <MenuItem
+                  label="الوصلات"
+                  icon={<Link2 className={icon} />}
+                  hint={project.connectors?.length ? String(project.connectors.length) : undefined}
+                  onClick={() => {
+                    close();
+                    setShowConnectors(true);
                   }}
                 />
                 <MenuItem
@@ -464,6 +476,13 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
 
       {showAdd && <GlyphAddModal glyphs={glyphs} onAdd={props.onAddNewGlyph} onClose={() => setShowAdd(false)} />}
       {showPreset && <PresetModal existing={glyphs} onAdd={props.onAddPreset} onClose={() => setShowPreset(false)} />}
+      {showConnectors && (
+        <ConnectorsModal
+          project={project}
+          onSave={(connectors) => props.onUpdateProject({ connectors })}
+          onClose={() => setShowConnectors(false)}
+        />
+      )}
       {showInfo && <FontInfoModal project={project} onSave={onUpdateInfo} onClose={() => setShowInfo(false)} />}
       {showFeatures && (
         <FeaturesModal

@@ -3,7 +3,11 @@ export interface Vec {
   y: number;
 }
 
-export type NodeKind = 'corner' | 'smooth';
+/**
+ * نوع النقطة (قفل المقبضين):
+ * corner: حران كلياً، smooth: متقابلان على خط واحد بطولين حرين، mirror: متقابلان وبطولين متساويين.
+ */
+export type NodeKind = 'corner' | 'smooth' | 'mirror';
 
 /**
  * نقطة على المسار. المقبضان مخزّنان كإزاحة نسبة إلى موضع النقطة،
@@ -105,4 +109,12 @@ export interface FontProject {
   info?: Partial<FontInfo>;
   /** قواعد الأوبن تايب التي كتبها المستخدم بصيغة FEA. تُدمج مع القواعد التلقائية. */
   customFea?: string;
+  /** وصلات يعرّفها المستخدم لإدراجها بسرعة في أي محرف. مراكزها عند الأصل. */
+  connectors?: Connector[];
+}
+
+export interface Connector {
+  id: string;
+  name: string;
+  contours: Contour[];
 }

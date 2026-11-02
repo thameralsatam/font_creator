@@ -14,11 +14,15 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   Hand,
+  Link2,
+  PanelRight,
+  PanelRightClose,
   Maximize,
   MousePointer2,
   Move,
   PenTool,
   Redo2,
+  Ruler as RulerIcon,
   RotateCcw,
   RotateCw,
   Ruler,
@@ -30,7 +34,11 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { type FontProject, type Glyph } from '../../types/font';
+import { type Connector, type FontProject, type Glyph } from '../../types/font';
+import { MAX_CONNECTORS } from '../../utils/glyphLogic';
+import { uid } from '../../utils/fontLogic';
+import { centerOnOrigin } from '../../utils/pathEdit';
+import { ConnectorPreview } from '../ConnectorPreview';
 import { boundsOf } from '../../utils/pathEdit';
 import { downloadTextFile } from '../../utils/download';
 import { glyphToSvg, svgToGlyph } from '../../utils/svgGlyph';
@@ -51,6 +59,7 @@ interface StudioScreenProps {
   glyph: Glyph;
   onSelectGlyph: (glyphId: string) => void;
   onUpdateGlyph: (updater: (g: Glyph) => Glyph) => void;
+  onUpdateProject: (patch: Partial<FontProject>) => void;
   onBack: () => void;
 }
 
@@ -71,6 +80,7 @@ const TOOLS: Array<{ id: ToolId; label: string; key: string; Icon: typeof PenToo
   { id: 'move', label: 'تحريك', key: 'M', Icon: Move },
   { id: 'pen', label: 'قلم', key: 'P', Icon: PenTool },
   { id: 'hand', label: 'اللوحة', key: 'H', Icon: Hand },
+  { id: 'ruler', label: 'مسطرة', key: 'R', Icon: RulerIcon },
 ];
 
 /** حقل رقمي داخل القائمة: يُطبَّق عند Enter أو مغادرة الحقل، وإن كانت القيمة غير صالحة يرجع القديم. */
@@ -123,12 +133,42 @@ const StudioInner: React.FC<StudioScreenProps> = ({
   glyph,
   onSelectGlyph,
   onUpdateGlyph,
+  onUpdateProject,
   onBack,
 }) => {
   const { metrics } = project;
   const help = useHelp();
   const [showBook, setShowBook] = useState(false);
   const [nudgeStep, setNudgeStep] = useState(10);
+  const [showList, setShowList] = useState(() => {
+    try {
+      return localStorage.getItem('font-studio:side-list') !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const toggleList = () =>
+    setShowList((v) => {
+      try {
+        localStorage.setItem('font-studio:side-list', v ? '0' : '1');
+      } catch {
+        /* لا يضر */
+      }
+      return !v;
+    });
+  const connectors = project.connectors ?? [];
+  const saveSelectionAsConnector = () => {
+    const picked = editor.selectedContours();
+    if (picked.length === 0) return editor.notify('حدد نقاط الوصلة أولاً.');
+    if (connectors.length >= MAX_CONNECTORS) return editor.notify(`وصلت إلى حد الوصلات (${MAX_CONNECTORS}).`);
+    const next: Connector = {
+      id: uid('conn'),
+      name: `وصلة ${connectors.length + 1}`,
+      contours: centerOnOrigin(picked),
+    };
+    onUpdateProject({ connectors: [...connectors, next] });
+    editor.notify('حُفظت الوصلة. غيّر اسمها من إعدادات المشروع.');
+  };
   const svgInput = useRef<HTMLInputElement>(null);
   const svgMode = useRef<'add' | 'replace'>('add');
 
@@ -248,6 +288,19 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             </>
           )}
         </Dropdown>
+
+        <span className="hidden lg:contents">
+          <Button
+            variant="quiet"
+            icon
+            helpId="sideList"
+            title={showList ? 'إخفاء قائمة المحارف' : 'إظهار قائمة المحارف'}
+            active={showList}
+            onClick={toggleList}
+          >
+            {showList ? <PanelRightClose className={icon} /> : <PanelRight className={icon} />}
+          </Button>
+        </span>
 
         <BarDivider />
 
@@ -435,9 +488,20 @@ const StudioInner: React.FC<StudioScreenProps> = ({
         <Dropdown label="المسار" helpId="path" icon={<Spline className={icon} />} placement="bottom">
           {(close) => (
             <>
-              <MenuLabel>نوع النقطة (للمحدد)</MenuLabel>
+              <MenuLabel>قفل المقبضين (للمحدد)</MenuLabel>
               <MenuItem
-                label="ربط المقابض (ناعمة)"
+                label="حران كلياً"
+                hint="زاوية"
+                helpId="p.corner"
+                disabled={!hasSelection}
+                onClick={() => {
+                  editor.corner();
+                  close();
+                }}
+              />
+              <MenuItem
+                label="متقابلان"
+                hint="طولان حران"
                 helpId="p.smooth"
                 disabled={!hasSelection}
                 onClick={() => {
@@ -446,11 +510,12 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 }}
               />
               <MenuItem
-                label="كسر المقابض (زاوية)"
-                helpId="p.corner"
+                label="متماثلان"
+                hint="طولان متساويان"
+                helpId="p.mirror"
                 disabled={!hasSelection}
                 onClick={() => {
-                  editor.corner();
+                  editor.mirror();
                   close();
                 }}
               />
@@ -509,6 +574,41 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 disabled={!hasDrawing}
                 onClick={() => {
                   editor.selectAll();
+                  close();
+                }}
+              />
+            </>
+          )}
+        </Dropdown>
+
+        <Dropdown label="وصلات" helpId="connectors" icon={<Link2 className={icon} />} placement="bottom" width={250}>
+          {(close) => (
+            <>
+              <MenuLabel>وصلات المشروع ({connectors.length})</MenuLabel>
+              {connectors.length === 0 && (
+                <p className="px-3 py-2 text-xs leading-6 text-ink-soft">
+                  لا وصلات بعد. حدد مسارات واحفظها وصلة، أو أضفها من إعدادات المشروع.
+                </p>
+              )}
+              {connectors.map((c) => (
+                <MenuItem
+                  key={c.id}
+                  label={c.name}
+                  helpId="connectors.insert"
+                  icon={<ConnectorPreview contours={c.contours} className="h-5 w-7" />}
+                  onClick={() => {
+                    editor.insertConnector(c.contours);
+                    close();
+                  }}
+                />
+              ))}
+              <MenuDivider />
+              <MenuItem
+                label="حفظ المحدد كوصلة"
+                helpId="connectors.save"
+                disabled={!hasSelection}
+                onClick={() => {
+                  saveSelectionAsConnector();
                   close();
                 }}
               />
@@ -610,7 +710,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
 
       <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
         {/* قائمة المحارف الجانبية للشاشات الكبيرة */}
-        <aside className="glass-panel hidden w-52 shrink-0 flex-col overflow-hidden rounded-2xl lg:flex xl:w-60">
+        <aside className={`glass-panel hidden w-52 shrink-0 flex-col overflow-hidden rounded-2xl xl:w-60 ${showList ? 'lg:flex' : ''}`}>
           <p className="shrink-0 px-3 pb-1 pt-3 text-xs text-ink-soft">المحارف ({project.glyphs.length})</p>
           <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-1.5 overflow-y-auto p-2">
             {project.glyphs.map((g) => (
