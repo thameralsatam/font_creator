@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { type FontMetrics, type Glyph } from '../../types/font';
+import { type Trace } from './DrawingAids';
 import { contourToPath, glyphFillPath } from '../../utils/pathGeometry';
 import { contourArrow, effectiveGridStep } from '../../utils/pathEdit';
 import { type PointerInfo, type StudioEditor } from './useStudioEditor';
@@ -24,6 +25,9 @@ interface StudioCanvasProps {
   panMode: React.MutableRefObject<boolean>;
   /** في وضع التعليمات: الضغط على اللوحة يشرحها بدل أن يرسم. */
   onHelp?: () => void;
+  /** محرفان جاران يُرسمان باهتين، وصورة تتبع خلف الرسم. */
+  neighbors?: { left: Glyph | null; right: Glyph | null };
+  trace?: Trace | null;
 }
 
 /**
@@ -43,6 +47,8 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   editor,
   panMode,
   onHelp,
+  neighbors,
+  trace,
 }) => {
   const { ref, bind, size, view } = viewport;
   const { scale: s, ox, oy } = view;
@@ -234,6 +240,38 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
         </g>
       )}
 
+      {trace && (() => {
+        const hh = (metrics.ascender - metrics.descender) * (trace.scale / 100);
+        const ww = (hh * trace.w) / trace.h;
+        const cx = glyph.advanceWidth / 2 + trace.dx;
+        const cy = (metrics.ascender + metrics.descender) / 2 + trace.dy;
+        return (
+          <image
+            href={trace.url}
+            x={sx(cx - ww / 2)}
+            y={sy(cy + hh / 2)}
+            width={ww * s}
+            height={hh * s}
+            preserveAspectRatio="none"
+            opacity={trace.opacity / 100}
+            className="pointer-events-none"
+          />
+        );
+      })()}
+
+      {neighbors &&
+        ([
+          [neighbors.left, -(neighbors.left?.advanceWidth ?? 0)],
+          [neighbors.right, glyph.advanceWidth],
+        ] as Array<[Glyph | null, number]>).map(
+          ([g, off], i) =>
+            g && (
+              <g key={i} transform={`translate(${ox + off * s} ${oy}) scale(${s} ${-s})`} className="pointer-events-none">
+                <path d={glyphFillPath(g.contours)} fillRule="nonzero" className="fill-ink" fillOpacity="0.16" />
+              </g>
+            )
+        )}
+
       {/* مسارات المحرف بوحدات الخط */}
       <g transform={`translate(${ox} ${oy}) scale(${s} ${-s})`}>
         <path
@@ -311,16 +349,25 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
                           </g>
                         )
                     )}
-                  <rect
-                    x={sx(n.x) - size2 / 2}
-                    y={sy(n.y) - size2 / 2}
-                    width={size2}
-                    height={size2}
-                    rx={n.kind === 'corner' ? 1 : n.kind === 'smooth' ? size2 / 2 : 1}
-                    transform={n.kind === 'mirror' ? `rotate(45 ${sx(n.x)} ${sy(n.y)})` : undefined}
-                    className={selected ? 'fill-sand-deep stroke-ink' : 'fill-paper stroke-ink'}
-                    strokeWidth="1.5"
-                  />
+                  {n.kind === 'locked' ? (
+                    <polygon
+                      points={`${sx(n.x)},${sy(n.y) - size2 * 0.62} ${sx(n.x) + size2 * 0.62},${sy(n.y) + size2 * 0.5} ${sx(n.x) - size2 * 0.62},${sy(n.y) + size2 * 0.5}`}
+                      className={selected ? 'fill-sand-deep stroke-ink' : 'fill-paper stroke-ink'}
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                    />
+                  ) : (
+                    <rect
+                      x={sx(n.x) - size2 / 2}
+                      y={sy(n.y) - size2 / 2}
+                      width={size2}
+                      height={size2}
+                      rx={n.kind === 'smooth' ? size2 / 2 : 1}
+                      transform={n.kind === 'mirror' ? `rotate(45 ${sx(n.x)} ${sy(n.y)})` : undefined}
+                      className={selected ? 'fill-sand-deep stroke-ink' : 'fill-paper stroke-ink'}
+                      strokeWidth="1.5"
+                    />
+                  )}
                   {target && (
                     <circle cx={sx(n.x)} cy={sy(n.y)} r="12" fill="none" className="stroke-sand-deep" strokeWidth="2" />
                   )}

@@ -477,7 +477,20 @@ export function setHandle(
     const own = zero ? null : h;
     let next: PathNode = which === 'in' ? { ...n, handleIn: own } : { ...n, handleOut: own };
     const other = which === 'in' ? n.handleOut : n.handleIn;
-    if (n.kind === 'mirror' && !zero && other) {
+    const cur = which === 'in' ? n.handleIn : n.handleOut;
+    if (n.kind === 'locked' && !zero && other && cur && (cur.x !== 0 || cur.y !== 0)) {
+      // نفس الدوران ونفس نسبة التكبير اللذين أصابا المقبض المسحوب
+      const k = Math.hypot(h.x, h.y) / Math.hypot(cur.x, cur.y);
+      const a = Math.atan2(h.y, h.x) - Math.atan2(cur.y, cur.x);
+      const cos = Math.cos(a);
+      const sin = Math.sin(a);
+      const moved = clampHandle(
+        { x: Math.round(k * (other.x * cos - other.y * sin)) + 0, y: Math.round(k * (other.x * sin + other.y * cos)) + 0 },
+        m
+      );
+      const o = moved.x === 0 && moved.y === 0 ? null : moved;
+      next = which === 'in' ? { ...next, handleOut: o } : { ...next, handleIn: o };
+    } else if (n.kind === 'mirror' && !zero && other) {
       const opp = { x: -h.x, y: -h.y };
       next = which === 'in' ? { ...next, handleOut: opp } : { ...next, handleIn: opp };
     } else if (n.kind === 'smooth' && !zero && other) {
@@ -997,4 +1010,197 @@ export function centerOnOrigin(contours: Contour[]): Contour[] {
 /** المسارات التي فيها نقطة محددة. */
 export function contoursWithNodes(contours: Contour[], ids: ReadonlySet<string>): Contour[] {
   return contours.filter((c) => c.nodes.some((n) => ids.has(n.id)));
+}
+
+
+/* ---------- أنواع النقاط الإضافية ---------- */
+
+/** قفل المقبضين بوضعهما الحالي: لا يتغير الشكل الآن، لكن تحريك أحدهما يحرك الآخر معه. */
+export function lockNodes(contours: Contour[], ids: ReadonlySet<string>): Contour[] {
+  return mapNodesIn(contours, ids, (n) => ({ ...n, kind: 'locked' as const }));
+}
+
+/** نقطة عادية: بلا مقبضين. */
+export function plainNodes(contours: Contour[], ids: ReadonlySet<string>): Contour[] {
+  return mapNodesIn(contours, ids, (n) => ({ ...n, kind: 'corner' as const, handleIn: null, handleOut: null }));
+}
+
+/* ---------- التصاق المسطرة ---------- */
+
+export interface RulerSnap {
+  x: number;
+  y: number;
+  kind: 'point' | 'edge' | 'outline';
+}
+
+function nearestOnPolyline(p: Vec, pts: Vec[], closed: boolean): { q: Vec; d: number } | null {
+  let best: { q: Vec; d: number } | null = null;
+  const n = pts.length;
+  const last = closed ? n : n - 1;
+  for (let i = 0; i < last; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % n];
+    const vx = b.x - a.x;
+    const vy = b.y - a.y;
+    const len2 = vx * vx + vy * vy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / len2));
+    const q = { x: a.x + t * vx, y: a.y + t * vy };
+    const d = Math.hypot(q.x - p.x, q.y - p.y);
+    if (!best || d < best.d) best = { q, d };
+  }
+  return best;
+}
+
+/**
+ * التصاق المسطرة بالترتيب: نقطة أو طرف مقبض، ثم حافة الشكل (بدايته أو نهايته أفقياً ورأسياً)،
+ * ثم أقرب نقطة على الحدود. يعيد null إن لم يكن شيء ضمن المسافة r.
+ */
+export function rulerSnap(contours: Contour[], p: Vec, r: number): RulerSnap | null {
+  let best: Vec | null = null;
+  let bd = r;
+  const consider = (q: Vec) => {
+    const d = Math.hypot(q.x - p.x, q.y - p.y);
+    if (d <= bd) {
+      bd = d;
+      best = q;
+    }
+  };
+  for (const c of contours) {
+    for (const n of c.nodes) {
+      consider(n);
+      if (n.handleIn) consider({ x: n.x + n.handleIn.x, y: n.y + n.handleIn.y });
+      if (n.handleOut) consider({ x: n.x + n.handleOut.x, y: n.y + n.handleOut.y });
+    }
+  }
+  if (best) return { x: (best as Vec).x, y: (best as Vec).y, kind: 'point' };
+
+  let x: number | undefined;
+  let y: number | undefined;
+  let dx = r;
+  let dy = r;
+  for (const c of contours) {
+    const b = boundsOf([c]);
+    if (!b) continue;
+    if (p.y >= b.yMin - r && p.y <= b.yMax + r) {
+      for (const e of [b.xMin, b.xMax]) {
+        const d = Math.abs(p.x - e);
+        if (d <= dx) {
+          dx = d;
+          x = e;
+        }
+      }
+    }
+    if (p.x >= b.xMin - r && p.x <= b.xMax + r) {
+      for (const e of [b.yMin, b.yMax]) {
+        const d = Math.abs(p.y - e);
+        if (d <= dy) {
+          dy = d;
+          y = e;
+        }
+      }
+    }
+  }
+  if (x !== undefined || y !== undefined) return { x: x ?? p.x, y: y ?? p.y, kind: 'edge' };
+
+  let near: { q: Vec; d: number } | null = null;
+  for (const c of contours) {
+    if (c.nodes.length < 2) continue;
+    const hit = nearestOnPolyline(p, flattenContour(c), c.closed);
+    if (hit && hit.d <= r && (!near || hit.d < near.d)) near = hit;
+  }
+  return near ? { x: near.q.x, y: near.q.y, kind: 'outline' } : null;
+}
+
+/* ---------- المحاذاة والتوزيع ---------- */
+
+export type AlignMode = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom';
+
+function touchedContours(contours: Contour[], ids: ReadonlySet<string>): Contour[] {
+  return ids.size === 0 ? contours : contours.filter((c) => c.nodes.some((n) => ids.has(n.id)));
+}
+
+function moveContours(contours: Contour[], moves: Map<string, Vec>, m: FontMetrics): Contour[] | null {
+  const r = coordRange(m);
+  let ok = true;
+  const out = contours.map((c) => {
+    const mv = moves.get(c.id);
+    if (!mv || (mv.x === 0 && mv.y === 0)) return c;
+    const moved = translateAll([c], mv.x, mv.y)[0];
+    const b = boundsOf([moved]);
+    if (b && (b.xMin < r.xMin || b.xMax > r.xMax || b.yMin < r.yMin || b.yMax > r.yMax)) ok = false;
+    return moved;
+  });
+  return ok ? out : null;
+}
+
+/**
+ * يحاذي المسارات (التي فيها تحديد، أو كلها) إلى حدود مجموعها إن كانت اثنين فأكثر،
+ * وإلى صندوق المحرف (glyphBox) إن كان مساراً واحداً. يعيد null إن خرج شيء عن الحدود أو لا مسارات.
+ */
+export function alignContours(
+  contours: Contour[],
+  ids: ReadonlySet<string>,
+  mode: AlignMode,
+  glyphBox: Bounds,
+  m: FontMetrics
+): Contour[] | null {
+  const targets = touchedContours(contours, ids);
+  if (targets.length === 0) return null;
+  const boxes = new Map<string, Bounds>();
+  for (const c of targets) {
+    const b = boundsOf([c]);
+    if (b) boxes.set(c.id, b);
+  }
+  if (boxes.size === 0) return null;
+  const all = [...boxes.values()];
+  const ref: Bounds =
+    all.length >= 2
+      ? {
+          xMin: Math.min(...all.map((b) => b.xMin)),
+          xMax: Math.max(...all.map((b) => b.xMax)),
+          yMin: Math.min(...all.map((b) => b.yMin)),
+          yMax: Math.max(...all.map((b) => b.yMax)),
+        }
+      : glyphBox;
+  const moves = new Map<string, Vec>();
+  for (const [id, b] of boxes) {
+    let dx = 0;
+    let dy = 0;
+    if (mode === 'left') dx = ref.xMin - b.xMin;
+    else if (mode === 'right') dx = ref.xMax - b.xMax;
+    else if (mode === 'hcenter') dx = (ref.xMin + ref.xMax) / 2 - (b.xMin + b.xMax) / 2;
+    else if (mode === 'bottom') dy = ref.yMin - b.yMin;
+    else if (mode === 'top') dy = ref.yMax - b.yMax;
+    else dy = (ref.yMin + ref.yMax) / 2 - (b.yMin + b.yMax) / 2;
+    moves.set(id, { x: Math.round(dx), y: Math.round(dy) });
+  }
+  return moveContours(contours, moves, m);
+}
+
+/** يوزّع ثلاثة مسارات فأكثر بفراغات متساوية بين حوافها، ويثبّت الأول والأخير. */
+export function distributeContours(
+  contours: Contour[],
+  ids: ReadonlySet<string>,
+  axis: 'h' | 'v',
+  m: FontMetrics
+): Contour[] | null {
+  const items = touchedContours(contours, ids)
+    .map((c) => ({ c, b: boundsOf([c]) }))
+    .filter((i): i is { c: Contour; b: Bounds } => i.b !== null);
+  if (items.length < 3) return null;
+  const lo = (b: Bounds) => (axis === 'h' ? b.xMin : b.yMin);
+  const hi = (b: Bounds) => (axis === 'h' ? b.xMax : b.yMax);
+  items.sort((a, b) => lo(a.b) + hi(a.b) - (lo(b.b) + hi(b.b)));
+  const start = lo(items[0].b);
+  const end = Math.max(...items.map((i) => hi(i.b)));
+  const sizes = items.reduce((s, i) => s + (hi(i.b) - lo(i.b)), 0);
+  const gap = (end - start - sizes) / (items.length - 1);
+  const moves = new Map<string, Vec>();
+  let pos = start;
+  for (const i of items) {
+    const delta = Math.round(pos - lo(i.b));
+    moves.set(i.c.id, axis === 'h' ? { x: delta, y: 0 } : { x: 0, y: delta });
+    pos += hi(i.b) - lo(i.b) + gap;
+  }
+  return moveContours(contours, moves, m);
 }
