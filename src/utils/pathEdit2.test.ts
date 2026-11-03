@@ -185,3 +185,58 @@ test('mirror nodes keep handles opposite and equal; setHandle follows', async ()
   assert.equal(contoursWithNodes([c], new Set(['b'])).length, 1);
   assert.equal(contoursWithNodes([c], new Set(['zz'])).length, 0);
 });
+
+const M8 = { upm: 1000, ascender: 800, descender: -200, capHeight: 700, xHeight: 500 };
+const nd = (id: string, x: number, y: number, hi: any = null, ho: any = null, kind: any = 'corner') => ({ id, x, y, kind, handleIn: hi, handleOut: ho });
+const rectAt = (id: string, x0: number, y0: number, x1: number, y1: number) => ({
+  id, closed: true,
+  nodes: [nd(id + 'a', x0, y0), nd(id + 'b', x1, y0), nd(id + 'c', x1, y1), nd(id + 'd', x0, y1)],
+});
+
+test('locked handles: dragging one rotates and scales the other equally', async () => {
+  const { lockNodes, setHandle } = await import('./pathEdit');
+  const c = { id: 'c', closed: true, nodes: [nd('a', 0, 0, { x: -10, y: 0 }, { x: 0, y: 20 }), nd('b', 100, 0), nd('c', 100, 100)] };
+  const locked = lockNodes([c], new Set(['a']));
+  assert.equal(locked[0].nodes[0].kind, 'locked');
+  // المقبض الداخلي (-10,0) يدور 90° ويتضاعف: يصير (0,-20)؛ الخارجي (0,20) يدور 90° ويتضاعف: (-40,0)
+  const r = setHandle(locked, 'a', 'in', { x: 0, y: -20 }, M8);
+  assert.deepEqual(r[0].nodes[0].handleIn, { x: 0, y: -20 });
+  assert.deepEqual(r[0].nodes[0].handleOut, { x: -40, y: 0 });
+});
+
+test('plainNodes removes handles', async () => {
+  const { plainNodes } = await import('./pathEdit');
+  const c = { id: 'c', closed: true, nodes: [nd('a', 0, 0, { x: -10, y: 0 }, { x: 10, y: 0 }, 'smooth'), nd('b', 100, 0), nd('c', 100, 100)] };
+  const r = plainNodes([c], new Set(['a']));
+  assert.equal(r[0].nodes[0].handleIn, null);
+  assert.equal(r[0].nodes[0].handleOut, null);
+  assert.equal(r[0].nodes[0].kind, 'corner');
+});
+
+test('rulerSnap: points, then shape edges, then outline', async () => {
+  const { rulerSnap } = await import('./pathEdit');
+  const rc = rectAt('r', 100, 0, 500, 200);
+  assert.deepEqual(rulerSnap([rc], { x: 103, y: 4 }, 10), { x: 100, y: 0, kind: 'point' });
+  // قرب الحافة اليمنى في منتصف الارتفاع: يمسك x فقط
+  assert.deepEqual(rulerSnap([rc], { x: 506, y: 100 }, 10), { x: 500, y: 100, kind: 'edge' });
+  assert.equal(rulerSnap([rc], { x: 300, y: 100 }, 10), null);
+});
+
+test('alignContours and distributeContours', async () => {
+  const { alignContours, distributeContours, boundsOf } = await import('./pathEdit');
+  const a = rectAt('a', 0, 0, 100, 100);
+  const b = rectAt('b', 300, 50, 400, 150);
+  const c = rectAt('c', 150, 0, 220, 100);
+  const box = { xMin: 0, xMax: 600, yMin: -200, yMax: 800 };
+  const left = alignContours([a, b], new Set(), 'left', box, M8)!;
+  assert.equal(boundsOf([left[1]])!.xMin, 0);
+  const one = alignContours([b], new Set(), 'hcenter', box, M8)!;
+  assert.equal(boundsOf([one[0]])!.xMin, 250);
+  // التوزيع: 0..100 و150..220 و300..400 => فراغان متساويان
+  const dist = distributeContours([a, b, c], new Set(), 'h', M8)!;
+  const bx = dist.map((x) => boundsOf([x])!).sort((p, q) => p.xMin - q.xMin);
+  assert.equal(bx[1].xMin - bx[0].xMax, bx[2].xMin - bx[1].xMax);
+  assert.equal(bx[0].xMin, 0);
+  assert.equal(bx[2].xMax, 400);
+  assert.equal(distributeContours([a, b], new Set(), 'h', M8), null);
+});

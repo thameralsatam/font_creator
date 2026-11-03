@@ -40,6 +40,8 @@ interface DropdownProps {
   active?: boolean;
   /** يُستدعى عند فتح القائمة بنقرة عادية (ليس في وضع التعليمات). */
   onOpen?: () => void;
+  /** false = الضغطة تستدعي onOpen فقط ولا تفتح القائمة (تُفتح في الضغطة التالية بعد أن يصير true). */
+  openWhen?: boolean;
   children: (close: () => void) => React.ReactNode;
 }
 
@@ -68,6 +70,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
   helpId,
   active = false,
   onOpen,
+  openWhen = true,
   children,
 }) => {
   const help = useHelp();
@@ -170,7 +173,10 @@ export const Dropdown: React.FC<DropdownProps> = ({
             help.show(helpId);
             return;
           }
-          if (!help.on && !open) onOpen?.();
+          if (!help.on && !open) {
+            onOpen?.();
+            if (!openWhen) return;
+          }
           setOpen((v) => !v);
         }}
       >

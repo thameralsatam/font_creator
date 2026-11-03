@@ -42,6 +42,12 @@ import {
   signedArea,
   smoothNodes,
   mirrorNodes,
+  lockNodes,
+  plainNodes,
+  rulerSnap,
+  alignContours,
+  distributeContours,
+  type AlignMode,
   cloneContours,
   boundsOf,
   contoursWithNodes,
@@ -163,6 +169,9 @@ export const MSG = {
   noOpenPath: 'لا يوجد مسار مفتوح بثلاث نقاط أو أكثر ليُغلق.',
   needOneClosed: 'حدد نقطة واحدة على مسار مغلق لفتحه عندها.',
   dirsOk: 'اتجاه كل المسارات صحيح، لا حاجة لتغيير.',
+  alignFail: 'لا مسارات للمحاذاة، أو ستخرج عن حدود المحرف.',
+  distributeFail: 'التوزيع يحتاج ثلاثة مسارات على الأقل، أو يُخرج الرسم عن الحدود.',
+  badValue: 'أدخل أرقاماً صالحة: النسبة أكبر من صفر.',
   cannotDuplicate: 'التكرار يتجاوز حدود النقاط أو المسارات أو مساحة المحرف.',
 } as const;
 
@@ -347,6 +356,20 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
   const hitRadius = (touch: boolean, mouse: number, fingers: number) =>
     (touch ? fingers : mouse) / scaleRef.current;
 
+  /** نقطة المسطرة: التصاق بالنقاط والمقابض وحواف الشكل، ثم بخطوط المقاييس. Alt يعطّل الالتصاق. */
+  const rulerPoint = (info: PointerInfo): Vec => {
+    if (!info.alt) {
+      const hit = rulerSnap(work.current.contours, info.world, hitRadius(info.touch, 10, 16));
+      if (hit) {
+        setSnapMark({ x: hit.x, y: hit.y, kind: 'point' });
+        return { x: hit.x, y: hit.y };
+      }
+    }
+    const s = snapPoint(info.world, { ...snapCtx(), snapGrid: false }, info.alt);
+    setSnapMark(s.kind === 'point' || s.kind === 'metric' ? s : null);
+    return { x: s.x, y: s.y };
+  };
+
   const pointerDown = (info: PointerInfo) => {
     if (!enabledRef.current) return;
     const t = toolRef.current;
@@ -357,8 +380,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     if (t === 'pen') return penDown(info);
 
     if (t === 'ruler') {
-      const s = snapPoint(info.world, snapCtx(), info.alt);
-      const start = { x: s.x, y: s.y };
+      const start = rulerPoint(info);
       gesture.current = { kind: 'measure', pre, start };
       setMeasure({ a: start, b: start });
       return;
@@ -598,12 +620,11 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     if (hn) {
       const node = contours.flatMap((c) => c.nodes).find((x) => x.id === hn.nodeId)!;
       const ids = new Set([hn.nodeId]);
+      // له مقبضان: يرجع نقطة عادية. بلا مقبضين: يصير ناعماً تلقائياً.
       const next =
-        node.kind !== 'corner'
-          ? cornerNodes(contours, ids)
-          : node.handleIn || node.handleOut
-            ? smoothNodes(contours, ids)
-            : autoSmoothNodes(contours, ids, metricsRef.current);
+        node.handleIn || node.handleOut
+          ? plainNodes(contours, ids)
+          : autoSmoothNodes(contours, ids, metricsRef.current);
       commit({ contours: next });
       setSelection(ids);
       return true;
@@ -656,6 +677,10 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     if (g.kind === 'none') {
       if (info.touch) return;
       setHover(resolveHover(info));
+      if (toolRef.current === 'ruler') {
+        rulerPoint(info);
+        return;
+      }
       if (toolRef.current === 'pen') {
         const pen = penContour();
         const last = pen?.nodes[pen.nodes.length - 1];
@@ -675,10 +700,9 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     }
 
     if (g.kind === 'measure') {
-      const s = snapPoint(info.world, snapCtx(), info.alt);
+      const s = rulerPoint(info);
       const t = info.shift ? constrainAngle(g.start, s) : s;
       setMeasure({ a: g.start, b: { x: t.x, y: t.y } });
-      setSnapMark(s.kind === 'point' || s.kind === 'metric' ? s : null);
       return;
     }
 
@@ -904,6 +928,42 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
 
   const smooth = () => nodeOp(smoothNodes);
   const mirror = () => nodeOp(mirrorNodes);
+  const lock = () => nodeOp(lockNodes);
+  const plain = () => nodeOp(plainNodes);
+
+  const align = (mode: AlignMode) => {
+    const m = metricsRef.current;
+    const box = { xMin: 0, xMax: work.current.advanceWidth, yMin: m.descender, yMax: m.ascender };
+    const next = alignContours(work.current.contours, liveSelection(), mode, box, m);
+    if (!next) return flash(MSG.alignFail);
+    commit({ contours: next });
+  };
+
+  const distribute = (axis: 'h' | 'v') => {
+    const next = distributeContours(work.current.contours, liveSelection(), axis, metricsRef.current);
+    if (!next) return flash(MSG.distributeFail);
+    commit({ contours: next });
+  };
+
+  /** تدوير وتحجيم بقيم دقيقة حول نقطة ارتكاز من صندوق المحدد (ix من اليسار 0 إلى اليمين 2، iy من الأسفل 0 إلى الأعلى 2). */
+  const transformPrecise = (o: { rotate: number; scaleX: number; scaleY: number; ix: number; iy: number }) => {
+    const { rotate: deg, scaleX, scaleY, ix, iy } = o;
+    if (![deg, scaleX, scaleY].every(Number.isFinite) || scaleX <= 0 || scaleY <= 0) return flash(MSG.badValue);
+    const b = boundsOfTouched(work.current.contours, liveSelection());
+    if (!b) return flash(MSG.noDrawing);
+    const px = b.xMin + ((b.xMax - b.xMin) * ix) / 2;
+    const py = b.yMin + ((b.yMax - b.yMin) * iy) / 2;
+    const kx = scaleX / 100;
+    const ky = scaleY / 100;
+    const a = (deg * Math.PI) / 180;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    runTransform((p) => {
+      const x = (p.x - px) * kx;
+      const y = (p.y - py) * ky;
+      return { x: px + x * cos - y * sin, y: py + x * sin + y * cos };
+    }, false);
+  };
   const corner = () => nodeOp(cornerNodes);
   const autoSmooth = () => nodeOp((c, ids) => autoSmoothNodes(c, ids, metricsRef.current));
 
@@ -1173,6 +1233,11 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     measure,
     clearMeasure,
     mirror,
+    lock,
+    plain,
+    align,
+    distribute,
+    transformPrecise,
     setAdvance,
     changeLsb,
     changeRsb,
