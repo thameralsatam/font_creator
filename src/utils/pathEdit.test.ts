@@ -58,10 +58,10 @@ const ctx = (over: Partial<SnapContext> = {}): SnapContext => ({
   ...over,
 });
 
-test('effectiveGridStep doubles until lines are at least 10px apart', () => {
+test('effectiveGridStep steps up the nested chain until lines are at least 10px apart', () => {
   assert.equal(effectiveGridStep(50, 1), 50);
-  assert.equal(effectiveGridStep(10, 0.5), 20);
-  assert.equal(effectiveGridStep(10, 0.1), 160);
+  assert.equal(effectiveGridStep(10, 0.5), 50);
+  assert.equal(effectiveGridStep(10, 0.1), 100);
 });
 
 test('snapPoint: grid, point, metric, disabled, clamped', () => {

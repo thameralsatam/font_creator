@@ -58,6 +58,7 @@ import {
   wholeContourIds,
   wrongDirectionCount,
   effectiveGridStep,
+  gridNudgeDelta,
   type Snapshot,
   type SnapContext,
   type SnapResult,
@@ -895,6 +896,23 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     commit({ contours: next }, 'nudge');
   };
 
+  /**
+   * تحريك باتجاه. مع الالتصاق بالشبكة: خطوة واحدة إلى أقرب خط شبكة في الاتجاه (Shift خمس خطوات)
+   * مهما كانت قيمة الخطوة. بلا التصاق: free وحدة.
+   */
+  const nudgeDir = (ux: number, uy: number, free: number, big = false) => {
+    const sel = liveSelection();
+    if (sel.size === 0) return;
+    if (!settings.current.snapGrid) return nudge(ux * free, uy * free);
+    const b = boundsOf(work.current.contours, sel);
+    if (!b) return;
+    const g = effectiveGridStep(settings.current.gridStep, scaleRef.current);
+    const extra = big ? g * 4 : 0;
+    const dx = ux ? gridNudgeDelta((b.xMin + b.xMax) / 2, ux > 0 ? 1 : -1, g) + Math.sign(ux) * extra : 0;
+    const dy = uy ? gridNudgeDelta((b.yMin + b.yMax) / 2, uy > 0 ? 1 : -1, g) + Math.sign(uy) * extra : 0;
+    nudge(dx, dy);
+  };
+
   const runTransform = (fn: (p: Vec) => Vec, mirrored: boolean) => {
     const ids = targetIds();
     if (ids.size === 0) {
@@ -928,7 +946,9 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
   };
 
   const scaleBy = (k: number) => {
-    const c = center();
+    // مع الالتصاق بالشبكة يثبت الركن السفلي الأيسر فيبقى الرسم على تقاطعات الشبكة
+    const b = boundsOfTouched(work.current.contours, liveSelection());
+    const c = b && settings.current.snapGrid ? { cx: b.xMin, cy: b.yMin } : center();
     if (!c) return flash(MSG.noDrawing);
     runTransform(scaleFn(c.cx, c.cy, k), false);
   };
@@ -1080,9 +1100,9 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
 
   /* ---------- لوحة المفاتيح ---------- */
   const latest = useRef({
-    undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate, hasMeasure, clearMeasure,
+    undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate, hasMeasure, clearMeasure, nudgeDir,
   });
-  latest.current = { undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate, hasMeasure, clearMeasure };
+  latest.current = { undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate, hasMeasure, clearMeasure, nudgeDir };
 
   useEffect(() => {
     const typing = (t: EventTarget | null) =>
@@ -1144,7 +1164,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
           const dx = e.code === 'ArrowLeft' ? -step : e.code === 'ArrowRight' ? step : 0;
           const dy = e.code === 'ArrowDown' ? -step : e.code === 'ArrowUp' ? step : 0;
           e.preventDefault();
-          L.nudge(dx, dy);
+          L.nudgeDir(Math.sign(dx), Math.sign(dy), step, e.shiftKey);
           return;
         }
         case 'KeyV':
@@ -1251,6 +1271,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     align,
     distribute,
     transformPrecise,
+    nudgeDir,
     setAdvance,
     changeLsb,
     changeRsb,

@@ -60,8 +60,27 @@ export function clampHandle(h: Vec, m: FontMetrics): Vec {
 /** خطوة الشبكة المعروضة فعلاً: تتضاعف عند التصغير. الرسم والالتصاق يستعملان نفس القيمة. */
 export function effectiveGridStep(step: number, scale: number): number {
   let s = step;
-  while (s * scale < 10) s *= 2;
+  while (s * scale < 10) s = coarserGridStep(s);
   return s;
+}
+
+/**
+ * أحجام شبكة متداخلة: كل حجم يقبل القسمة عليه من الذي قبله، فخطوط الشبكة الأكبر تبقى في مكانها
+ * عند اختيار حجم أدق، وتظهر خطوط تقسيم إضافية بينها بدل استبدال كل الخطوط.
+ */
+export const GRID_CHAIN = [500, 100, 50, 25, 5, 1] as const;
+
+/** أقرب حجم أكبر تقع خطوطه على خطوط الحجم الحالي (من السلسلة المتداخلة، وإلا الضعف). */
+export function coarserGridStep(s: number): number {
+  const c = GRID_CHAIN.filter((g) => g > s && g % s === 0).sort((a, b) => a - b)[0];
+  return c ?? s * 2;
+}
+
+/** المسافة إلى أقرب خط شبكة في الاتجاه المعطى (dir = 1 أو -1)، بإشارتها. */
+export function gridNudgeDelta(ref: number, dir: 1 | -1, g: number): number {
+  const eps = 1e-6;
+  const line = dir > 0 ? (Math.floor(ref / g + eps) + 1) * g : (Math.ceil(ref / g - eps) - 1) * g;
+  return Math.round(line - ref);
 }
 
 export interface SnapContext {

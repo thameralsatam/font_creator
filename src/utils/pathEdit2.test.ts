@@ -240,3 +240,17 @@ test('alignContours and distributeContours', async () => {
   assert.equal(bx[2].xMax, 400);
   assert.equal(distributeContours([a, b], new Set(), 'h', M8), null);
 });
+
+test('grid chain is nested and nudge goes to the next grid line', async () => {
+  const { GRID_CHAIN, effectiveGridStep, coarserGridStep, gridNudgeDelta } = await import('./pathEdit');
+  for (let i = 1; i < GRID_CHAIN.length; i++) assert.equal(GRID_CHAIN[i - 1] % GRID_CHAIN[i], 0);
+  assert.equal(coarserGridStep(25), 50);
+  assert.equal(coarserGridStep(5), 25);
+  assert.equal(coarserGridStep(30), 60);
+  assert.equal(effectiveGridStep(5, 0.5), 25); // 5*.5<10 → 25*.5=12.5
+  assert.equal(effectiveGridStep(50, 1), 50);
+  assert.equal(gridNudgeDelta(100, 1, 50), 50);
+  assert.equal(gridNudgeDelta(100, -1, 50), -50);
+  assert.equal(gridNudgeDelta(120, 1, 50), 30);
+  assert.equal(gridNudgeDelta(120, -1, 50), -20);
+});

@@ -99,7 +99,7 @@ export const DrawingAids: React.FC<{
   return (
     <section
       aria-label="مساعدات الرسم"
-      className="glass-panel absolute start-3 top-3 z-10 max-h-[calc(100%-1.5rem)] w-[min(17rem,calc(100%-1.5rem))] space-y-3 overflow-y-auto rounded-2xl p-3"
+      className="glass-panel absolute bottom-3 start-3 z-10 max-h-[calc(100%-1.5rem)] w-[min(17rem,calc(100%-1.5rem))] space-y-3 overflow-y-auto rounded-2xl p-3"
     >
       <div className="flex items-center justify-between">
         <h3 className="text-sm">مساعدات الرسم</h3>

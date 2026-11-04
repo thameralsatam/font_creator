@@ -23,6 +23,8 @@ import {
   AlignVerticalDistributeCenter,
   Grid3x3,
   Hand,
+  Maximize2,
+  Minimize2,
   Layers,
   Link2,
   PanelRight,
@@ -50,7 +52,7 @@ import { uid } from '../../utils/fontLogic';
 import { centerOnOrigin } from '../../utils/pathEdit';
 import { ConnectorPreview } from '../ConnectorPreview';
 import { DrawingAids, findGlyph, type Neighbors, type Trace } from './DrawingAids';
-import { boundsOf, effectiveGridStep } from '../../utils/pathEdit';
+import { boundsOf, GRID_CHAIN } from '../../utils/pathEdit';
 import { downloadTextFile } from '../../utils/download';
 import { glyphToSvg, svgToGlyph } from '../../utils/svgGlyph';
 import { FORM_LABEL } from '../../utils/labels';
@@ -133,9 +135,11 @@ const NumberRow: React.FC<{
 /** تدوير وتحجيم بقيم دقيقة. المربع يمثل صندوق المحدد، والنقطة المملوءة هي مركز الدوران والتحجيم. */
 const PrecisePanel: React.FC<{
   help: ReturnType<typeof useHelp>;
+  snap: boolean;
   onApply: (o: { rotate: number; scaleX: number; scaleY: number; ix: number; iy: number }) => void;
-}> = ({ help, onApply }) => {
-  const [pv, setPv] = useState<[number, number]>([1, 1]);
+}> = ({ help, snap, onApply }) => {
+  // مع الالتصاق بالشبكة يبدأ المركز عند الركن السفلي الأيسر ليبقى الرسم على التقاطعات
+  const [pv, setPv] = useState<[number, number]>(snap ? [0, 0] : [1, 1]);
   const [rot, setRot] = useState('0');
   const [sw, setSw] = useState('100');
   const [sh, setSh] = useState('100');
@@ -228,6 +232,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
       return !v;
     });
   const [aidsOpen, setAidsOpen] = useState(false);
+  const [scalePct, setScalePct] = useState(10);
   const [neighbors, setNeighbors] = useState<Neighbors>({ left: '', right: '' });
   const [traces, setTraces] = useState<Record<string, Trace>>({});
   const tracesRef = useRef(traces);
@@ -322,10 +327,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     svgMode.current = mode;
     svgInput.current?.click();
   };
-
-  // مع الالتصاق بالشبكة تتحرك الخطوة بمضاعفات الشبكة: أكثر من نصفها ينتقل لخطها التالي، وأقل لا يتحرك
-  const gridEff = effectiveGridStep(editor.settings.gridStep, viewport.view.scale);
-  const nudgeApplied = editor.settings.snapGrid ? Math.round(nudgeStep / gridEff) * gridEff : nudgeStep;
 
   const nodeCount = glyph.contours.reduce((sum, c) => sum + c.nodes.length, 0);
   const pathState =
@@ -457,15 +458,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
               <div className="hidden lg:block">
                 <MenuItem label="قائمة المحارف الجانبية" helpId="sideList" active={showList} onClick={toggleList} />
               </div>
-              <MenuItem
-                label="مساعدات الرسم (جيران، صورة تتبع)"
-                helpId="aids"
-                active={aidsOpen}
-                onClick={() => {
-                  setAidsOpen((v) => !v);
-                  close();
-                }}
-              />
             </>
           )}
         </Dropdown>
@@ -511,9 +503,10 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                   {ib('t.flipV', 'قلب رأسي', FlipVertical2, () => editor.flip('v'))}
                   {ib('t.rot90r', 'تدوير 90° يميناً', RotateCw, () => editor.rotate(-90))}
                   {ib('t.rot90l', 'تدوير 90° يساراً', RotateCcw, () => editor.rotate(90))}
-                  {ib('t.scaleUp', 'تكبير 10%', ZoomIn, () => editor.scaleBy(1.1))}
-                  {ib('t.scaleDown', 'تصغير 10%', ZoomOut, () => editor.scaleBy(1 / 1.1))}
+                  {ib('t.scaleUp', `تكبير ${scalePct}%`, Maximize2, () => editor.scaleBy(1 + scalePct / 100))}
+                  {ib('t.scaleDown', `تصغير ${scalePct}%`, Minimize2, () => editor.scaleBy(1 / (1 + scalePct / 100)))}
                 </div>
+                <NumberRow label="نسبة التكبير والتصغير %" helpId="t.scaleStep" value={scalePct} onCommit={(n) => setScalePct(clampInt(n, 1, 400))} />
                 <MenuDivider />
                 <MenuLabel>محاذاة وتوزيع</MenuLabel>
                 <div className="flex flex-wrap gap-1 px-1.5 pb-1.5">
@@ -528,7 +521,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 </div>
                 <MenuDivider />
                 <MenuLabel>تدوير وتحجيم بقيم</MenuLabel>
-                <PrecisePanel help={help} onApply={editor.transformPrecise} />
+                <PrecisePanel help={help} snap={editor.settings.snapGrid} onApply={editor.transformPrecise} />
               </>
             );
           }}
@@ -741,8 +734,16 @@ const StudioInner: React.FC<StudioScreenProps> = ({
           {() => (
             <>
               <MenuLabel>الشبكة والالتصاق</MenuLabel>
-              <NumberRow label="حجم الشبكة" helpId="settings.gridSize" value={editor.settings.gridStep} onCommit={(n) => editor.setGridStep(clampInt(n, 2, 500))} />
-              <NumberRow label="خطوة أزرار التحريك" helpId="settings.nudge" value={nudgeStep} onCommit={(n) => setNudgeStep(clampInt(n, 1, 500))} />
+              <div className="flex flex-wrap gap-1 px-2 pb-1">
+                {GRID_CHAIN.map((g) => (
+                  <Button key={g} variant="quiet" active={editor.settings.gridStep === g} onClick={() => editor.setGridStep(g)}>
+                    <span className="font-mono">{g}</span>
+                  </Button>
+                ))}
+              </div>
+              <NumberRow label="حجم الشبكة (حر)" helpId="settings.gridSize" value={editor.settings.gridStep} onCommit={(n) => editor.setGridStep(clampInt(n, 1, 500))} />
+              <MenuLabel>الأحجام أعلاه متداخلة: تبقى الخطوط الكبيرة في مكانها وتظهر بينها خطوط أدق.</MenuLabel>
+              <NumberRow label="خطوة التحريك الحرة" helpId="settings.nudge" value={nudgeStep} onCommit={(n) => setNudgeStep(clampInt(n, 1, 500))} />
               <MenuItem label="الالتصاق بالشبكة" helpId="settings.snapGrid" active={editor.settings.snapGrid} onClick={() => editor.setSnapGrid(!editor.settings.snapGrid)} />
               <MenuItem label="الالتصاق بالنقاط والمقاييس" helpId="settings.snapPoints" active={editor.settings.snapPoints} onClick={() => editor.setSnapPoints(!editor.settings.snapPoints)} />
               <MenuLabel>Shift لتقييد الاتجاه، وAlt لتعطيل الالتصاق مؤقتاً.</MenuLabel>
@@ -768,12 +769,9 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             variant="quiet"
             icon
             helpId="nudge"
-            title={`تحريك المحدد ${name} (${nudgeApplied})`}
+            title={editor.settings.snapGrid ? `تحريك المحدد ${name} (خطوة شبكة)` : `تحريك المحدد ${name} (${nudgeStep})`}
             disabled={!hasSelection}
-            onClick={() => {
-              if (nudgeApplied === 0) return editor.notify('الخطوة أقل من نصف الشبكة. كبّرها أو ألغِ الالتصاق بالشبكة.');
-              editor.nudge(dx * nudgeApplied, dy * nudgeApplied);
-            }}
+            onClick={() => editor.nudgeDir(dx, dy, nudgeStep)}
           >
             <Ico className={icon} />
           </Button>
