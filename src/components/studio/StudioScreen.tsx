@@ -26,9 +26,6 @@ import {
   Maximize2,
   Minimize2,
   Layers,
-  Link2,
-  PanelRight,
-  PanelRightClose,
   Maximize,
   MousePointer2,
   Move,
@@ -37,8 +34,6 @@ import {
   Ruler as RulerIcon,
   RotateCcw,
   RotateCw,
-  Ruler,
-  Settings2,
   Shapes,
   Spline,
   Trash2,
@@ -336,7 +331,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
   const hasDrawing = glyph.contours.length > 0;
   const lsb = bounds ? Math.round(bounds.xMin) : null;
   const rsb = bounds ? glyph.advanceWidth - Math.round(bounds.xMax) : null;
-  const target = hasSelection ? 'على المسارات المحددة كاملة' : 'على المحرف كله';
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col gap-2 bg-paper-deep p-2 sm:gap-3 sm:p-3">
@@ -438,16 +432,17 @@ const StudioInner: React.FC<StudioScreenProps> = ({
         <BarDivider />
 
         {editor.penContourId && (
-          <Button variant="secondary" helpId="finishPen" title="إنهاء المسار (Enter)" onClick={editor.finishPen}>
-            <Check className={icon} />
-            <span>إنهاء المسار</span>
-          </Button>
+          <>
+            <Button variant="secondary" helpId="finishPen" title="إنهاء المسار (Enter)" onClick={editor.finishPen}>
+              <Check className={icon} />
+              <span>إنهاء المسار</span>
+            </Button>
+            <BarDivider />
+          </>
         )}
 
-        <BarDivider />
-
         <Dropdown label="عرض" helpId="view" icon={<Eye className={icon} />} placement="bottom" width={300}>
-          {(close) => (
+          {() => (
             <>
               <MenuLabel>إظهار</MenuLabel>
               <MenuItem label="الشبكة" helpId="view.grid" active={options.grid} onClick={() => toggle('grid')} />
