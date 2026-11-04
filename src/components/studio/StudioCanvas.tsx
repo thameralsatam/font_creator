@@ -50,7 +50,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   neighbors,
   trace,
 }) => {
-  const { ref, bind, size, view } = viewport;
+  const { ref, bind, size, view, gesturing: quiet } = viewport;
   const { scale: s, ox, oy } = view;
 
   const sx = (x: number) => ox + x * s;
@@ -195,9 +195,9 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
         </pattern>
       </defs>
 
-      {options.grid && size.w > 0 && <rect width={size.w} height={size.h} fill="url(#studio-grid)" />}
+      {options.grid && !quiet && size.w > 0 && <rect width={size.w} height={size.h} fill="url(#studio-grid)" />}
 
-      {options.metrics && (
+      {options.metrics && !quiet && (
         <g>
           {metricLines.map((line) => (
             <g key={line.label}>
@@ -317,7 +317,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
       )}
 
       {/* النقاط والمقابض بحجم ثابت على الشاشة */}
-      {options.nodes &&
+      {options.nodes && !quiet &&
         glyph.contours.map((c) => (
           <g key={c.id}>
             {c.nodes.map((n) => {
@@ -385,7 +385,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
         ))}
 
       {/* أسهم الاتجاه */}
-      {options.direction &&
+      {options.direction && !quiet &&
         glyph.contours.map((c) => {
           const ar = contourArrow(c);
           if (!ar) return null;
@@ -416,7 +416,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
         </g>
       )}
 
-      {options.anchors &&
+      {options.anchors && !quiet &&
         glyph.anchors.map((a) => (
           <g key={a.id}>
             <circle cx={sx(a.x)} cy={sy(a.y)} r="6" className="fill-sand/60 stroke-ink" strokeWidth="1.5" />
@@ -427,18 +427,18 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
         ))}
 
       {/* مؤشرات الالتصاق */}
-      {mark && mark.guideX !== undefined && (
+      {!quiet && mark && mark.guideX !== undefined && (
         <line x1={sx(mark.guideX)} x2={sx(mark.guideX)} y1={0} y2={size.h} className="stroke-sand-deep" strokeWidth="1" />
       )}
-      {mark && mark.guideY !== undefined && (
+      {!quiet && mark && mark.guideY !== undefined && (
         <line x1={0} x2={size.w} y1={sy(mark.guideY)} y2={sy(mark.guideY)} className="stroke-sand-deep" strokeWidth="1" />
       )}
-      {mark && mark.kind === 'point' && (
+      {!quiet && mark && mark.kind === 'point' && (
         <circle cx={sx(mark.x)} cy={sy(mark.y)} r="10" fill="none" className="stroke-sand-deep" strokeWidth="2" />
       )}
 
       {/* مربع التحديد */}
-      {mq && (
+      {!quiet && mq && (
         <rect
           x={sx(Math.min(mq.a.x, mq.b.x))}
           y={sy(Math.max(mq.a.y, mq.b.y))}
@@ -450,7 +450,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
         />
       )}
 
-      {editor.measure && (() => {
+      {!quiet && editor.measure && (() => {
         const { a, b } = editor.measure;
         const dx = Math.round(b.x - a.x);
         const dy = Math.round(b.y - a.y);

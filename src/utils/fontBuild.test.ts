@@ -76,3 +76,24 @@ test('rules from the font are imported into custom FEA, and woff2 round-trips', 
   assert.equal(again.imported, 3);
   assert.match(again.project.customFea ?? '', /sub a b by ab;/);
 });
+
+test('each export gets a unique ID and fresh modified date, created date stays', async () => {
+  const ot = await import('opentype.js');
+  const p = createProject('Uniq', 'T', '');
+  const g = createGlyph({ char: 'A', name: 'A', unicode: 'U+0041', category: 'letter' });
+  g.contours = [{ id: 'c', closed: true, nodes: [
+    { id: '1', x: 0, y: 0, kind: 'corner', handleIn: null, handleOut: null },
+    { id: '2', x: 300, y: 0, kind: 'corner', handleIn: null, handleOut: null },
+    { id: '3', x: 300, y: 300, kind: 'corner', handleIn: null, handleOut: null },
+  ] }];
+  p.glyphs = [g];
+  p.createdAt = '2024-05-01T10:00:00.000Z';
+  const a: any = (ot.default ?? ot).parse(await buildFontBuffer(p));
+  await new Promise((r) => setTimeout(r, 5));
+  const b: any = (ot.default ?? ot).parse(await buildFontBuffer(p));
+  assert.notEqual(a.names.uniqueID.en, b.names.uniqueID.en);
+  assert.match(a.names.uniqueID.en, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
+  const created = Math.floor(Date.parse(p.createdAt) / 1000);
+  assert.equal(a.tables.head.created, created);
+  assert.ok(a.tables.head.modified > created);
+});

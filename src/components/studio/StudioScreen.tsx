@@ -13,7 +13,17 @@ import {
   Type,
   FlipHorizontal2,
   FlipVertical2,
+  AlignCenterHorizontal,
+  AlignCenterVertical,
+  AlignEndHorizontal,
+  AlignEndVertical,
+  AlignHorizontalDistributeCenter,
+  AlignStartHorizontal,
+  AlignStartVertical,
+  AlignVerticalDistributeCenter,
+  Grid3x3,
   Hand,
+  Layers,
   Link2,
   PanelRight,
   PanelRightClose,
@@ -40,7 +50,7 @@ import { uid } from '../../utils/fontLogic';
 import { centerOnOrigin } from '../../utils/pathEdit';
 import { ConnectorPreview } from '../ConnectorPreview';
 import { DrawingAids, findGlyph, type Neighbors, type Trace } from './DrawingAids';
-import { boundsOf } from '../../utils/pathEdit';
+import { boundsOf, effectiveGridStep } from '../../utils/pathEdit';
 import { downloadTextFile } from '../../utils/download';
 import { glyphToSvg, svgToGlyph } from '../../utils/svgGlyph';
 import { FORM_LABEL } from '../../utils/labels';
@@ -120,7 +130,7 @@ const NumberRow: React.FC<{
   );
 };
 
-/** تدوير وتحجيم بقيم دقيقة حول نقطة ارتكاز تختارها من تسع نقاط على صندوق المحدد. */
+/** تدوير وتحجيم بقيم دقيقة. المربع يمثل صندوق المحدد، والنقطة المملوءة هي مركز الدوران والتحجيم. */
 const PrecisePanel: React.FC<{
   help: ReturnType<typeof useHelp>;
   onApply: (o: { rotate: number; scaleX: number; scaleY: number; ix: number; iy: number }) => void;
@@ -146,18 +156,24 @@ const PrecisePanel: React.FC<{
   return (
     <div className="space-y-2 px-2 pb-1" onPointerDown={help.on ? () => help.show('t.precise') : undefined}>
       <div className="flex items-center gap-3">
-        <div dir="ltr" className="grid shrink-0 grid-cols-3 gap-1" title="نقطة الارتكاز">
-          {[2, 1, 0].flatMap((iy) =>
-            [0, 1, 2].map((ix) => (
-              <button
-                key={`${ix}${iy}`}
-                type="button"
-                aria-label="نقطة ارتكاز"
-                onClick={() => !help.on && setPv([ix, iy])}
-                className={`h-4 w-4 rounded-full border ${pv[0] === ix && pv[1] === iy ? 'border-ink bg-ink' : 'border-ink/30'}`}
-              />
-            ))
-          )}
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          <div dir="ltr" className="relative h-12 w-12 rounded-md border border-ink/40" title="مركز الدوران والتحجيم">
+            {[0, 1, 2].flatMap((ix) =>
+              [0, 1, 2].map((iy) => (
+                <button
+                  key={`${ix}${iy}`}
+                  type="button"
+                  aria-label="مركز الدوران"
+                  onClick={() => !help.on && setPv([ix, iy])}
+                  style={{ left: `${ix * 50}%`, top: `${(2 - iy) * 50}%` }}
+                  className={`absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border ${
+                    pv[0] === ix && pv[1] === iy ? 'border-ink bg-ink' : 'border-ink/40 bg-paper'
+                  }`}
+                />
+              ))
+            )}
+          </div>
+          <span className="text-[10px] text-ink-soft">المركز</span>
         </div>
         <div className="min-w-0 flex-1 space-y-1.5">
           {field('دوران °', rot, setRot)}
@@ -229,7 +245,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     () => ({ left: findGlyph(project.glyphs, neighbors.left), right: findGlyph(project.glyphs, neighbors.right) }),
     [project.glyphs, neighbors]
   );
-  const act = (id: string, fn: () => void) => () => (help.on ? help.show(id) : fn());
   const clampInt = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(n)));
   const connectors = project.connectors ?? [];
   const saveSelectionAsConnector = () => {
@@ -307,6 +322,10 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     svgMode.current = mode;
     svgInput.current?.click();
   };
+
+  // مع الالتصاق بالشبكة تتحرك الخطوة بمضاعفات الشبكة: أكثر من نصفها ينتقل لخطها التالي، وأقل لا يتحرك
+  const gridEff = effectiveGridStep(editor.settings.gridStep, viewport.view.scale);
+  const nudgeApplied = editor.settings.snapGrid ? Math.round(nudgeStep / gridEff) * gridEff : nudgeStep;
 
   const nodeCount = glyph.contours.reduce((sum, c) => sum + c.nodes.length, 0);
   const pathState =
@@ -417,16 +436,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
 
         <BarDivider />
 
-        <Button
-          variant="quiet"
-          icon
-          helpId="delete"
-          title="حذف المحدد (Delete)"
-          disabled={!hasSelection}
-          onClick={editor.deleteSelection}
-        >
-          <Trash2 className={icon} />
-        </Button>
         {editor.penContourId && (
           <Button variant="secondary" helpId="finishPen" title="إنهاء المسار (Enter)" onClick={editor.finishPen}>
             <Check className={icon} />
@@ -457,13 +466,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                   close();
                 }}
               />
-              <MenuDivider />
-              <MenuLabel>الشبكة والالتصاق</MenuLabel>
-              <NumberRow label="حجم الشبكة" helpId="settings.gridSize" value={editor.settings.gridStep} onCommit={(n) => editor.setGridStep(clampInt(n, 2, 500))} />
-              <NumberRow label="خطوة أزرار التحريك" helpId="settings.nudge" value={nudgeStep} onCommit={(n) => setNudgeStep(clampInt(n, 1, 500))} />
-              <MenuItem label="الالتصاق بالشبكة" helpId="settings.snapGrid" active={editor.settings.snapGrid} onClick={() => editor.setSnapGrid(!editor.settings.snapGrid)} />
-              <MenuItem label="الالتصاق بالنقاط والمقاييس" helpId="settings.snapPoints" active={editor.settings.snapPoints} onClick={() => editor.setSnapPoints(!editor.settings.snapPoints)} />
-              <MenuLabel>Shift لتقييد الاتجاه، وAlt لتعطيل الالتصاق مؤقتاً.</MenuLabel>
             </>
           )}
         </Dropdown>
@@ -494,41 +496,39 @@ const StudioInner: React.FC<StudioScreenProps> = ({
           }}
         </Dropdown>
 
-        <Dropdown label="تحويل" helpId="transform" icon={<Shapes className={icon} />} placement="bottom" width={310}>
-          {(close) => {
-            const go = (fn: () => void) => () => {
-              fn();
-              close();
-            };
+        <Dropdown label="تحويل" helpId="transform" icon={<Shapes className={icon} />} placement="bottom" width={300}>
+          {() => {
+            const ib = (id: string, title: string, Ico: typeof Shapes, fn: () => void) => (
+              <Button key={title} variant="quiet" icon helpId={id} title={title} disabled={!hasDrawing} onClick={fn}>
+                <Ico className={icon} />
+              </Button>
+            );
             return (
               <>
-                <MenuLabel>يُطبَّق {target}</MenuLabel>
-                <MenuItem label="قلب أفقي" helpId="t.flipH" icon={<FlipHorizontal2 className={icon} />} disabled={!hasDrawing} onClick={go(() => editor.flip('h'))} />
-                <MenuItem label="قلب رأسي" helpId="t.flipV" icon={<FlipVertical2 className={icon} />} disabled={!hasDrawing} onClick={go(() => editor.flip('v'))} />
-                <MenuItem label="تدوير 90° يميناً" helpId="t.rot90r" icon={<RotateCw className={icon} />} disabled={!hasDrawing} onClick={go(() => editor.rotate(-90))} />
-                <MenuItem label="تدوير 90° يساراً" helpId="t.rot90l" icon={<RotateCcw className={icon} />} disabled={!hasDrawing} onClick={go(() => editor.rotate(90))} />
-                <MenuItem label="تكرار" helpId="t.duplicate" icon={<Copy className={icon} />} hint="Ctrl+D" disabled={!hasDrawing} onClick={go(editor.duplicate)} />
+                <MenuLabel>{hasSelection ? 'على المسارات المحددة' : 'على المحرف كله'}</MenuLabel>
+                <div className="flex flex-wrap gap-1 px-1.5 pb-1.5">
+                  {ib('t.flipH', 'قلب أفقي', FlipHorizontal2, () => editor.flip('h'))}
+                  {ib('t.flipV', 'قلب رأسي', FlipVertical2, () => editor.flip('v'))}
+                  {ib('t.rot90r', 'تدوير 90° يميناً', RotateCw, () => editor.rotate(-90))}
+                  {ib('t.rot90l', 'تدوير 90° يساراً', RotateCcw, () => editor.rotate(90))}
+                  {ib('t.scaleUp', 'تكبير 10%', ZoomIn, () => editor.scaleBy(1.1))}
+                  {ib('t.scaleDown', 'تصغير 10%', ZoomOut, () => editor.scaleBy(1 / 1.1))}
+                </div>
                 <MenuDivider />
-                <MenuLabel>تدوير وتحجيم بقيم تكتبها</MenuLabel>
+                <MenuLabel>محاذاة وتوزيع</MenuLabel>
+                <div className="flex flex-wrap gap-1 px-1.5 pb-1.5">
+                  {ib('t.align', 'محاذاة إلى اليسار', AlignStartVertical, () => editor.align('left'))}
+                  {ib('t.align', 'توسيط أفقي', AlignCenterVertical, () => editor.align('hcenter'))}
+                  {ib('t.align', 'محاذاة إلى اليمين', AlignEndVertical, () => editor.align('right'))}
+                  {ib('t.align', 'محاذاة إلى الأعلى', AlignStartHorizontal, () => editor.align('top'))}
+                  {ib('t.align', 'توسيط رأسي', AlignCenterHorizontal, () => editor.align('vcenter'))}
+                  {ib('t.align', 'محاذاة إلى الأسفل', AlignEndHorizontal, () => editor.align('bottom'))}
+                  {ib('t.distribute', 'توزيع أفقي متساوٍ', AlignHorizontalDistributeCenter, () => editor.distribute('h'))}
+                  {ib('t.distribute', 'توزيع رأسي متساوٍ', AlignVerticalDistributeCenter, () => editor.distribute('v'))}
+                </div>
+                <MenuDivider />
+                <MenuLabel>تدوير وتحجيم بقيم</MenuLabel>
                 <PrecisePanel help={help} onApply={editor.transformPrecise} />
-                <MenuDivider />
-                <MenuLabel>محاذاة (مساران فأكثر، أو مسار واحد إلى المحرف)</MenuLabel>
-                <div className="grid grid-cols-3 gap-1 px-1.5 pb-1">
-                  {(
-                    [
-                      ['left', 'يسار'], ['hcenter', 'وسط أفقي'], ['right', 'يمين'],
-                      ['top', 'أعلى'], ['vcenter', 'وسط رأسي'], ['bottom', 'أسفل'],
-                    ] as const
-                  ).map(([m, label]) => (
-                    <Button key={m} variant="secondary" disabled={!hasDrawing} onClick={act('t.align', () => editor.align(m))}>
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 gap-1 px-1.5 pb-1.5">
-                  <Button variant="secondary" disabled={!hasDrawing} onClick={act('t.distribute', () => editor.distribute('h'))}>توزيع أفقي</Button>
-                  <Button variant="secondary" disabled={!hasDrawing} onClick={act('t.distribute', () => editor.distribute('v'))}>توزيع رأسي</Button>
-                </div>
               </>
             );
           }}
@@ -640,7 +640,19 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             editor={editor}
             panMode={panMode}
             onHelp={help.on ? () => help.show('canvas') : undefined}
+            neighbors={neighborGlyphs}
+            trace={trace}
           />
+          {aidsOpen && (
+            <DrawingAids
+              glyphs={project.glyphs}
+              neighbors={neighbors}
+              onNeighbors={setNeighbors}
+              trace={trace}
+              onTrace={setTrace}
+              onClose={() => setAidsOpen(false)}
+            />
+          )}
           <HelpPanel onOpenBook={() => setShowBook(true)} />
           {editor.notice && (
             <div
@@ -709,6 +721,40 @@ const StudioInner: React.FC<StudioScreenProps> = ({
 
         <BarDivider />
 
+        <Button
+          variant="quiet"
+          icon
+          helpId="delete"
+          title="حذف المحدد (Delete)"
+          disabled={!hasSelection}
+          onClick={editor.deleteSelection}
+        >
+          <Trash2 className={icon} />
+        </Button>
+        <Button variant="quiet" icon helpId="t.duplicate" title="تكرار (Ctrl+D)" disabled={!hasDrawing} onClick={editor.duplicate}>
+          <Copy className={icon} />
+        </Button>
+
+        <BarDivider />
+
+        <Dropdown label="الشبكة والالتصاق" helpId="gridMenu" icon={<Grid3x3 className={icon} />} placement="top" width={290}>
+          {() => (
+            <>
+              <MenuLabel>الشبكة والالتصاق</MenuLabel>
+              <NumberRow label="حجم الشبكة" helpId="settings.gridSize" value={editor.settings.gridStep} onCommit={(n) => editor.setGridStep(clampInt(n, 2, 500))} />
+              <NumberRow label="خطوة أزرار التحريك" helpId="settings.nudge" value={nudgeStep} onCommit={(n) => setNudgeStep(clampInt(n, 1, 500))} />
+              <MenuItem label="الالتصاق بالشبكة" helpId="settings.snapGrid" active={editor.settings.snapGrid} onClick={() => editor.setSnapGrid(!editor.settings.snapGrid)} />
+              <MenuItem label="الالتصاق بالنقاط والمقاييس" helpId="settings.snapPoints" active={editor.settings.snapPoints} onClick={() => editor.setSnapPoints(!editor.settings.snapPoints)} />
+              <MenuLabel>Shift لتقييد الاتجاه، وAlt لتعطيل الالتصاق مؤقتاً.</MenuLabel>
+            </>
+          )}
+        </Dropdown>
+        <Button variant="quiet" icon active={aidsOpen} helpId="aids" title="مساعدات الرسم: جيران وصورة تتبع" onClick={() => setAidsOpen((v) => !v)}>
+          <Layers className={icon} />
+        </Button>
+
+        <BarDivider />
+
         {(
           [
             ['up', ArrowUp, 0, 1, 'للأعلى'],
@@ -722,9 +768,12 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             variant="quiet"
             icon
             helpId="nudge"
-            title={`تحريك المحدد ${name} (${nudgeStep})`}
+            title={`تحريك المحدد ${name} (${nudgeApplied})`}
             disabled={!hasSelection}
-            onClick={() => editor.nudge(dx * nudgeStep, dy * nudgeStep)}
+            onClick={() => {
+              if (nudgeApplied === 0) return editor.notify('الخطوة أقل من نصف الشبكة. كبّرها أو ألغِ الالتصاق بالشبكة.');
+              editor.nudge(dx * nudgeApplied, dy * nudgeApplied);
+            }}
           >
             <Ico className={icon} />
           </Button>

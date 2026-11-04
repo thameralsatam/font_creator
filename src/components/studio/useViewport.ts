@@ -21,6 +21,7 @@ interface Options {
 export function useViewport({ fitBox, fitKey, shouldPan }: Options) {
   const ref = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const [gesturing, setGesturing] = useState(false);
   const [view, setView] = useState<Viewport>({ scale: 0.4, ox: 0, oy: 0 });
 
   const fitBoxRef = useRef(fitBox);
@@ -81,7 +82,10 @@ export function useViewport({ fitBox, fitKey, shouldPan }: Options) {
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     pointers.current.set(e.pointerId, local(e));
-    if (pointers.current.size === 2) pinch.current = measure();
+    if (pointers.current.size === 2) {
+      pinch.current = measure();
+      setGesturing(true);
+    }
   };
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -108,7 +112,10 @@ export function useViewport({ fitBox, fitKey, shouldPan }: Options) {
 
   const endPointer = (e: React.PointerEvent<SVGSVGElement>) => {
     pointers.current.delete(e.pointerId);
-    if (pointers.current.size < 2) pinch.current = null;
+    if (pointers.current.size < 2) {
+      pinch.current = null;
+      setGesturing(false);
+    }
   };
 
   const zoomBy = useCallback(
@@ -121,6 +128,8 @@ export function useViewport({ fitBox, fitKey, shouldPan }: Options) {
     ref,
     size,
     view,
+    /** true أثناء التكبير بإصبعين: تختفي المساعدات ويبقى المحرف وحده. */
+    gesturing,
     percent: Math.round(view.scale * 100),
     bind: {
       onPointerDown,
