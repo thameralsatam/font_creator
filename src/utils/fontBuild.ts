@@ -165,11 +165,17 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
     description: info.description,
     version: `Version ${info.version}`,
     glyphs,
+    // تاريخ الإنشاء يبقى ثابتاً من المشروع، أما تاريخ التعديل فتكتبه المكتبة بوقت التصدير
+    ...(Number.isFinite(Date.parse(project.createdAt))
+      ? ({ createdTimestamp: Math.floor(Date.parse(project.createdAt) / 1000) } as object)
+      : {}),
   });
   // جدول الأسماء: كل معلومات الخط تُكتب فيه، والفارغ منها لا يُكتب
   const names = font.names as unknown as Record<string, Record<string, string>>;
   names.fullName = { en: info.fullName };
   names.postScriptName = { en: info.postScriptName };
+  // معرّف فريد لكل تصدير بدقة المللي ثانية، فلا يعدّه النظام نسخة الخط القديمة نفسها
+  names.uniqueID = { en: `${info.postScriptName};${info.version};${new Date().toISOString()}` };
   const optional: Array<[string, string]> = [
     ['copyright', info.copyright],
     ['license', info.license],

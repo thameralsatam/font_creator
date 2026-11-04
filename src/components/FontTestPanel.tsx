@@ -6,7 +6,7 @@ import { Button } from './ui/Button';
 
 /** اختبار الخط بكتابة نص: يُبنى الخط الحقيقي ويُحمَّل في المتصفح فتُطبَّق الميزات مثل أي برنامج. */
 const TestBody: React.FC<{ project: FontProject }> = ({ project }) => {
-  const [text, setText] = useState('بسم الله الرحمن الرحيم');
+  const [text, setText] = useState('');
   const [size, setSize] = useState(48);
   const [state, setState] = useState<'idle' | 'busy' | 'ready' | 'error'>('idle');
   const [family, setFamily] = useState<string | null>(null);
@@ -45,6 +45,7 @@ const TestBody: React.FC<{ project: FontProject }> = ({ project }) => {
           value={text}
           onChange={(e) => setText(e.target.value)}
           aria-label="نص الاختبار"
+          placeholder="اكتب نصاً لتراه بخطك"
         />
         <input
           type="range"

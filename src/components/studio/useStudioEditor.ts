@@ -234,7 +234,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
   const [counts, setCounts] = useState({ past: 0, future: 0 });
   const noticeTimer = useRef<number | undefined>(undefined);
   const hoverRef = useRef<HoverTarget | null>(null);
-  const lastDown = useRef<{ at: number; x: number; y: number } | null>(null);
+  const lastDown = useRef<{ at: number; x: number; y: number; count: number } | null>(null);
   const [selectMode, setSelectModeState] = useState<SelectMode>('replace');
   const modeRef = useRef<SelectMode>('replace');
   const setSelectMode = (m: SelectMode) => {
@@ -357,7 +357,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     (touch ? fingers : mouse) / scaleRef.current;
 
   /** نقطة المسطرة: التصاق بالنقاط والمقابض وحواف الشكل، ثم بخطوط المقاييس. Alt يعطّل الالتصاق. */
-  const rulerPoint = (info: PointerInfo): Vec => {
+  const rulerPoint = (info: PointerInfo, from?: Vec): Vec => {
     if (!info.alt) {
       const hit = rulerSnap(work.current.contours, info.world, hitRadius(info.touch, 10, 16));
       if (hit) {
@@ -365,9 +365,16 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
         return { x: hit.x, y: hit.y };
       }
     }
-    const s = snapPoint(info.world, { ...snapCtx(), snapGrid: false }, info.alt);
+    // الشبكة والمقاييس حسب إعداد الالتصاق، ثم يستقيم الخط أفقياً أو رأسياً إن اقترب منهما
+    const s = snapPoint(info.world, snapCtx(), info.alt);
+    const pt = { x: s.x, y: s.y };
+    if (from && !info.alt) {
+      const thr = 6 / scaleRef.current;
+      if (Math.abs(pt.x - from.x) < thr) pt.x = from.x;
+      if (Math.abs(pt.y - from.y) < thr) pt.y = from.y;
+    }
     setSnapMark(s.kind === 'point' || s.kind === 'metric' ? s : null);
-    return { x: s.x, y: s.y };
+    return pt;
   };
 
   const pointerDown = (info: PointerInfo) => {
@@ -389,10 +396,14 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     if (t === 'select') {
       const now = Date.now();
       const prev = lastDown.current;
-      lastDown.current = { at: now, x: info.screen.x, y: info.screen.y };
-      if (prev && now - prev.at < 380 && Math.hypot(info.screen.x - prev.x, info.screen.y - prev.y) < 8) {
+      const fast = prev && now - prev.at < 380 && Math.hypot(info.screen.x - prev.x, info.screen.y - prev.y) < 8;
+      const count = fast ? prev.count + 1 : 1;
+      lastDown.current = { at: now, x: info.screen.x, y: info.screen.y, count };
+      // مرتان على نقطة: عادية أو ناعمة. ثلاث مرات على المحيط: نقطة جديدة بين نقطتين.
+      if (count === 2 && doubleClick(info, false)) return;
+      if (count === 3) {
         lastDown.current = null;
-        if (doubleClick(info)) return;
+        if (doubleClick(info, true)) return;
       }
       const sel = liveSelection();
       const hh = hitHandle(contours, sel, info.world, hitRadius(info.touch, 8, 14));
@@ -613,10 +624,11 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
   };
 
   /** نقر مزدوج بأداة التحديد: على نقطة يبدّل ناعمة/زاوية، وعلى مقطع يدرج نقطة. */
-  const doubleClick = (info: PointerInfo): boolean => {
+  const doubleClick = (info: PointerInfo, segment: boolean): boolean => {
     const contours = work.current.contours;
     const pre = work.current;
     const hn = hitNode(contours, info.world, hitRadius(info.touch, 9, 16));
+    if (hn && segment) return false;
     if (hn) {
       const node = contours.flatMap((c) => c.nodes).find((x) => x.id === hn.nodeId)!;
       const ids = new Set([hn.nodeId]);
@@ -629,6 +641,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
       setSelection(ids);
       return true;
     }
+    if (!segment) return false;
     const seg = nearestOnContours(contours, info.world, hitRadius(info.touch, 8, 14));
     if (seg) {
       gesture.current = { kind: 'none' };
@@ -700,7 +713,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     }
 
     if (g.kind === 'measure') {
-      const s = rulerPoint(info);
+      const s = rulerPoint(info, g.start);
       const t = info.shift ? constrainAngle(g.start, s) : s;
       setMeasure({ a: g.start, b: { x: t.x, y: t.y } });
       return;
