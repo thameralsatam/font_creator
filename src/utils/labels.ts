@@ -14,3 +14,11 @@ export const FORM_LABEL: Record<GlyphForm, string> = {
   medial: 'وسط',
   final: 'نهاية',
 };
+
+/** أسماء نقاط الارتكاز الجاهزة: المفتاح المخزَّن ثم الاسم المعروض. */
+export const ANCHOR_LABEL: Record<string, string> = {
+  top: 'فوق',
+  bottom: 'تحت',
+  entry: 'دخول',
+  exit: 'خروج',
+};

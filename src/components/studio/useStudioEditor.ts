@@ -192,6 +192,8 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
   metricsRef.current = metrics;
   const updateRef = useRef(onUpdateGlyph);
   updateRef.current = onUpdateGlyph;
+  const guidesRef = useRef(glyph.guides);
+  guidesRef.current = glyph.guides;
 
   /* ---------- نسخة العمل ---------- */
   const work = useRef<Snapshot>({ contours: glyph.contours, advanceWidth: glyph.advanceWidth });
@@ -319,6 +321,8 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     snapGrid: settings.current.snapGrid,
     snapPoints: settings.current.snapPoints,
     points: nodePositions(work.current.contours, exclude),
+    guidesX: guidesRef.current?.filter((g) => g.axis === 'v').map((g) => g.pos),
+    guidesY: guidesRef.current?.filter((g) => g.axis === 'h').map((g) => g.pos),
   });
 
   /* ---------- القلم ---------- */
@@ -831,6 +835,11 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     syncCounts();
   };
 
+  /** يتراجع عدة خطوات دفعة واحدة (أو كل الخطوات المتاحة إن كان العدد أكبر). */
+  const undoMany = (n: number) => {
+    for (let i = 0; i < n && past.current.length > 0; i++) undo();
+  };
+
   const redo = () => {
     const next = future.current.pop();
     if (!next) return;
@@ -1299,6 +1308,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     setSelectMode,
     reverse,
     autoDirection,
+    undoMany,
     roundSelected,
     simplifyPaths,
     booleanOp,

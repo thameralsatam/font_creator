@@ -41,9 +41,10 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { type Connector, type FontProject, type Glyph } from '../../types/font';
+import { type AnchorPoint, type Connector, type FontMetrics, type FontProject, type Glyph } from '../../types/font';
 import { MAX_CONNECTORS } from '../../utils/glyphLogic';
 import { uid } from '../../utils/fontLogic';
+import { ANCHOR_LABEL } from '../../utils/labels';
 import { centerOnOrigin } from '../../utils/pathEdit';
 import { ConnectorPreview } from '../ConnectorPreview';
 import { DrawingAids, findGlyph, type Neighbors, type Trace } from './DrawingAids';
@@ -128,6 +129,19 @@ const NumberRow: React.FC<{
 };
 
 /** تدوير وتحجيم بقيم دقيقة. المربع يمثل صندوق المحدد، والنقطة المملوءة هي مركز الدوران والتحجيم. */
+/** موضع ابتدائي معقول لنقطة ارتكاز جاهزة، يسحبها المستخدم بعده. */
+function defaultAnchor(name: string, advanceWidth: number, m: FontMetrics): AnchorPoint {
+  const mid = Math.round(advanceWidth / 2);
+  const pos: Record<string, [number, number]> = {
+    top: [mid, m.ascender],
+    bottom: [mid, m.descender],
+    entry: [advanceWidth, Math.round(m.xHeight / 2)],
+    exit: [0, Math.round(m.xHeight / 2)],
+  };
+  const [x, y] = pos[name] ?? [mid, 0];
+  return { id: uid('anchor'), name, x, y };
+}
+
 const PrecisePanel: React.FC<{
   help: ReturnType<typeof useHelp>;
   snap: boolean;
@@ -282,6 +296,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     nodes: true,
     anchors: true,
     direction: false,
+    guides: true,
   });
   const toggle = (key: keyof ViewOptions) => setOptions((o) => ({ ...o, [key]: !o[key] }));
 
@@ -450,6 +465,13 @@ const StudioInner: React.FC<StudioScreenProps> = ({
               <MenuItem label="خطوط المقاييس" helpId="view.metrics" active={options.metrics} onClick={() => toggle('metrics')} />
               <MenuItem label="النقاط والمقابض" helpId="view.nodes" active={options.nodes} onClick={() => toggle('nodes')} />
               <MenuItem label="نقاط الارتكاز" helpId="view.anchors" active={options.anchors} onClick={() => toggle('anchors')} />
+              <MenuItem label="خطوط الدليل" helpId="view.guides" active={options.guides} onClick={() => toggle('guides')} />
+              <MenuItem
+                label="مسح كل خطوط الدليل"
+                helpId="view.guidesClear"
+                disabled={!glyph.guides || glyph.guides.length === 0}
+                onClick={() => onUpdateGlyph((g) => ({ ...g, guides: [] }))}
+              />
               <MenuItem label="أسهم اتجاه المسارات" helpId="view.direction" active={options.direction} onClick={() => toggle('direction')} />
               <div className="hidden lg:block">
                 <MenuItem label="قائمة المحارف الجانبية" helpId="sideList" active={showList} onClick={toggleList} />
@@ -577,6 +599,30 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 }}
               />
               <MenuDivider />
+              <MenuLabel>نقاط الارتكاز (اسحبها على اللوحة)</MenuLabel>
+              {Object.entries(ANCHOR_LABEL).map(([key, label]) => {
+                const has = glyph.anchors.some((a) => a.name === key);
+                return (
+                  <MenuItem
+                    key={key}
+                    label={`${has ? 'حذف' : 'إضافة'}: ${label}`}
+                    helpId="anchors.edit"
+                    onClick={() => {
+                      onUpdateGlyph((g) => ({
+                        ...g,
+                        anchors: has ? g.anchors.filter((a) => a.name !== key) : [...g.anchors, defaultAnchor(key, g.advanceWidth, metrics)],
+                      }));
+                      if (!has && !options.anchors) toggle('anchors');
+                      close();
+                    }}
+                  />
+                );
+              })}
+              <MenuDivider />
+              <MenuLabel>التراجع المتعدد</MenuLabel>
+              <MenuItem label="تراجع خمس خطوات" helpId="undo.many" disabled={!editor.canUndo} onClick={() => { editor.undoMany(5); close(); }} />
+              <MenuItem label="تراجع إلى أول الجلسة" helpId="undo.many" disabled={!editor.canUndo} onClick={() => { editor.undoMany(1000); close(); }} />
+              <MenuDivider />
               <MenuLabel>ملفات SVG</MenuLabel>
               <MenuItem label="إضافة من SVG" helpId="file.add" icon={<FileUp className={icon} />} onClick={() => { close(); pickSvg('add'); }} />
               <MenuItem label="استبدال الرسم من SVG" helpId="file.replace" icon={<FileUp className={icon} />} disabled={!hasDrawing} onClick={() => { close(); pickSvg('replace'); }} />
@@ -640,6 +686,8 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             onHelp={help.on ? () => help.show('canvas') : undefined}
             neighbors={neighborGlyphs}
             trace={trace}
+            onGuides={(next) => onUpdateGlyph((g) => ({ ...g, guides: next }))}
+            onAnchors={(next) => onUpdateGlyph((g) => ({ ...g, anchors: next }))}
           />
           {aidsOpen && (
             <DrawingAids

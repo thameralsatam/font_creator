@@ -317,3 +317,10 @@ test('removeRedundant drops collinear and coincident points only', async () => {
   const tri = { id: 't', closed: true, nodes: [nd('a', 0, 0), nd('b', 50, 0), nd('c', 100, 0)] };
   assert.equal(removeRedundant([tri]).removed, 0);
 });
+
+test('snapPoint snaps to guide lines', async () => {
+  const { snapPoint } = await import('./pathEdit');
+  const ctx = { metrics: { upm: 1000, ascender: 800, capHeight: 700, xHeight: 500, descender: -200 }, advanceWidth: 600, scale: 1, gridStep: 50, snapGrid: false, snapPoints: true, points: [], guidesX: [333], guidesY: [111] };
+  const r = snapPoint({ x: 336, y: 114 }, ctx);
+  assert.deepEqual([r.x, r.y, r.kind], [333, 111, 'metric']);
+});
