@@ -283,3 +283,37 @@ test('checkProject flags duplicate codes, duplicate names, stacked points', asyn
   assert.ok(t.includes('أسماء محارف مكررة'));
   assert.ok(t.includes('نقاط متراكبة'));
 });
+
+test('roundCorners rounds a square corner and caps the radius', async () => {
+  const { roundCorners, removeRedundant } = await import('./pathOps');
+  const nd = (id: string, x: number, y: number) => ({ id, x, y, kind: 'corner' as const, handleIn: null, handleOut: null });
+  const sq = { id: 'c', closed: true, nodes: [nd('a', 0, 0), nd('b', 100, 0), nd('c', 100, 100), nd('d', 0, 100)] };
+  const r = roundCorners([sq], new Set(['b']), 20);
+  assert.equal(r.count, 1);
+  const nodes = r.contours[0].nodes;
+  assert.equal(nodes.length, 5);
+  assert.deepEqual([nodes[1].x, nodes[1].y, nodes[2].x, nodes[2].y], [80, 0, 100, 20]);
+  const h = nodes[1].handleOut!;
+  assert.ok(Math.abs(h.x - 11.05) < 0.1 && h.y === 0);
+  // radius larger than half the side is capped
+  const big = roundCorners([sq], new Set(['b']), 500).contours[0].nodes;
+  assert.equal(big[1].x, 50);
+  // nothing selected-in-contour → untouched
+  assert.equal(roundCorners([sq], new Set(['zz']), 20).count, 0);
+  // curve corner is skipped
+  const curved = { ...sq, nodes: sq.nodes.map((n) => (n.id === 'b' ? { ...n, handleOut: { x: 5, y: 5 } } : n)) };
+  assert.equal(roundCorners([curved], new Set(['b']), 20).count, 0);
+  void removeRedundant;
+});
+
+test('removeRedundant drops collinear and coincident points only', async () => {
+  const { removeRedundant } = await import('./pathOps');
+  const nd = (id: string, x: number, y: number) => ({ id, x, y, kind: 'corner' as const, handleIn: null, handleOut: null });
+  const c = { id: 'c', closed: true, nodes: [nd('a', 0, 0), nd('m', 50, 0), nd('b', 100, 0), nd('b2', 100, 0.2), nd('c', 100, 100), nd('d', 0, 100)] };
+  const r = removeRedundant([c]);
+  assert.equal(r.removed, 2);
+  assert.deepEqual(r.contours[0].nodes.map((n) => n.id), ['a', 'b2', 'c', 'd']);
+  // keeps a curve node and the minimum count
+  const tri = { id: 't', closed: true, nodes: [nd('a', 0, 0), nd('b', 50, 0), nd('c', 100, 0)] };
+  assert.equal(removeRedundant([tri]).removed, 0);
+});

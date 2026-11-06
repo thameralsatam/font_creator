@@ -228,6 +228,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     });
   const [aidsOpen, setAidsOpen] = useState(false);
   const [scalePct, setScalePct] = useState(10);
+  const [roundRadius, setRoundRadius] = useState(40);
   const [neighbors, setNeighbors] = useState<Neighbors>({ left: '', right: '' });
   const [traces, setTraces] = useState<Record<string, Trace>>({});
   const tracesRef = useRef(traces);
@@ -472,6 +473,15 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 <MenuItem label="مقفلان بوضعهما الحالي" hint="يتحركان معاً" helpId="p.locked" disabled={!hasSelection} onClick={go(editor.lock)} />
                 <MenuItem label="نقطة عادية" hint="بلا مقبضين" helpId="p.plain" disabled={!hasSelection} onClick={go(editor.plain)} />
                 <MenuItem label="تنعيم تلقائي" helpId="p.auto" disabled={!hasSelection} onClick={go(editor.autoSmooth)} />
+                <MenuDivider />
+                <MenuLabel>عمليات على المسارات (حدّد مسارين أو أكثر)</MenuLabel>
+                <MenuItem label="دمج" hint="شكل واحد" helpId="p.unite" disabled={!hasSelection} onClick={go(() => void editor.booleanOp('unite'))} />
+                <MenuItem label="طرح" hint="الأعلى من الأساس" helpId="p.subtract" disabled={!hasSelection} onClick={go(() => void editor.booleanOp('subtract'))} />
+                <MenuItem label="تقاطع" hint="المشترك فقط" helpId="p.intersect" disabled={!hasSelection} onClick={go(() => void editor.booleanOp('intersect'))} />
+                <MenuDivider />
+                <NumberRow label="نصف قطر التقريب" helpId="p.roundRadius" value={roundRadius} onCommit={(n) => setRoundRadius(clampInt(n, 1, 500))} />
+                <MenuItem label="تقريب الزوايا المحددة" helpId="p.round" disabled={!hasSelection} onClick={go(() => editor.roundSelected(roundRadius))} />
+                <MenuItem label="حذف النقاط الزائدة" hint="للمحدد أو للكل" helpId="p.simplify" disabled={!hasDrawing} onClick={go(editor.simplifyPaths)} />
                 <MenuDivider />
                 <MenuItem label="إغلاق المسار" helpId="p.close" onClick={go(editor.closeSelected)} />
                 <MenuItem label="فتح المسار عند النقطة المحددة" helpId="p.open" disabled={!hasSelection} onClick={go(editor.openAtSelected)} />

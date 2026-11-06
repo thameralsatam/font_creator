@@ -1,3 +1,5 @@
+import { roundCorners, removeRedundant } from '../../utils/pathOps';
+import { booleanContours, type BoolOp } from '../../utils/pathBool';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Contour, type FontMetrics, type Glyph, type Vec } from '../../types/font';
 import {
@@ -1014,6 +1016,46 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     );
   };
 
+  /** تقريب الزوايا الحادة في المحدد بنصف قطر معطى. */
+  const roundSelected = (radius: number) => {
+    const sel = liveSelection();
+    if (sel.size === 0) return flash('حدّد الزوايا التي تريد تقريبها أولاً.');
+    const r = roundCorners(work.current.contours, sel, Math.max(1, radius));
+    if (r.count === 0) return flash('لا توجد في التحديد زاوية حادة ضلعاها مستقيمان.');
+    if (countNodes(r.contours) > LIMITS.maxNodes) return flash(MSG.maxNodes);
+    commit({ contours: r.contours });
+    setSelection(new Set(r.newIds));
+    flash(`قُرّبت ${r.count} زاوية.`);
+  };
+
+  /** حذف النقاط الزائدة في المحدد (أو في المحرف كله إن لم يوجد تحديد). */
+  const simplifyPaths = () => {
+    const r = removeRedundant(work.current.contours, liveSelection());
+    if (r.removed === 0) return flash('لا توجد نقاط زائدة.');
+    commit({ contours: r.contours });
+    flash(`حُذفت ${r.removed} نقطة زائدة.`);
+  };
+
+  /** دمج أو طرح أو تقاطع المسارات المغلقة المحددة. الأول في الترتيب هو الأساس. */
+  const booleanOp = async (op: BoolOp) => {
+    const before = work.current.contours;
+    const picked = new Set(selectedContours().map((c) => c.id));
+    const shapes = before.filter((c) => picked.has(c.id) && c.closed && c.nodes.length >= 3);
+    if (shapes.length < 2) return flash('حدّد مسارين مغلقين على الأقل (بنقطة من كل واحد).');
+    flash('جارٍ التنفيذ...');
+    const res = await booleanContours(shapes, op);
+    if (work.current.contours !== before) return flash('تغيّر الرسم أثناء العملية، أعد المحاولة.');
+    if (!res) return flash(op === 'intersect' ? 'لا يوجد تقاطع بين المسارات.' : 'تعذّرت العملية على هذه المسارات.');
+    const at = before.findIndex((c) => picked.has(c.id) && shapes.includes(c));
+    const rest = before.filter((c) => !shapes.includes(c));
+    const next = [...rest.slice(0, at), ...res, ...rest.slice(at)];
+    if (next.length > LIMITS.maxContours) return flash(MSG.maxContours);
+    if (countNodes(next) > LIMITS.maxNodes) return flash(MSG.maxNodes);
+    commit({ contours: fixDirections(next) });
+    setSelection(allNodeIds(res));
+    flash(op === 'unite' ? 'تم الدمج.' : op === 'subtract' ? 'تم الطرح.' : 'تم أخذ التقاطع.');
+  };
+
   const autoDirection = () => {
     const before = work.current.contours;
     if (before.length === 0) return flash(MSG.noDrawing);
@@ -1257,6 +1299,9 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     setSelectMode,
     reverse,
     autoDirection,
+    roundSelected,
+    simplifyPaths,
+    booleanOp,
     closeSelected,
     openAtSelected,
     duplicate,
