@@ -254,3 +254,32 @@ test('grid chain is nested and nudge goes to the next grid line', async () => {
   assert.equal(gridNudgeDelta(120, 1, 50), 30);
   assert.equal(gridNudgeDelta(120, -1, 50), -20);
 });
+
+test('backup parse and reminder logic', async () => {
+  const { backupJson, parseBackup, backupDue, BACKUP_REMIND_DAYS } = await import('./storage');
+  const { createProject } = await import('./fontLogic');
+  const p = createProject('A', 'B', '');
+  assert.equal(parseBackup(backupJson([p]))?.length, 1);
+  assert.equal(parseBackup('not json'), null);
+  assert.equal(parseBackup('{"projects":[1]}'), null);
+  const day = 86400000;
+  assert.equal(backupDue(1e12, null, true), true);
+  assert.equal(backupDue(1e12, null, false), false);
+  assert.equal(backupDue(1e12, 1e12 - day, true), false);
+  assert.equal(backupDue(1e12, 1e12 - (BACKUP_REMIND_DAYS + 1) * day, true), true);
+});
+
+test('checkProject flags duplicate codes, duplicate names, stacked points', async () => {
+  const { checkProject } = await import('./fontBuild');
+  const { createProject, createGlyph } = await import('./fontLogic');
+  const p = createProject('A', 'B', '');
+  const a = createGlyph({ char: 'ا', name: 'x', unicode: 'U+0627', category: 'letter' });
+  const b = createGlyph({ char: 'ب', name: 'x', unicode: 'U+0627', category: 'letter' });
+  const nd = (id: string, x: number, y: number) => ({ id, x, y, kind: 'corner' as const, handleIn: null, handleOut: null });
+  a.contours = [{ id: 'c', closed: true, nodes: [nd('1', 0, 0), nd('2', 0, 0), nd('3', 100, 0), nd('4', 100, 100)] }];
+  const r = checkProject({ ...p, glyphs: [a, b] });
+  const t = r.warnings.join('|');
+  assert.ok(t.includes('رمز يونيكود واحد'));
+  assert.ok(t.includes('أسماء محارف مكررة'));
+  assert.ok(t.includes('نقاط متراكبة'));
+});

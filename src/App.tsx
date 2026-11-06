@@ -161,6 +161,10 @@ export default function App() {
             onDeleteGlyph={handleDeleteGlyph}
             onDeleteGlyphs={handleDeleteGlyphs}
             onDuplicateGlyph={handleDuplicateGlyph}
+            otherProjects={projects.filter((p) => p.id !== activeProject.id)}
+            onCopyToProject={(targetId, ids, replace) =>
+              store.copyGlyphsToProject(targetId, activeProject.glyphs.filter((g) => ids.includes(g.id)), replace)
+            }
           />
         </div>
       )}

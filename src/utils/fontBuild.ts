@@ -78,6 +78,24 @@ export function checkProject(project: FontProject): BuildReport {
   if (unnamed.length && noCode.length < glyphs.length) {
     warnings.push(`محارف بلا رمز يونيكود ولا ميزة تستدعيها فلن تظهر أبداً: ${list(unnamed.map((g) => g.name))}. سمِّها بلاحقة .init أو .medi أو .fina.`);
   }
+  const byCode = new Map<number, string[]>();
+  glyphs.forEach((g) => {
+    const c = parseUnicode(g.unicode);
+    if (c !== null) byCode.set(c, [...(byCode.get(c) ?? []), g.name]);
+  });
+  const dupCode = [...byCode.values()].filter((v) => v.length > 1);
+  if (dupCode.length) warnings.push(`محارف تشترك في رمز يونيكود واحد (يُعتمد أحدها فقط): ${list(dupCode.map((v) => v.join(' و ')))}.`);
+  const seen = new Set<string>();
+  const dupName = new Set<string>();
+  glyphs.forEach((g) => (seen.has(g.name) ? dupName.add(g.name) : seen.add(g.name)));
+  if (dupName.size) warnings.push(`أسماء محارف مكررة: ${list([...dupName])}.`);
+  const stacked = glyphs.filter((g) =>
+    g.contours.some((c) => c.nodes.some((n, i) => {
+      const m = c.nodes[(i + 1) % c.nodes.length];
+      return c.nodes.length > 2 && m !== n && Math.abs(m.x - n.x) < 0.5 && Math.abs(m.y - n.y) < 0.5;
+    }))
+  );
+  if (stacked.length) warnings.push(`نقاط متراكبة فوق بعضها في: ${list(stacked.map((g) => g.name))}.`);
   if (fea.errors.length) warnings.push(`في قواعد الأوبن تايب التي كتبتها ${fea.errors.length} خطأ، وهذه القواعد لن تُكتب في الخط. راجعها في تبويب الكود.`);
   if (feats.gaps.length) warnings.push(`ميزات ناقصة: ${list(feats.gaps.map((x) => `${x.glyph} (${x.message})`))}.`);
   if (feats.mismatches.length) warnings.push(`شكل المحرف لا يطابق لاحقة اسمه: ${list(feats.mismatches)}.`);

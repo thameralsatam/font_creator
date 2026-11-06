@@ -1,5 +1,8 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
+  CheckSquare,
+  Copy,
+  Trash2,
   Link2,
   ArrowRight,
   ArrowUpDown,
@@ -33,6 +36,7 @@ import { FontInfoModal, type InfoPatch } from './FontInfoModal';
 import { ConnectorsModal } from './ConnectorsModal';
 import { GlyphAddModal } from './GlyphAddModal';
 import { GlyphCard } from './GlyphCard';
+import { CopyGlyphsModal } from './CopyGlyphsModal';
 import { GlyphEditModal } from './GlyphEditModal';
 import { PresetModal } from './PresetModal';
 import { HelpBookButton } from './help/HelpBook';
@@ -58,6 +62,8 @@ interface ProjectOverviewProps {
   onUpdateProject: (patch: Partial<FontProject>) => void;
   onSetGlyphSvg: (glyphId: string, contours: Contour[], advanceWidth: number) => void;
   onRestoreGlyphs: (items: Array<{ glyph: Glyph; index: number }>) => void;
+  otherProjects: FontProject[];
+  onCopyToProject: (targetId: string, glyphIds: string[], replace: boolean) => { added: number; replaced: number; skipped: number } | null;
   onApplySvgBatch: (
     adds: Array<{ data: NewGlyphData; contours: Contour[]; advanceWidth: number }>,
     replaces: Array<{ id: string; contours: Contour[]; advanceWidth: number }>
@@ -85,6 +91,20 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const [showInfo, setShowInfo] = useState(false);
   const [showConnectors, setShowConnectors] = useState(false);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [showCopy, setShowCopy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const toggle = useCallback((id: string) => setPicked((s) => {
+    const n = new Set(s);
+    if (n.has(id)) n.delete(id);
+    else n.add(id);
+    return n;
+  }), []);
+  const stopSelecting = () => {
+    setSelecting(false);
+    setPicked(new Set());
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [svgError, setSvgError] = useState<string | null>(null);
@@ -347,6 +367,9 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   </>
                 )}
               </Dropdown>
+              <Button variant="secondary" icon active={selecting} title="تحديد عدة محارف" onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
+                <CheckSquare className={icon} />
+              </Button>
               <Button variant="secondary" icon title="مجموعات جاهزة" onClick={() => setShowPreset(true)}>
                 <Layers className={icon} />
               </Button>
@@ -447,6 +470,9 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   onDelete={setDeletingId}
                   onExportSvg={exportSvg}
                   onImportSvg={importSvg}
+                  selecting={selecting}
+                  selected={picked.has(g.id)}
+                  onToggle={toggle}
                 />
               ))}
             </div>
@@ -461,6 +487,51 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
           )
         )}
       </section>
+
+      {selecting && (
+        <div className="capsule sticky bottom-3 z-30 flex flex-wrap items-center gap-1.5 p-2 shadow-xl">
+          <span className="px-2 text-sm">
+            <span className="font-mono">{picked.size}</span> محدد
+          </span>
+          <Button variant="quiet" onClick={() => setPicked(new Set(shown.map((g) => g.id)))}>تحديد المعروض</Button>
+          <Button variant="quiet" disabled={picked.size === 0} onClick={() => setPicked(new Set())}>مسح التحديد</Button>
+          <span className="flex-1" />
+          <Button variant="secondary" disabled={picked.size === 0} onClick={() => setShowCopy(true)}>
+            <Copy className={icon} />
+            <span>نسخ إلى مشروع</span>
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={picked.size === 0}
+            onClick={() => {
+              deleteWithUndo([...picked], `حُذف ${picked.size} محرف`);
+              stopSelecting();
+            }}
+          >
+            <Trash2 className={icon} />
+            <span>حذف</span>
+          </Button>
+          <Button variant="quiet" onClick={stopSelecting}>إنهاء</Button>
+        </div>
+      )}
+
+      {showCopy && (
+        <CopyGlyphsModal
+          count={picked.size}
+          targets={props.otherProjects}
+          onClose={() => setShowCopy(false)}
+          onCopy={(targetId, replace) => {
+            const r = props.onCopyToProject(targetId, [...picked], replace);
+            setShowCopy(false);
+            if (!r) return;
+            const parts = [r.added && `أُضيف ${r.added}`, r.replaced && `استُبدل ${r.replaced}`, r.skipped && `تُخطي ${r.skipped}`].filter(Boolean);
+            setNote(parts.join('، ') || 'لم يتغير شيء');
+            window.setTimeout(() => setNote(null), 4000);
+            stopSelecting();
+          }}
+        />
+      )}
+      {note && <Toast message={note} plain actionLabel="حسنًا" onAction={() => setNote(null)} />}
 
       {undo && (
         <Toast

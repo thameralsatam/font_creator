@@ -6,7 +6,9 @@ import { isReady } from '../utils/glyphLogic';
 import { FontInfoModal, type InfoPatch } from './FontInfoModal';
 import { GlyphThumb } from './GlyphThumb';
 import { HelpBook } from './help/HelpBook';
-import { StorageModal } from './StorageModal';
+import { StorageModal, downloadBackup } from './StorageModal';
+import { backupDue, lastBackupTime } from '../utils/storage';
+import { uid } from '../utils/fontLogic';
 import { ImportFontButton } from './ImportFontButton';
 import { Button } from './ui/Button';
 import { CardMenu } from './ui/CardMenu';
@@ -91,6 +93,13 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
   const [deleting, setDeleting] = useState<FontProject | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showStorage, setShowStorage] = useState(false);
+  const [remindHidden, setRemindHidden] = useState(false);
+  const [backedUp, setBackedUp] = useState(false);
+  const needBackup = !remindHidden && !backedUp && backupDue(Date.now(), lastBackupTime(), projects.length > 0);
+  const restore = (list: FontProject[]) =>
+    list.forEach((p) =>
+      onImportProject(projects.some((x) => x.id === p.id) ? { ...p, id: uid('project'), name: `${p.name} (مستعاد)` } : p)
+    );
 
   const [newName, setNewName] = useState('');
   const [newDesigner, setNewDesigner] = useState('');
@@ -163,6 +172,14 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
         </div>
       </div>
 
+      {hasProjects && needBackup && (
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-2xl border border-ink/20 bg-sand/35 p-3 text-xs leading-6">
+          <span className="min-w-0 flex-1">مشاريعك محفوظة داخل المتصفح فقط. نزّل نسخة احتياطية حتى لا تضيع لو مُسحت بيانات الموقع.</span>
+          <Button variant="secondary" onClick={() => { downloadBackup(projects); setBackedUp(true); }}>تنزيل نسخة</Button>
+          <Button variant="quiet" onClick={() => setRemindHidden(true)}>لاحقًا</Button>
+        </div>
+      )}
+
       {hasProjects ? (
         <>
           <div className="relative max-w-md">
@@ -211,7 +228,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
       )}
 
       {showHelp && <HelpBook onClose={() => setShowHelp(false)} />}
-      {showStorage && <StorageModal projects={projects} onClose={() => setShowStorage(false)} />}
+      {showStorage && <StorageModal projects={projects} onRestore={restore} onClose={() => setShowStorage(false)} />}
 
       {showCreate && (
         <Modal title="إنشاء مشروع خط جديد" onClose={closeCreate}>
