@@ -75,6 +75,11 @@ export const KerningModal: React.FC<{
       size="lg"
       onClose={onClose}
     >
+      {project.source?.useOriginal && (
+        <p className="mt-3 rounded-2xl border border-ink/20 bg-sand/25 p-3 text-xs leading-6">
+          هذا الخط مستورد وجداوله الأصلية مفعّلة، فلا يؤثر ما تضبطه هنا عند التصدير. لتفعيل ضبطك أوقفها من نافذة ميزات الأوبن تايب.
+        </p>
+      )}
       {glyphs.length < 2 ? (
         <p className="mt-3 text-sm leading-7 text-ink-soft">أضف محرفين على الأقل ليظهر ضبط الأزواج.</p>
       ) : (

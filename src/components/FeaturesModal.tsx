@@ -12,6 +12,7 @@ import {
   type FeatureTag,
 } from '../utils/features';
 import { isReady } from '../utils/glyphLogic';
+import { base64ToBytes, featureTags, lookupTypes } from '../utils/gpos';
 import { GlyphThumb } from './GlyphThumb';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -21,6 +22,7 @@ interface FeaturesModalProps {
   onAddGlyphs: (items: NewGlyphData[]) => void;
   onOpenGlyph: (glyphId: string) => void;
   onSaveCustomFea: (text: string) => void;
+  onSetOriginal: (use: boolean) => void;
   onClose: () => void;
 }
 
@@ -32,8 +34,30 @@ const TAB_LABEL: Record<'overview' | 'missing' | 'code', string> = {
   code: 'الكود',
 };
 
+const GSUB_KIND: Record<number, string> = { 1: 'تبديل مفرد', 2: 'تبديل متعدد', 3: 'بدائل', 4: 'ترابط', 5: 'سياقي', 6: 'سياقي متسلسل', 7: 'امتداد', 8: 'عكسي' };
+const GPOS_KIND: Record<number, string> = { 1: 'مفرد', 2: 'أزواج', 3: 'اتصال', 4: 'تشكيل على حرف', 5: 'تشكيل على ترابط', 6: 'تشكيل على تشكيل', 7: 'سياقي', 8: 'سياقي متسلسل', 9: 'امتداد' };
+
+function kinds(types: number[], names: Record<number, string>): string {
+  const c = new Map<number, number>();
+  types.forEach((t) => c.set(t, (c.get(t) ?? 0) + 1));
+  return [...c.entries()].map(([t, n]) => `${names[t] ?? `نوع ${t}`} (${n})`).join('، ');
+}
+
+function summarizeOriginal(t: { GSUB?: string; GPOS?: string }) {
+  const g = t.GSUB ? base64ToBytes(t.GSUB) : null;
+  const p = t.GPOS ? base64ToBytes(t.GPOS) : null;
+  return {
+    gsub: g ? featureTags(g) : [],
+    gpos: p ? featureTags(p) : [],
+    gsubKinds: g ? kinds(lookupTypes(g), GSUB_KIND) : '',
+    gposKinds: p ? kinds(lookupTypes(p), GPOS_KIND) : '',
+  };
+}
+
 /** مكان ميزات الأوبن تايب: ما يعمل منها، وما ينقص، وكودها، واختبارها بالخط الحقيقي. */
-export const FeaturesModal: React.FC<FeaturesModalProps> = ({ project, onAddGlyphs, onOpenGlyph, onSaveCustomFea, onClose }) => {
+export const FeaturesModal: React.FC<FeaturesModalProps> = ({ project, onAddGlyphs, onOpenGlyph, onSaveCustomFea, onSetOriginal, onClose }) => {
+  const original = project.source?.useOriginal ?? false;
+  const orig = useMemo(() => (project.source ? summarizeOriginal(project.source.tables) : null), [project.source]);
   const [tab, setTab] = useState<Tab>('overview');
   const report = useMemo(() => computeFeatures(project.glyphs), [project.glyphs]);
   const missing = useMemo(() => missingForms(project.glyphs), [project.glyphs]);
@@ -54,6 +78,30 @@ export const FeaturesModal: React.FC<FeaturesModalProps> = ({ project, onAddGlyp
       onClose={onClose}
     >
       <div className="mt-4 space-y-4">
+        {project.source && orig && (
+          <div className="space-y-2 rounded-2xl border border-ink/20 bg-sand/25 p-3 text-xs leading-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <strong className="text-sm font-normal">الجداول الأصلية للخط المستورد</strong>
+              <span className="flex-1" />
+              <Button variant={original ? 'primary' : 'secondary'} onClick={() => onSetOriginal(!original)}>
+                {original ? 'مفعّلة: اضغط للإيقاف' : 'متوقفة: اضغط للتفعيل'}
+              </Button>
+            </div>
+            <p className="text-ink-soft">
+              {original
+                ? 'يُصدَّر الخط بجداول الصياغة التي استوردتها كما هي (الأشكال السياقية، تموضع التشكيل، التقارب بالفئات...) فلا يضيع منها شيء، ويبقى ترتيب المحارف الأصلي. تعديل الرسم والعرض يعمل كالعادة، أما القواعد والتقارب وارتكازات التشكيل التي تحرّرها هنا فلا تؤثر ما دامت مفعّلة.'
+                : 'الجداول الأصلية متوقفة: يُبنى الخط من قواعدك ومن أسماء المحارف فقط، وما لا يفهمه الموقع من قواعد الخط الأصلي (السياقية والتشكيل بأكثر من فئتين والتقارب بالفئات) لن يُكتب.'}
+            </p>
+            <div className="flex flex-wrap gap-1.5" dir="ltr">
+              {orig.gsub.map((t) => <span key={`s${t}`} className="rounded-full border border-ink/20 px-2 font-mono text-[11px]">{t}</span>)}
+              {orig.gpos.map((t) => <span key={`p${t}`} className="rounded-full border border-ink/20 bg-paper px-2 font-mono text-[11px]">{t}</span>)}
+            </div>
+            <p className="text-ink-soft">
+              الاستبدال والترابط: {orig.gsubKinds || 'لا شيء'}. الموضع: {orig.gposKinds || 'لا شيء'}.
+            </p>
+          </div>
+        )}
+        {original ? null : (<>
         <div className="flex flex-wrap gap-1.5">
           {tabs.map((t) => (
             <Button key={t} variant="quiet" active={tab === t} onClick={() => setTab(t)}>
@@ -173,6 +221,7 @@ export const FeaturesModal: React.FC<FeaturesModalProps> = ({ project, onAddGlyp
         )}
 
         {tab === 'code' && <CodePane project={project} auto={fea} onSave={onSaveCustomFea} />}
+        </>)}
       </div>
     </Modal>
   );

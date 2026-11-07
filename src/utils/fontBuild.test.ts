@@ -126,3 +126,34 @@ test('kerning and mark anchors are written to GPOS and survive a re-import', asy
   const A = back.project.glyphs.find((g) => g.name === 'A');
   assert.deepEqual(A?.anchors.map((a) => [a.name, a.x, a.y]), [['top', 300, 700]]);
 });
+
+test('imported font keeps original glyph order and layout tables on export; edits still apply', async () => {
+  const { readRawTable } = await import('./gpos');
+  const nd = (id: string, x: number, y: number) => ({ id, x, y, kind: 'corner' as const, handleIn: null, handleOut: null });
+  const box = (k: string, w: number) => ({ id: 'c' + k, closed: true, nodes: [nd(k + 'a', 50, 0), nd(k + 'b', w, 0), nd(k + 'c', w, 600), nd(k + 'd', 50, 600)] });
+  const mk = (name: string, ch: string, w: number) => ({
+    ...createGlyph({ char: ch, name, unicode: 'U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'), category: 'letter' as const }),
+    advanceWidth: w + 50, contours: [box(name, w)],
+  });
+  const p = createProject('T', 'D', '');
+  p.glyphs = [mk('A', 'A', 500), mk('V', 'V', 500), mk('Z', 'Z', 500)];
+  p.kerning = [{ id: 'k1', left: 'A', right: 'V', value: -100 }];
+  const first = await buildFontBuffer(p);
+  const imp = await importFontBuffer(first, 'T.otf');
+  assert.equal(imp.project.source?.useOriginal, true);
+  assert.equal(imp.project.source?.slots.length, 4);
+  const gposOrig = readRawTable(first, 'GPOS')!;
+  // تصدير بلا تعديل: الجدول نفسه بالبايت
+  const again = await buildFontBuffer(imp.project);
+  assert.deepEqual(Array.from(readRawTable(again, 'GPOS')!), Array.from(gposOrig));
+  // حذف محرف: يبقى ترتيب الباقي، فتبقى أرقامه صالحة في الجدول
+  const edited = { ...imp.project, glyphs: imp.project.glyphs.filter((g) => g.name !== 'Z') };
+  const out = await buildFontBuffer(edited);
+  const ot = (await import('opentype.js')) as unknown as { default?: typeof import('opentype.js') } & typeof import('opentype.js');
+  const font = (ot.default ?? ot).parse(out);
+  assert.equal(font.numGlyphs, 4);
+  assert.equal(font.getKerningValue(font.charToGlyph('A'), font.charToGlyph('V')), -100);
+  // إيقاف الجداول الأصلية: يُبنى من قواعد المشروع (الكيرننغ المستورد)
+  const off = await buildFontBuffer({ ...imp.project, source: { ...imp.project.source!, useOriginal: false } });
+  assert.equal((ot.default ?? ot).parse(off).getKerningValue(font.charToGlyph('A'), font.charToGlyph('V')) !== undefined, true);
+});
