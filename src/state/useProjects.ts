@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { type FontProject, type Glyph, type NewGlyphData } from '../types/font';
 import { loadProjectsAsync, requestPersistence, saveProjectsAsync } from '../utils/storage';
 import * as logic from '../utils/fontLogic';
+import { type CopyResult, copyGlyphsInto } from '../utils/glyphLogic';
 
 const SAVE_DELAY_MS = 400;
 
@@ -157,9 +158,19 @@ export function useProjects() {
     );
   }, []);
 
+  /** ينسخ محارف إلى مشروع آخر ويعيد ما حدث (مضاف ومستبدل ومتخطى). */
+  const copyGlyphsToProject = useCallback((targetId: string, glyphs: Glyph[], replace: boolean): CopyResult | null => {
+    const target = latest.current.find((p) => p.id === targetId);
+    if (!target) return null;
+    const res = copyGlyphsInto(target.glyphs, glyphs, replace);
+    setProjects((prev) => logic.updateProjectById(prev, targetId, (p) => ({ ...p, glyphs: res.glyphs })));
+    return res;
+  }, []);
+
   return {
     projects,
     ready,
+    copyGlyphsToProject,
     restoreGlyphs,
     createProject,
     importProject,

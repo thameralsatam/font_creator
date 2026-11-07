@@ -1,10 +1,11 @@
 import React, { useRef } from 'react';
-import { type FontMetrics, type Glyph } from '../../types/font';
+import { type AnchorPoint, type FontMetrics, type Glyph, type Guide } from '../../types/font';
 import { type Trace } from './DrawingAids';
 import { contourToPath, glyphFillPath } from '../../utils/pathGeometry';
 import { contourArrow, effectiveGridStep } from '../../utils/pathEdit';
 import { type PointerInfo, type StudioEditor } from './useStudioEditor';
 import { useViewport } from './useViewport';
+import { ANCHOR_LABEL } from '../../utils/labels';
 
 export interface ViewOptions {
   grid: boolean;
@@ -13,6 +14,7 @@ export interface ViewOptions {
   anchors: boolean;
   /** أسهم تبيّن اتجاه كل مسار. */
   direction: boolean;
+  guides: boolean;
 }
 
 interface StudioCanvasProps {
@@ -28,6 +30,8 @@ interface StudioCanvasProps {
   /** محرفان جاران يُرسمان باهتين، وصورة تتبع خلف الرسم. */
   neighbors?: { left: Glyph | null; right: Glyph | null };
   trace?: Trace | null;
+  onGuides?: (next: Guide[]) => void;
+  onAnchors?: (next: AnchorPoint[]) => void;
 }
 
 /**
@@ -49,6 +53,8 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   onHelp,
   neighbors,
   trace,
+  onGuides,
+  onAnchors,
 }) => {
   const { ref, bind, size, view, gesturing: quiet } = viewport;
   const { scale: s, ox, oy } = view;
@@ -58,6 +64,15 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
   const touches = useRef(new Set<number>());
   const multi = useRef(false);
+
+  /* ---------- خطوط الدليل ونقاط الربط: سحب محلي لا يمر بالتراجع ---------- */
+  const guides = glyph.guides ?? [];
+  type Aux =
+    | { kind: 'anchor'; id: string }
+    | { kind: 'guide'; id: string; axis: 'h' | 'v'; fresh: boolean; sx: number; sy: number; moved: boolean; outside: boolean };
+  const aux = useRef<Aux | null>(null);
+  const EDGE = 14;
+  const TAG = 18;
 
   // الرسم والالتصاق يستعملان نفس خطوة الشبكة المعروضة
   const step = effectiveGridStep(editor.settings.gridStep, s);
@@ -86,6 +101,51 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
     };
   };
 
+  const startAux = (info: PointerInfo): boolean => {
+    const { x: px, y: py } = info.screen;
+    if (options.anchors && onAnchors) {
+      const hit = glyph.anchors.find((a) => Math.hypot(sx(a.x) - px, sy(a.y) - py) <= 12);
+      if (hit) {
+        aux.current = { kind: 'anchor', id: hit.id };
+        return true;
+      }
+    }
+    if (!options.guides || !onGuides) return false;
+    const grab = guides.find((g) => (g.axis === 'v' ? py <= TAG && Math.abs(px - sx(g.pos)) <= 10 : px <= TAG && Math.abs(py - sy(g.pos)) <= 10));
+    if (grab) {
+      aux.current = { kind: 'guide', id: grab.id, axis: grab.axis, fresh: false, sx: px, sy: py, moved: false, outside: false };
+      return true;
+    }
+    const axis = px <= EDGE ? 'v' : py <= EDGE ? 'h' : null;
+    if (axis) {
+      aux.current = { kind: 'guide', id: `guide-${Date.now().toString(36)}`, axis, fresh: true, sx: px, sy: py, moved: false, outside: false };
+      return true;
+    }
+    return false;
+  };
+
+  const moveAux = (info: PointerInfo) => {
+    const a = aux.current;
+    if (!a) return;
+    if (a.kind === 'anchor') {
+      onAnchors?.(glyph.anchors.map((n) => (n.id === a.id ? { ...n, x: Math.round(info.world.x), y: Math.round(info.world.y) } : n)));
+      return;
+    }
+    if (!a.moved && Math.hypot(info.screen.x - a.sx, info.screen.y - a.sy) < 4) return;
+    a.moved = true;
+    a.outside = info.screen.x < 0 || info.screen.y < 0 || info.screen.x > size.w || info.screen.y > size.h;
+    const raw = a.axis === 'v' ? info.world.x : info.world.y;
+    const pos = editor.settings.snapGrid ? Math.round(raw / step) * step : Math.round(raw);
+    const exists = guides.some((g) => g.id === a.id);
+    onGuides?.(exists ? guides.map((g) => (g.id === a.id ? { ...g, pos } : g)) : [...guides, { id: a.id, axis: a.axis, pos }]);
+  };
+
+  const endAux = () => {
+    const a = aux.current;
+    aux.current = null;
+    if (a && a.kind === 'guide' && a.outside) onGuides?.(guides.filter((g) => g.id !== a.id));
+  };
+
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     bind.onPointerDown(e);
     if (e.pointerType === 'touch') {
@@ -105,11 +165,16 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
       onHelp();
       return;
     }
+    if (editor.tool !== 'pen' && editor.tool !== 'ruler' && !quiet) {
+      const info = toInfo(e);
+      if (startAux(info)) return;
+    }
     editor.pointerDown(toInfo(e));
   };
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     bind.onPointerMove(e);
+    if (aux.current) return moveAux(toInfo(e));
     if (panMode.current || multi.current) return;
     editor.pointerMove(toInfo(e));
   };
@@ -121,6 +186,11 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     bind.onPointerUp(e);
+    if (aux.current) {
+      endAux();
+      release(e);
+      return;
+    }
     const ignore = panMode.current || multi.current;
     release(e);
     if (!ignore) editor.pointerUp(toInfo(e));
@@ -129,6 +199,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
   const onPointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
     bind.onPointerCancel(e);
+    aux.current = null;
     release(e);
     editor.cancelGesture();
     panMode.current = false;
@@ -416,12 +487,36 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
         </g>
       )}
 
+      {options.guides && !quiet && (
+        <g>
+          <rect x={0} y={0} width={EDGE} height={size.h} className="fill-ink" fillOpacity="0.09" />
+          <rect x={0} y={0} width={size.w} height={EDGE} className="fill-ink" fillOpacity="0.09" />
+          <line x1={EDGE} x2={EDGE} y1={0} y2={size.h} className="stroke-ink" strokeOpacity="0.25" />
+          <line x1={0} x2={size.w} y1={EDGE} y2={EDGE} className="stroke-ink" strokeOpacity="0.25" />
+          {guides.map((g) =>
+            g.axis === 'v' ? (
+              <g key={g.id}>
+                <line x1={sx(g.pos)} x2={sx(g.pos)} y1={0} y2={size.h} className="stroke-sand-deep" strokeWidth="1" strokeDasharray="6 4" />
+                <rect x={sx(g.pos) - 16} y={0} width={32} height={TAG - 2} rx={5} className="fill-sand-deep" />
+                <text x={sx(g.pos)} y={TAG - 6} fontSize="10" textAnchor="middle" className="fill-paper">{g.pos}</text>
+              </g>
+            ) : (
+              <g key={g.id}>
+                <line x1={0} x2={size.w} y1={sy(g.pos)} y2={sy(g.pos)} className="stroke-sand-deep" strokeWidth="1" strokeDasharray="6 4" />
+                <rect x={0} y={sy(g.pos) - 8} width={34} height={16} rx={5} className="fill-sand-deep" />
+                <text x={17} y={sy(g.pos) + 4} fontSize="10" textAnchor="middle" className="fill-paper">{g.pos}</text>
+              </g>
+            )
+          )}
+        </g>
+      )}
+
       {options.anchors && !quiet &&
         glyph.anchors.map((a) => (
           <g key={a.id}>
             <circle cx={sx(a.x)} cy={sy(a.y)} r="6" className="fill-sand/60 stroke-ink" strokeWidth="1.5" />
             <text x={sx(a.x) + 10} y={sy(a.y) - 8} fontSize="12" className="fill-ink">
-              {a.name}
+              {ANCHOR_LABEL[a.name] ?? a.name}
             </text>
           </g>
         ))}

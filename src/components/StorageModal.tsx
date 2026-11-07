@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { HardDrive, ShieldCheck } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Download, HardDrive, ShieldCheck, Upload } from 'lucide-react';
 import { type FontProject } from '../types/font';
-import { type StorageInfo, formatBytes, getStorageInfo, projectsSize, requestPersistence } from '../utils/storage';
+import { type StorageInfo, backupJson, formatBytes, getStorageInfo, markBackupDone, parseBackup, projectsSize, requestPersistence } from '../utils/storage';
+import { downloadTextFile } from '../utils/download';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { Progress } from './ui/Pill';
@@ -13,9 +14,26 @@ const Row: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   </div>
 );
 
+/** ينزّل ملف نسخة احتياطية بكل المشاريع ويسجّل وقتها. */
+export function downloadBackup(projects: FontProject[]): void {
+  downloadTextFile(backupJson(projects), `font-studio-backup-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+  markBackupDone();
+}
+
 /** حالة التخزين: كم تستهلك مشاريعك، وكم المتاح، وهل بياناتك محمية من المسح التلقائي. */
-export const StorageModal: React.FC<{ projects: FontProject[]; onClose: () => void }> = ({ projects, onClose }) => {
+export const StorageModal: React.FC<{ projects: FontProject[]; onRestore: (list: FontProject[]) => void; onClose: () => void }> = ({ projects, onRestore, onClose }) => {
   const [info, setInfo] = useState<StorageInfo | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const restore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    const list = parseBackup(await f.text());
+    if (!list) return setMsg('الملف ليس نسخة احتياطية صالحة.');
+    onRestore(list);
+    setMsg(`أُضيف ${list.length} مشروع من النسخة (كنسخ جديدة، ولم يُستبدل شيء).`);
+  };
   const mine = projectsSize(projects);
 
   useEffect(() => {
@@ -66,6 +84,22 @@ export const StorageModal: React.FC<{ projects: FontProject[]; onClose: () => vo
           {info?.persisted === false && (
             <Button onClick={() => void protect()}>طلب الحماية</Button>
           )}
+        </div>
+
+        <div className="rounded-2xl border border-ink/15 p-3">
+          <p className="mb-2 text-xs leading-6">النسخة الاحتياطية ملف واحد يحمل كل مشاريعك. احتفظ به خارج المتصفح.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" disabled={projects.length === 0} onClick={() => { downloadBackup(projects); setMsg('نُزّلت النسخة الاحتياطية.'); }}>
+              <Download className="h-4 w-4 stroke-[1.5]" />
+              <span>تنزيل نسخة احتياطية</span>
+            </Button>
+            <Button onClick={() => fileRef.current?.click()}>
+              <Upload className="h-4 w-4 stroke-[1.5]" />
+              <span>استعادة من نسخة</span>
+            </Button>
+          </div>
+          <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void restore(e)} />
+          {msg && <p role="status" className="mt-2 text-xs leading-6 text-ink-soft">{msg}</p>}
         </div>
 
         <p className="text-xs leading-6 text-ink-soft">

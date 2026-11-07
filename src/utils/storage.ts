@@ -143,3 +143,51 @@ export function formatBytes(n: number): string {
   if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} م.ب`;
   return `${(n / 1024 / 1024 / 1024).toFixed(1)} ج.ب`;
 }
+
+/* ============================================================
+   النسخ الاحتياطي: ملف واحد يحمل كل المشاريع
+   ============================================================ */
+
+const BACKUP_KEY = 'font-studio:last-backup';
+export const BACKUP_REMIND_DAYS = 14;
+
+export function backupJson(projects: FontProject[]): string {
+  return JSON.stringify({ app: 'font-studio', version: 1, exportedAt: new Date().toISOString(), projects });
+}
+
+/** يقرأ ملف نسخة احتياطية ويعيد مشاريعه، أو null إن لم يكن ملفاً صالحاً. */
+export function parseBackup(text: string): FontProject[] | null {
+  try {
+    const data: unknown = JSON.parse(text);
+    const list = Array.isArray(data) ? data : (data as { projects?: unknown })?.projects;
+    if (!Array.isArray(list)) return null;
+    const ok = list.filter(looksLikeProject);
+    return ok.length > 0 ? ok : null;
+  } catch {
+    return null;
+  }
+}
+
+export function markBackupDone(): void {
+  try {
+    window.localStorage.setItem(BACKUP_KEY, String(Date.now()));
+  } catch {
+    /* التخزين غير متاح */
+  }
+}
+
+export function lastBackupTime(): number | null {
+  try {
+    const v = Number(window.localStorage.getItem(BACKUP_KEY));
+    return v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** هل يحتاج المستخدم تذكيراً بالنسخ الاحتياطي؟ */
+export function backupDue(now: number, last: number | null, hasProjects: boolean): boolean {
+  if (!hasProjects) return false;
+  if (last === null) return true;
+  return now - last > BACKUP_REMIND_DAYS * 86400000;
+}

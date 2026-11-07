@@ -64,6 +64,51 @@ export function duplicateGlyph(all: Glyph[], glyphId: string): Glyph | null {
   };
 }
 
+/** نسخة كاملة بمعرّفات جديدة تحتفظ بالاسم والرمز (للنسخ بين المشاريع). */
+export function cloneGlyphFresh(src: Glyph): Glyph {
+  return {
+    ...src,
+    id: uid('glyph'),
+    contours: src.contours.map((c) => ({
+      ...c,
+      id: uid('contour'),
+      nodes: c.nodes.map((n) => ({
+        ...n,
+        id: uid('node'),
+        handleIn: n.handleIn ? { ...n.handleIn } : null,
+        handleOut: n.handleOut ? { ...n.handleOut } : null,
+      })),
+    })),
+    anchors: src.anchors.map((a) => ({ ...a, id: uid('anchor') })),
+  };
+}
+
+export interface CopyResult {
+  glyphs: Glyph[];
+  added: number;
+  replaced: number;
+  skipped: number;
+}
+
+/** ينسخ محارف إلى قائمة محارف مشروع آخر. المطابقة بالاسم: إما يستبدل الموجود أو يتخطاه. */
+export function copyGlyphsInto(target: Glyph[], src: Glyph[], replace: boolean): CopyResult {
+  const next = [...target];
+  let added = 0;
+  let replaced = 0;
+  let skipped = 0;
+  for (const g of src) {
+    const i = next.findIndex((t) => t.name === g.name);
+    if (i === -1) {
+      next.push(cloneGlyphFresh(g));
+      added++;
+    } else if (replace) {
+      next[i] = { ...cloneGlyphFresh(g), id: next[i].id };
+      replaced++;
+    } else skipped++;
+  }
+  return { glyphs: next, added, replaced, skipped };
+}
+
 /** هل المحرف جاهز؟ له مسار مغلق واحد على الأقل، أو هو فراغ بطبيعته. */
 export function isReady(g: Glyph): boolean {
   if (g.contours.some((c) => c.closed && c.nodes.length >= 3)) return true;

@@ -76,3 +76,19 @@ test('filterGlyphs matches by text, status, category and form', async () => {
   assert.deepEqual(filterGlyphs(all, { ...NO_FILTER, status: 'ready' }).map((g) => g.name), ['one']);
   assert.deepEqual(filterGlyphs(all, { ...NO_FILTER, form: 'initial' }).map((g) => g.name), ['beh.init']);
 });
+
+test('copyGlyphsInto: add, skip, replace with fresh ids', async () => {
+  const { copyGlyphsInto } = await import('./glyphLogic');
+  const { createGlyph } = await import('./fontLogic');
+  const mk = (name: string, w: number) => ({ ...createGlyph({ char: 'ا', name, unicode: '', category: 'letter' as const }), advanceWidth: w });
+  const target = [mk('alef', 100)];
+  const src = [mk('alef', 300), mk('beh', 400)];
+  const keep = copyGlyphsInto(target, src, false);
+  assert.deepEqual([keep.added, keep.replaced, keep.skipped], [1, 0, 1]);
+  assert.equal(keep.glyphs[0].advanceWidth, 100);
+  assert.notEqual(keep.glyphs[1].id, src[1].id);
+  const rep = copyGlyphsInto(target, src, true);
+  assert.deepEqual([rep.added, rep.replaced, rep.skipped], [1, 1, 0]);
+  assert.equal(rep.glyphs[0].advanceWidth, 300);
+  assert.equal(rep.glyphs[0].id, target[0].id);
+});

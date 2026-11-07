@@ -4,10 +4,11 @@ import { Undo2 } from 'lucide-react';
 import { Button } from './Button';
 
 /** شريط صغير أسفل الشاشة مع زر إجراء (مثل التراجع). يُغلق صاحبه بمؤقت. */
-export const Toast: React.FC<{ message: string; actionLabel: string; onAction: () => void }> = ({
+export const Toast: React.FC<{ message: string; actionLabel: string; onAction: () => void; plain?: boolean }> = ({
   message,
   actionLabel,
   onAction,
+  plain,
 }) =>
   createPortal(
   <div
@@ -19,7 +20,7 @@ export const Toast: React.FC<{ message: string; actionLabel: string; onAction: (
     <div className="capsule flex max-w-md items-center gap-3 py-2 ps-4 pe-2 shadow-xl">
       <span className="min-w-0 truncate text-sm">{message}</span>
       <Button variant="primary" onClick={onAction}>
-        <Undo2 className="h-4 w-4 stroke-[1.5]" />
+        {!plain && <Undo2 className="h-4 w-4 stroke-[1.5]" />}
         <span>{actionLabel}</span>
       </Button>
     </div>

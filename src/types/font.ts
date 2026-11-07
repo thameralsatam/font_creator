@@ -39,6 +39,13 @@ export interface AnchorPoint {
   y: number;
 }
 
+/** خط دليل للمساعدة فقط، لا يدخل في الخط الناتج. axis=h أفقي عند ارتفاع pos، وv رأسي عند موضع pos. */
+export interface Guide {
+  id: string;
+  axis: 'h' | 'v';
+  pos: number;
+}
+
 export type GlyphCategory = 'letter' | 'diacritic' | 'number' | 'symbol' | 'ligature';
 export type GlyphForm = 'isolated' | 'initial' | 'medial' | 'final';
 
@@ -56,6 +63,8 @@ export interface Glyph {
   advanceWidth: number;
   contours: Contour[];
   anchors: AnchorPoint[];
+  /** خطوط دليل خاصة بهذا المحرف (اختياري). */
+  guides?: Guide[];
 }
 
 export interface NewGlyphData {

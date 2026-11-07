@@ -92,6 +92,9 @@ export interface SnapContext {
   snapPoints: boolean;
   /** نقاط موجودة يمكن الالتصاق بها (بدون النقاط التي تُسحب الآن). */
   points: Vec[];
+  /** خطوط دليل يلتصق بها المؤشر (مع الالتصاق بالنقاط). */
+  guidesX?: number[];
+  guidesY?: number[];
 }
 
 export interface SnapResult {
@@ -152,8 +155,8 @@ export function snapPoint(p: Vec, ctx: SnapContext, disable = false): SnapResult
     }
 
     const m = ctx.metrics;
-    const gy = nearest(p.y, [0, m.xHeight, m.capHeight, m.ascender, m.descender], thr);
-    const gx = nearest(p.x, [0, ctx.advanceWidth], thr);
+    const gy = nearest(p.y, [0, m.xHeight, m.capHeight, m.ascender, m.descender, ...(ctx.guidesY ?? [])], thr);
+    const gx = nearest(p.x, [0, ctx.advanceWidth, ...(ctx.guidesX ?? [])], thr);
     if (gx !== undefined || gy !== undefined) {
       return fin({
         x: gx ?? (ctx.snapGrid ? roundTo(p.x, step) : p.x),
