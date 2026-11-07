@@ -123,6 +123,19 @@ export interface FontProject {
   customFea?: string;
   /** وصلات يعرّفها المستخدم لإدراجها بسرعة في أي محرف. مراكزها عند الأصل. */
   connectors?: Connector[];
+  /** ضبط المسافة بين أزواج المحارف (كيرننغ). */
+  kerning?: KernPair[];
+}
+
+/**
+ * ضبط مسافة زوج محارف بأسمائها. left هو الأول في ترتيب الكتابة (الأيمن في العربية)، و right الذي يليه.
+ * القيمة تغيّر تقدّم الأول: السالب يقرّب الثاني منه.
+ */
+export interface KernPair {
+  id: string;
+  left: string;
+  right: string;
+  value: number;
 }
 
 export interface Connector {

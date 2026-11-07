@@ -97,3 +97,32 @@ test('each export gets a unique ID and fresh modified date, created date stays',
   assert.equal(a.tables.head.created, created);
   assert.ok(a.tables.head.modified > created);
 });
+
+test('kerning and mark anchors are written to GPOS and survive a re-import', async () => {
+  const { buildFontBuffer, importFontBuffer } = await import('./fontBuild');
+  const { createProject, createGlyph } = await import('./fontLogic');
+  const nd = (id: string, x: number, y: number) => ({ id, x, y, kind: 'corner' as const, handleIn: null, handleOut: null });
+  const box = (k: string) => ({ id: 'c' + k, closed: true, nodes: [nd(k + 'a', 50, 0), nd(k + 'b', 550, 0), nd(k + 'c', 550, 600), nd(k + 'd', 50, 600)] });
+  const mk = (name: string, ch: string, category: 'letter' | 'diacritic', w: number, anchors: Array<{ id: string; name: string; x: number; y: number }> = []) => ({
+    ...createGlyph({ char: ch, name, unicode: 'U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'), category }),
+    advanceWidth: w, contours: [box(name)], anchors,
+  });
+  const p = createProject('T', 'D', '');
+  p.glyphs = [
+    mk('A', 'A', 'letter', 600, [{ id: 'a1', name: 'top', x: 300, y: 700 }]),
+    mk('V', 'V', 'letter', 600),
+    mk('acute', '́', 'diacritic', 0, [{ id: 'm1', name: 'top', x: 50, y: 0 }]),
+  ];
+  p.kerning = [{ id: 'k1', left: 'A', right: 'V', value: -120 }];
+  const buf = await buildFontBuffer(p);
+  const ot = (await import('opentype.js')) as unknown as { default?: typeof import('opentype.js') } & typeof import('opentype.js');
+  const font = (ot.default ?? ot).parse(buf);
+  assert.equal(font.getKerningValue(font.charToGlyph('A'), font.charToGlyph('V')), -120);
+  const back = await importFontBuffer(buf, 'T.otf');
+  assert.deepEqual(back.project.kerning?.map((k) => [k.left, k.right, k.value]), [['A', 'V', -120]]);
+  const acute = back.project.glyphs.find((g) => g.name === 'acute' || g.unicode === 'U+0301');
+  assert.equal(acute?.category, 'diacritic');
+  assert.deepEqual(acute?.anchors.map((a) => [a.name, a.x, a.y]), [['top', 50, 0]]);
+  const A = back.project.glyphs.find((g) => g.name === 'A');
+  assert.deepEqual(A?.anchors.map((a) => [a.name, a.x, a.y]), [['top', 300, 700]]);
+});

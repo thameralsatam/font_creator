@@ -41,7 +41,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { type AnchorPoint, type Connector, type FontMetrics, type FontProject, type Glyph } from '../../types/font';
+import { type AnchorPoint, type Guide, type Connector, type FontMetrics, type FontProject, type Glyph } from '../../types/font';
 import { MAX_CONNECTORS } from '../../utils/glyphLogic';
 import { uid } from '../../utils/fontLogic';
 import { ANCHOR_LABEL } from '../../utils/labels';
@@ -141,6 +141,8 @@ function defaultAnchor(name: string, advanceWidth: number, m: FontMetrics): Anch
   const [x, y] = pos[name] ?? [mid, 0];
   return { id: uid('anchor'), name, x, y };
 }
+
+const MAX_GUIDES = 12;
 
 const PrecisePanel: React.FC<{
   help: ReturnType<typeof useHelp>;
@@ -298,6 +300,12 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     guides: true,
   });
   const toggle = (key: keyof ViewOptions) => setOptions((o) => ({ ...o, [key]: !o[key] }));
+  const setGuides = (fn: (all: Guide[]) => Guide[]) => onUpdateGlyph((g) => ({ ...g, guides: fn(g.guides ?? []) }));
+  const addGuide = (axis: 'h' | 'v', pos: number) => {
+    if ((glyph.guides ?? []).length >= MAX_GUIDES) return editor.notify(`الحد الأقصى ${MAX_GUIDES} خطاً للمحرف الواحد.`);
+    if (!options.guides) toggle('guides');
+    setGuides((all) => [...all, { id: uid('guide'), axis, pos: Math.round(pos) }]);
+  };
 
   // الصندوق الذي تُحسب منه الملاءمة: العرض الكامل أفقياً والمقاييس رأسياً
   const bounds = useMemo(() => boundsOf(glyph.contours), [glyph.contours]);
@@ -342,6 +350,11 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     glyph.contours.length === 0 ? '—' : glyph.contours.every((c) => c.closed) ? 'مغلق' : 'مفتوح';
 
   const hasSelection = editor.selection.size > 0;
+  const selPoint = (() => {
+    if (editor.selection.size === 0) return null;
+    for (const c of glyph.contours) for (const n of c.nodes) if (editor.selection.has(n.id)) return n;
+    return null;
+  })();
   const hasDrawing = glyph.contours.length > 0;
   const lsb = bounds ? Math.round(bounds.xMin) : null;
   const rsb = bounds ? glyph.advanceWidth - Math.round(bounds.xMax) : null;
@@ -464,29 +477,32 @@ const StudioInner: React.FC<StudioScreenProps> = ({
               <MenuItem label="النقاط والمقابض" helpId="view.nodes" active={options.nodes} onClick={() => toggle('nodes')} />
               <MenuItem label="نقاط الارتكاز" helpId="view.anchors" active={options.anchors} onClick={() => toggle('anchors')} />
               <MenuItem label="خطوط الدليل" helpId="view.guides" active={options.guides} onClick={() => toggle('guides')} />
-              <MenuItem
-                label="إضافة خط دليل أفقي"
-                helpId="view.guides"
-                onClick={() => {
-                  if (!options.guides) toggle('guides');
-                  onUpdateGlyph((g) => ({ ...g, guides: [...(g.guides ?? []), { id: uid('guide'), axis: 'h', pos: metrics.xHeight }] }));
-                  close();
-                }}
-              />
-              <MenuItem
-                label="إضافة خط دليل رأسي"
-                helpId="view.guides"
-                onClick={() => {
-                  if (!options.guides) toggle('guides');
-                  onUpdateGlyph((g) => ({ ...g, guides: [...(g.guides ?? []), { id: uid('guide'), axis: 'v', pos: Math.round(g.advanceWidth / 2) }] }));
-                  close();
-                }}
-              />
+              <MenuDivider />
+              <MenuLabel>خطوط الدليل ({(glyph.guides ?? []).length})</MenuLabel>
+              {(glyph.guides ?? []).map((g) => (
+                <div key={g.id} className="flex items-center">
+                  <div className="min-w-0 flex-1">
+                    <NumberRow
+                      label={g.axis === 'h' ? 'أفقي (الارتفاع)' : 'رأسي (الموضع)'}
+                      helpId="view.guides"
+                      value={g.pos}
+                      onCommit={(n) => setGuides((all) => all.map((x) => (x.id === g.id ? { ...x, pos: Math.round(n) } : x)))}
+                    />
+                  </div>
+                  <Button variant="quiet" icon title="حذف الخط" onClick={() => setGuides((all) => all.filter((x) => x.id !== g.id))}>
+                    <Trash2 className={icon} />
+                  </Button>
+                </div>
+              ))}
+              <MenuItem label="دليل أفقي عند النقطة المحددة" helpId="view.guides" disabled={!selPoint} onClick={() => selPoint && addGuide('h', selPoint.y)} />
+              <MenuItem label="دليل رأسي عند النقطة المحددة" helpId="view.guides" disabled={!selPoint} onClick={() => selPoint && addGuide('v', selPoint.x)} />
+              <MenuItem label="دليل أفقي جديد" helpId="view.guides" onClick={() => addGuide('h', metrics.xHeight)} />
+              <MenuItem label="دليل رأسي جديد" helpId="view.guides" onClick={() => addGuide('v', Math.round(glyph.advanceWidth / 2))} />
               <MenuItem
                 label="مسح كل خطوط الدليل"
                 helpId="view.guidesClear"
                 disabled={!glyph.guides || glyph.guides.length === 0}
-                onClick={() => onUpdateGlyph((g) => ({ ...g, guides: [] }))}
+                onClick={() => setGuides(() => [])}
               />
               <MenuItem label="أسهم اتجاه المسارات" helpId="view.direction" active={options.direction} onClick={() => toggle('direction')} />
               <div className="hidden lg:block">
@@ -697,7 +713,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             onHelp={help.on ? () => help.show('canvas') : undefined}
             neighbors={neighborGlyphs}
             trace={trace}
-            onGuides={(next) => onUpdateGlyph((g) => ({ ...g, guides: next }))}
             onAnchors={(next) => onUpdateGlyph((g) => ({ ...g, anchors: next }))}
           />
           {aidsOpen && (

@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
+  ArrowLeftRight,
   CheckSquare,
   Copy,
   Trash2,
@@ -35,6 +36,7 @@ import { FeaturesModal } from './FeaturesModal';
 import { FontTestPanel } from './FontTestPanel';
 import { FontInfoModal, type InfoPatch } from './FontInfoModal';
 import { ConnectorsModal } from './ConnectorsModal';
+import { KerningModal } from './KerningModal';
 import { GlyphAddModal } from './GlyphAddModal';
 import { GlyphCard } from './GlyphCard';
 import { CopyGlyphsModal } from './CopyGlyphsModal';
@@ -91,6 +93,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const [showFeatures, setShowFeatures] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showConnectors, setShowConnectors] = useState(false);
+  const [showKerning, setShowKerning] = useState(false);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -262,6 +265,15 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   onClick={() => {
                     close();
                     onOpenMetrics();
+                  }}
+                />
+                <MenuItem
+                  label="المسافة بين الأزواج"
+                  icon={<ArrowLeftRight className={icon} />}
+                  hint={project.kerning?.length ? String(project.kerning.length) : undefined}
+                  onClick={() => {
+                    close();
+                    setShowKerning(true);
                   }}
                 />
                 <MenuItem
@@ -559,6 +571,9 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
           onSave={(connectors) => props.onUpdateProject({ connectors })}
           onClose={() => setShowConnectors(false)}
         />
+      )}
+      {showKerning && (
+        <KerningModal project={project} onSave={(kerning) => props.onUpdateProject({ kerning })} onClose={() => setShowKerning(false)} />
       )}
       {showInfo && <FontInfoModal project={project} onSave={onUpdateInfo} onClose={() => setShowInfo(false)} />}
       {showFeatures && (

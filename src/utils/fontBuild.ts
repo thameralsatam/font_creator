@@ -6,11 +6,13 @@ import {
   type Glyph,
   type GlyphCategory,
   type PathNode,
+  type KernPair,
 } from '../types/font';
 import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
 import { type Rule, computeFeatures, ruleToFea, rulesForBuild } from './features';
 import { projectRules } from './feaParse';
 import { infoOf, parseVersion, resolveInfo, safePsName } from './fontInfo';
+import { type Anchor, buildGdef, buildGpos, collectPositioning, injectTables, readGpos } from './gpos';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
 
 /*
@@ -78,6 +80,17 @@ export function checkProject(project: FontProject): BuildReport {
   if (unnamed.length && noCode.length < glyphs.length) {
     warnings.push(`محارف بلا رمز يونيكود ولا ميزة تستدعيها فلن تظهر أبداً: ${list(unnamed.map((g) => g.name))}. سمِّها بلاحقة .init أو .medi أو .fina.`);
   }
+  const nameSet = new Set(glyphs.map((g) => g.name));
+  const orphan = (project.kerning ?? []).filter((k) => !nameSet.has(k.left) || !nameSet.has(k.right));
+  if (orphan.length) warnings.push(`${orphan.length} زوج في ضبط المسافات يشير إلى محرف محذوف أو أُعيدت تسميته، ولن يُكتب.`);
+  const marksWithAnchor = glyphs.filter((g) => g.category === 'diacritic' && g.anchors.some((a) => a.name === 'top' || a.name === 'bottom'));
+  const basesWithAnchor = glyphs.filter((g) => g.category !== 'diacritic' && g.anchors.some((a) => a.name === 'top' || a.name === 'bottom'));
+  if (basesWithAnchor.length > 0 && marksWithAnchor.length === 0)
+    warnings.push('على بعض الحروف نقاط ارتكاز (فوق/تحت) لكن لا علامة تشكيل لها ارتكاز، فلن يُكتب تموضع التشكيل.');
+  if (marksWithAnchor.length > 0 && basesWithAnchor.length === 0)
+    warnings.push('لعلامات التشكيل نقاط ارتكاز لكن لا حرف لديه ارتكاز مقابل، فلن يُكتب تموضع التشكيل.');
+  const wideMarks = marksWithAnchor.filter((g) => g.advanceWidth !== 0);
+  if (wideMarks.length) warnings.push(`علامات تشكيل لها عرض غير صفري (قد تأخذ حيزاً في برامج قديمة): ${list(wideMarks.map((g) => g.name))}.`);
   const byCode = new Map<number, string[]>();
   glyphs.forEach((g) => {
     const c = parseUnicode(g.unicode);
@@ -227,7 +240,15 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
     }
   }
 
-  return font.toArrayBuffer();
+  const buf = font.toArrayBuffer();
+  // جداول الموضع (كيرننغ وتشكيل): المكتبة لا تكتبها، فنحقنها في الملف بعد البناء
+  const pos = collectPositioning(project, (n) => index.get(n));
+  const gpos = buildGpos(pos.pairs, pos.marks);
+  if (!gpos) return buf;
+  const extra: Record<string, Uint8Array> = { GPOS: gpos };
+  const gdef = pos.marks ? buildGdef(pos.markGids, glyphs.length) : null;
+  if (gdef) extra.GDEF = gdef;
+  return injectTables(buf, extra);
 }
 
 /* ============================================================
@@ -341,7 +362,7 @@ export interface ImportResult {
   imported: number;
 }
 
-export function fontToProject(font: OpenType.Font, fileName: string): ImportResult {
+export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?: ArrayBuffer): ImportResult {
   const notes: string[] = [];
   const upm = font.unitsPerEm;
   if (!(upm >= 100 && upm <= 4096)) throw new Error('مقياس الخط (وحدات المربع) خارج المدى المدعوم من 100 إلى 4096.');
@@ -435,7 +456,36 @@ export function fontToProject(font: OpenType.Font, fileName: string): ImportResu
     notes.push('لم أجد في الخط قواعد تبديل أو دمج قابلة للاستيراد.');
   }
   if ((font.tables as unknown as { gpos?: unknown }).gpos) {
-    notes.push('قواعد المواضع (التقارب وتموضع الحركات) موجودة في الخط الأصلي ولا تُستورد بعد.');
+    const g = rawBuffer ? readGpos(rawBuffer) : null;
+    const nameOf = (gid: number) => nameByIndex.get(gid);
+    const byName = new Map(glyphs.map((x, i) => [x.name, i]));
+    if (g) {
+      const kerning: KernPair[] = [];
+      for (const p of g.pairs) {
+        const l = nameOf(p.first);
+        const r = nameOf(p.second);
+        if (l && r) kerning.push({ id: uid('kern'), left: l, right: r, value: p.value });
+      }
+      if (kerning.length) project.kerning = kerning;
+      let anchored = 0;
+      const put = (gid: number, name: 'top' | 'bottom', pt: Anchor, mark: boolean) => {
+        const nm = nameOf(gid);
+        const i = nm === undefined ? undefined : byName.get(nm);
+        if (i === undefined) return;
+        const gl = glyphs[i];
+        gl.anchors = [...gl.anchors, { id: uid('anchor'), name, x: pt.x, y: pt.y }];
+        if (mark) gl.category = 'diacritic';
+        anchored++;
+      };
+      g.marks.forEach((m) => put(m.gid, m.cls === 0 ? 'top' : 'bottom', m, true));
+      g.bases.forEach((b) => b.anchors.forEach((a, c) => a && put(b.gid, c === 0 ? 'top' : 'bottom', a, false)));
+      if (kerning.length) notes.push(`استُوردت ${kerning.length} قاعدة مسافة بين أزواج المحارف.`);
+      if (anchored) notes.push(`استُوردت ${anchored} نقطة ارتكاز لتموضع التشكيل.`);
+      if (g.skipped) notes.push('بعض قواعد المسافات مكتوبة بصيغة الفئات ولا تُستورد بعد.');
+    }
+    if (!g || (g.pairs.length === 0 && g.marks.length === 0)) {
+      notes.push('قواعد المواضع في الخط الأصلي بصيغة غير مدعومة للاستيراد، فلم تُستورد.');
+    }
   }
   return { project, notes, imported: glyphs.length };
 }
@@ -550,5 +600,5 @@ export async function importFontBuffer(buf: ArrayBuffer, fileName: string): Prom
   } catch {
     throw new Error('تعذّرت قراءة الملف. المدعوم هو OTF وTTF وWOFF وWOFF2، وهذا الملف تالف أو بصيغة أخرى.');
   }
-  return fontToProject(font, fileName);
+  return fontToProject(font, fileName, buf);
 }
