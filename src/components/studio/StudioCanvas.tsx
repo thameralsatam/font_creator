@@ -489,8 +489,10 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
       {options.guides && !quiet && (
         <g>
-          <rect x={0} y={0} width={EDGE} height={size.h} className="fill-ink" fillOpacity="0.05" />
-          <rect x={0} y={0} width={size.w} height={EDGE} className="fill-ink" fillOpacity="0.05" />
+          <rect x={0} y={0} width={EDGE} height={size.h} className="fill-ink" fillOpacity="0.09" />
+          <rect x={0} y={0} width={size.w} height={EDGE} className="fill-ink" fillOpacity="0.09" />
+          <line x1={EDGE} x2={EDGE} y1={0} y2={size.h} className="stroke-ink" strokeOpacity="0.25" />
+          <line x1={0} x2={size.w} y1={EDGE} y2={EDGE} className="stroke-ink" strokeOpacity="0.25" />
           {guides.map((g) =>
             g.axis === 'v' ? (
               <g key={g.id}>

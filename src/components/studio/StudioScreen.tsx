@@ -275,7 +275,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     editor.notify('حُفظت الوصلة. غيّر اسمها من إعدادات المشروع.');
   };
   const svgInput = useRef<HTMLInputElement>(null);
-  const svgMode = useRef<'add' | 'replace'>('add');
 
   // Esc في وضع التعليمات: يغلق الشرح أولاً ثم يطفئ الوضع
   useEffect(() => {
@@ -332,10 +331,9 @@ const StudioInner: React.FC<StudioScreenProps> = ({
       editor.notify(res.error);
       return;
     }
-    editor.importContours(res.contours, res.advanceWidth, svgMode.current === 'replace');
+    editor.importContours(res.contours, res.advanceWidth, false);
   };
-  const pickSvg = (mode: 'add' | 'replace') => {
-    svgMode.current = mode;
+  const pickSvg = () => {
     svgInput.current?.click();
   };
 
@@ -466,6 +464,24 @@ const StudioInner: React.FC<StudioScreenProps> = ({
               <MenuItem label="النقاط والمقابض" helpId="view.nodes" active={options.nodes} onClick={() => toggle('nodes')} />
               <MenuItem label="نقاط الارتكاز" helpId="view.anchors" active={options.anchors} onClick={() => toggle('anchors')} />
               <MenuItem label="خطوط الدليل" helpId="view.guides" active={options.guides} onClick={() => toggle('guides')} />
+              <MenuItem
+                label="إضافة خط دليل أفقي"
+                helpId="view.guides"
+                onClick={() => {
+                  if (!options.guides) toggle('guides');
+                  onUpdateGlyph((g) => ({ ...g, guides: [...(g.guides ?? []), { id: uid('guide'), axis: 'h', pos: metrics.xHeight }] }));
+                  close();
+                }}
+              />
+              <MenuItem
+                label="إضافة خط دليل رأسي"
+                helpId="view.guides"
+                onClick={() => {
+                  if (!options.guides) toggle('guides');
+                  onUpdateGlyph((g) => ({ ...g, guides: [...(g.guides ?? []), { id: uid('guide'), axis: 'v', pos: Math.round(g.advanceWidth / 2) }] }));
+                  close();
+                }}
+              />
               <MenuItem
                 label="مسح كل خطوط الدليل"
                 helpId="view.guidesClear"
@@ -619,13 +635,8 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 );
               })}
               <MenuDivider />
-              <MenuLabel>التراجع المتعدد</MenuLabel>
-              <MenuItem label="تراجع خمس خطوات" helpId="undo.many" disabled={!editor.canUndo} onClick={() => { editor.undoMany(5); close(); }} />
-              <MenuItem label="تراجع إلى أول الجلسة" helpId="undo.many" disabled={!editor.canUndo} onClick={() => { editor.undoMany(1000); close(); }} />
-              <MenuDivider />
               <MenuLabel>ملفات SVG</MenuLabel>
-              <MenuItem label="إضافة من SVG" helpId="file.add" icon={<FileUp className={icon} />} onClick={() => { close(); pickSvg('add'); }} />
-              <MenuItem label="استبدال الرسم من SVG" helpId="file.replace" icon={<FileUp className={icon} />} disabled={!hasDrawing} onClick={() => { close(); pickSvg('replace'); }} />
+              <MenuItem label="إضافة من SVG" helpId="file.add" icon={<FileUp className={icon} />} onClick={() => { close(); pickSvg(); }} />
               <MenuItem
                 label="تصدير SVG"
                 helpId="file.export"

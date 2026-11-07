@@ -20,6 +20,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { type Contour, type FontProject, type Glyph, type GlyphCategory, type GlyphForm, type NewGlyphData } from '../types/font';
+import { LIMITS, countNodes, fixDirections } from '../utils/pathEdit';
 import { downloadBlob, downloadTextFile } from '../utils/download';
 import { zipStore } from '../utils/zip';
 import { FORM_OF, splitName } from '../utils/features';
@@ -108,7 +109,6 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [svgError, setSvgError] = useState<string | null>(null);
-  const [svgPending, setSvgPending] = useState<{ id: string; contours: Contour[]; advanceWidth: number } | null>(null);
   const [filter, setFilter] = useState<GlyphFilter>(NO_FILTER);
   const [undo, setUndo] = useState<{ message: string; items: Array<{ glyph: Glyph; index: number }> } | null>(null);
   const undoTimer = useRef<number | undefined>(undefined);
@@ -197,8 +197,14 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
       return;
     }
     const target = glyphs.find((g) => g.id === id);
-    if (target && target.contours.length > 0) setSvgPending({ id, contours: res.contours, advanceWidth: res.advanceWidth });
-    else props.onSetGlyphSvg(id, res.contours, res.advanceWidth);
+    if (!target || target.contours.length === 0) return props.onSetGlyphSvg(id, res.contours, res.advanceWidth);
+    // الإضافة لا تستبدل شيئاً: يبقى رسمه وعرضه ويُضاف رسم الملف إليه
+    const merged = fixDirections([...target.contours, ...res.contours]);
+    if (merged.length > LIMITS.maxContours || countNodes(merged) > LIMITS.maxNodes) {
+      setSvgError('الإضافة تتجاوز الحد المسموح من المسارات أو النقاط في المحرف الواحد.');
+      return;
+    }
+    props.onSetGlyphSvg(id, merged, target.advanceWidth);
   };
 
   const info = resolveInfo(project);
@@ -618,24 +624,6 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
           <p className="text-sm leading-7">{svgError}</p>
           <ModalActions>
             <Button variant="primary" onClick={() => setSvgError(null)}>حسناً</Button>
-          </ModalActions>
-        </Modal>
-      )}
-
-      {svgPending && (
-        <Modal title="استبدال الرسم" size="sm" onClose={() => setSvgPending(null)}>
-          <p className="text-sm leading-7">هذا المحرف مرسوم أصلاً. سيُستبدل رسمه بمحتوى الملف ولا يمكن التراجع.</p>
-          <ModalActions>
-            <Button onClick={() => setSvgPending(null)}>إلغاء</Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                props.onSetGlyphSvg(svgPending.id, svgPending.contours, svgPending.advanceWidth);
-                setSvgPending(null);
-              }}
-            >
-              استبدال
-            </Button>
           </ModalActions>
         </Modal>
       )}

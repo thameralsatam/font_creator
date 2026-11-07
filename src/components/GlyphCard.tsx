@@ -47,7 +47,7 @@ const GlyphCardBase: React.FC<GlyphCardProps> = ({ glyph, metrics, onOpen, onEdi
             <MenuItem label="تعديل البيانات" icon={<Pencil className={ic} />} onClick={() => { close(); onEdit(glyph.id); }} />
             <MenuItem label="تكرار" icon={<Copy className={ic} />} onClick={() => { close(); onDuplicate(glyph.id); }} />
             <MenuItem label="تصدير SVG" icon={<Download className={ic} />} onClick={() => { close(); onExportSvg(glyph.id); }} />
-            <MenuItem label="استبدال الرسم من SVG" icon={<Upload className={ic} />} onClick={() => { close(); onImportSvg(glyph.id); }} />
+            <MenuItem label="إضافة رسم من SVG" icon={<Upload className={ic} />} onClick={() => { close(); onImportSvg(glyph.id); }} />
             <MenuItem label="حذف" icon={<Trash2 className={ic} />} onClick={() => { close(); onDelete(glyph.id); }} />
           </>
         )}
