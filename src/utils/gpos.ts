@@ -433,3 +433,67 @@ export function readGpos(buf: ArrayBuffer): ReadGpos | null {
     return null;
   }
 }
+
+/* ============================================================
+   الجداول الأصلية للخط المستورد: حفظ وإعادة كتابة كما هي
+   ============================================================ */
+
+/** يقرأ جدولاً خاماً من ملف sfnt بوسمه، أو null إن لم يوجد. */
+export function readRawTable(buf: ArrayBuffer, tag: string): Uint8Array | null {
+  const dv = new DataView(buf);
+  const n = dv.getUint16(4);
+  for (let i = 0; i < n; i++) {
+    const rec = 12 + i * 16;
+    const t = String.fromCharCode(dv.getUint8(rec), dv.getUint8(rec + 1), dv.getUint8(rec + 2), dv.getUint8(rec + 3));
+    if (t === tag) {
+      const off = dv.getUint32(rec + 8);
+      const len = dv.getUint32(rec + 12);
+      return new Uint8Array(buf.slice(off, off + len));
+    }
+  }
+  return null;
+}
+
+export function bytesToBase64(b: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+export function base64ToBytes(s: string): Uint8Array {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** وسوم الميزات الموجودة في جدول GSUB أو GPOS (الرأس نفسه في الاثنين). */
+export function featureTags(table: Uint8Array): string[] {
+  try {
+    const dv = new DataView(table.buffer, table.byteOffset, table.byteLength);
+    const fl = dv.getUint16(6);
+    const n = dv.getUint16(fl);
+    const tags = new Set<string>();
+    for (let i = 0; i < n; i++) {
+      const o = fl + 2 + i * 6;
+      tags.add(String.fromCharCode(dv.getUint8(o), dv.getUint8(o + 1), dv.getUint8(o + 2), dv.getUint8(o + 3)));
+    }
+    return [...tags].sort();
+  } catch {
+    return [];
+  }
+}
+
+/** عدد البحوث (lookups) في الجدول وأنواعها. */
+export function lookupTypes(table: Uint8Array): number[] {
+  try {
+    const dv = new DataView(table.buffer, table.byteOffset, table.byteLength);
+    const ll = dv.getUint16(8);
+    const n = dv.getUint16(ll);
+    const out: number[] = [];
+    for (let i = 0; i < n; i++) out.push(dv.getUint16(ll + dv.getUint16(ll + 2 + 2 * i)));
+    return out;
+  } catch {
+    return [];
+  }
+}

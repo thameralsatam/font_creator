@@ -585,6 +585,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             onEnterStudio(id);
           }}
           onSaveCustomFea={(t) => props.onUpdateProject({ customFea: t })}
+          onSetOriginal={(use) => project.source && props.onUpdateProject({ source: { ...project.source, useOriginal: use } })}
           onClose={() => setShowFeatures(false)}
         />
       )}

@@ -12,7 +12,7 @@ import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
 import { type Rule, computeFeatures, ruleToFea, rulesForBuild } from './features';
 import { projectRules } from './feaParse';
 import { infoOf, parseVersion, resolveInfo, safePsName } from './fontInfo';
-import { type Anchor, buildGdef, buildGpos, collectPositioning, injectTables, readGpos } from './gpos';
+import { type Anchor, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, readGpos, readRawTable } from './gpos';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
 
 /*
@@ -77,19 +77,21 @@ export function checkProject(project: FontProject): BuildReport {
   const feats = computeFeatures(glyphs);
   const fea = projectRules(project);
   const unnamed = noCode.filter((g) => !fea.rules.some((r) => r.to === g.name));
-  if (unnamed.length && noCode.length < glyphs.length) {
+  const original = !!project.source?.useOriginal;
+  if (!original && unnamed.length && noCode.length < glyphs.length) {
     warnings.push(`محارف بلا رمز يونيكود ولا ميزة تستدعيها فلن تظهر أبداً: ${list(unnamed.map((g) => g.name))}. سمِّها بلاحقة .init أو .medi أو .fina.`);
   }
   const nameSet = new Set(glyphs.map((g) => g.name));
-  const orphan = (project.kerning ?? []).filter((k) => !nameSet.has(k.left) || !nameSet.has(k.right));
+  const usingOriginal = !!project.source?.useOriginal;
+  const orphan = usingOriginal ? [] : (project.kerning ?? []).filter((k) => !nameSet.has(k.left) || !nameSet.has(k.right));
   if (orphan.length) warnings.push(`${orphan.length} زوج في ضبط المسافات يشير إلى محرف محذوف أو أُعيدت تسميته، ولن يُكتب.`);
   const marksWithAnchor = glyphs.filter((g) => g.category === 'diacritic' && g.anchors.some((a) => a.name === 'top' || a.name === 'bottom'));
   const basesWithAnchor = glyphs.filter((g) => g.category !== 'diacritic' && g.anchors.some((a) => a.name === 'top' || a.name === 'bottom'));
-  if (basesWithAnchor.length > 0 && marksWithAnchor.length === 0)
+  if (!usingOriginal && basesWithAnchor.length > 0 && marksWithAnchor.length === 0)
     warnings.push('على بعض الحروف نقاط ارتكاز (فوق/تحت) لكن لا علامة تشكيل لها ارتكاز، فلن يُكتب تموضع التشكيل.');
-  if (marksWithAnchor.length > 0 && basesWithAnchor.length === 0)
+  if (!usingOriginal && marksWithAnchor.length > 0 && basesWithAnchor.length === 0)
     warnings.push('لعلامات التشكيل نقاط ارتكاز لكن لا حرف لديه ارتكاز مقابل، فلن يُكتب تموضع التشكيل.');
-  const wideMarks = marksWithAnchor.filter((g) => g.advanceWidth !== 0);
+  const wideMarks = usingOriginal ? [] : marksWithAnchor.filter((g) => g.advanceWidth !== 0);
   if (wideMarks.length) warnings.push(`علامات تشكيل لها عرض غير صفري (قد تأخذ حيزاً في برامج قديمة): ${list(wideMarks.map((g) => g.name))}.`);
   const byCode = new Map<number, string[]>();
   glyphs.forEach((g) => {
@@ -109,6 +111,7 @@ export function checkProject(project: FontProject): BuildReport {
     }))
   );
   if (stacked.length) warnings.push(`نقاط متراكبة فوق بعضها في: ${list(stacked.map((g) => g.name))}.`);
+  if (original) return { errors, warnings };
   if (fea.errors.length) warnings.push(`في قواعد الأوبن تايب التي كتبتها ${fea.errors.length} خطأ، وهذه القواعد لن تُكتب في الخط. راجعها في تبويب الكود.`);
   if (feats.gaps.length) warnings.push(`ميزات ناقصة: ${list(feats.gaps.map((x) => `${x.glyph} (${x.message})`))}.`);
   if (feats.mismatches.length) warnings.push(`شكل المحرف لا يطابق لاحقة اسمه: ${list(feats.mismatches)}.`);
@@ -177,13 +180,32 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
   const ot = await loadOpenType();
   const m = project.metrics;
   const nd = notdefPath(ot, m);
-  const notdef = new ot.Glyph({ name: '.notdef', unicode: 0, advanceWidth: nd.advance, path: nd.path });
+  const source = project.source && project.source.useOriginal ? project.source : null;
+  // مع الجداول الأصلية يحتفظ المحرف الافتراضي (.notdef) بعرضه الأصلي حتى تبقى المسافات كما هي
+  const notdef = new ot.Glyph({ name: '.notdef', unicode: 0, advanceWidth: source?.slots[0]?.advance || nd.advance, path: nd.path });
   // نرتب المحارف: ذوات الرمز أولاً بترتيب الرمز، ثم الباقي بترتيب المشروع
   const withCode = project.glyphs
     .filter((g) => parseUnicode(g.unicode) !== null)
     .sort((a, b) => (parseUnicode(a.unicode) ?? 0) - (parseUnicode(b.unicode) ?? 0));
   const without = project.glyphs.filter((g) => parseUnicode(g.unicode) === null);
-  const glyphs = [notdef, ...[...withCode, ...without].map((g) => glyphToOT(ot, g))];
+  let glyphs = [notdef, ...[...withCode, ...without].map((g) => glyphToOT(ot, g))];
+  if (source) {
+    // مع الجداول الأصلية يبقى ترتيب المحارف كما في الملف الأصلي، فتبقى أرقامها صالحة داخل الجداول
+    const byId = new Map(project.glyphs.map((g) => [g.id, g]));
+    const names = new Set(project.glyphs.map((g) => g.name));
+    const used = new Set<string>();
+    glyphs = source.slots.map((s, i) => {
+      if (i === 0) return notdef;
+      const g = s.id ? byId.get(s.id) : undefined;
+      if (g) {
+        used.add(g.id);
+        return glyphToOT(ot, g);
+      }
+      // محرف حُذف أو لم يُستورد: يبقى مكانه فارغاً بعرضه الأصلي
+      return new ot.Glyph({ name: names.has(s.name) ? `${s.name}.slot${i}` : s.name, advanceWidth: s.advance, path: new ot.Path() });
+    });
+    for (const g of project.glyphs) if (!used.has(g.id)) glyphs.push(glyphToOT(ot, g));
+  }
 
   const info = resolveInfo(project);
   const font = new ot.Font({
@@ -229,7 +251,7 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
     addLigature(f: string, s: { sub: number[]; by: number }, script: string, lang: string): void;
   };
   const index = new Map(glyphs.map((gl, i) => [gl.name, i]));
-  for (const r of rulesForBuild({ rules: projectRules(project).rules, gaps: [], mismatches: [] })) {
+  for (const r of source ? [] : rulesForBuild({ rules: projectRules(project).rules, gaps: [], mismatches: [] })) {
     const ids = r.from.map((n) => index.get(n));
     const by = index.get(r.to);
     if (by === undefined || ids.some((x) => x === undefined)) continue;
@@ -241,6 +263,11 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
   }
 
   const buf = font.toArrayBuffer();
+  if (source) {
+    const raw: Record<string, Uint8Array> = {};
+    for (const t of ['GSUB', 'GPOS', 'GDEF'] as const) if (source.tables[t]) raw[t] = base64ToBytes(source.tables[t]!);
+    return injectTables(buf, raw);
+  }
   // جداول الموضع (كيرننغ وتشكيل): المكتبة لا تكتبها، فنحقنها في الملف بعد البناء
   const pos = collectPositioning(project, (n) => index.get(n));
   const gpos = buildGpos(pos.pairs, pos.marks);
@@ -293,7 +320,22 @@ export function commandsToContours(cmds: Cmd[]): Contour[] {
         nodes = nodes.slice(0, -1);
       }
     }
-    nodes = nodes.map((n) => ({
+    // نقطتان متتاليتان في الموضع نفسه (تنتجان من تحويل منحنيات الخطوط الجاهزة) تُدمجان في نقطة واحدة
+    const merged: PathNode[] = [];
+    for (const n of nodes) {
+      const p = merged[merged.length - 1];
+      if (p && p.x === n.x && p.y === n.y) merged[merged.length - 1] = { ...p, handleOut: n.handleOut };
+      else merged.push(n);
+    }
+    if (closed && merged.length > 2) {
+      const f = merged[0];
+      const l = merged[merged.length - 1];
+      if (f.x === l.x && f.y === l.y) {
+        merged[0] = { ...f, handleIn: l.handleIn };
+        merged.pop();
+      }
+    }
+    nodes = merged.map((n) => ({
       ...n,
       kind: n.handleIn && n.handleOut && collinear(n.handleIn, n.handleOut) ? ('smooth' as const) : ('corner' as const),
     }));
@@ -448,6 +490,25 @@ export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?:
   if (skippedCap) notes.push(`${skippedCap} محرف زائد عن الحد الأقصى (${MAX_IMPORT_GLYPHS}) فلم يُستورد.`);
   if (!validateMetrics(metrics).isValid) notes.push('مقاييس الخط المستورد غير متناسقة، راجعها من نافذة المقاييس.');
   project.glyphs = glyphs;
+  if (rawBuffer) {
+    // نحفظ مكان كل محرف والجداول الأصلية لنعيد كتابتها كما هي عند التصدير بلا فقد
+    const idByName = new Map(glyphs.map((g) => [g.name, g.id]));
+    const slots: Array<{ id: string | null; name: string; advance: number }> = [];
+    for (let i = 0; i < font.glyphs.length; i++) {
+      const og = font.glyphs.get(i);
+      const nm = nameByIndex.get(i);
+      slots.push({ id: nm ? idByName.get(nm) ?? null : null, name: og.name ?? `glyph${i}`, advance: Math.round(og.advanceWidth ?? 0) });
+    }
+    const tables: { GSUB?: string; GPOS?: string; GDEF?: string } = {};
+    for (const t of ['GSUB', 'GPOS', 'GDEF'] as const) {
+      const raw = readRawTable(rawBuffer, t);
+      if (raw) tables[t] = bytesToBase64(raw);
+    }
+    if (tables.GSUB || tables.GPOS) {
+      project.source = { slots, tables, useOriginal: true };
+      notes.push('حُفظت جداول الصياغة الأصلية كما هي (الأشكال السياقية، التشكيل، التقارب) وستُكتب في الخط عند التصدير بلا فقد. يمكنك إيقافها من نافذة ميزات الأوبن تايب.');
+    }
+  }
   const fea = readFontRules(font, nameByIndex, glyphs);
   if (fea.count > 0) {
     project.customFea = fea.text;

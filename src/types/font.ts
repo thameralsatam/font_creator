@@ -125,6 +125,8 @@ export interface FontProject {
   connectors?: Connector[];
   /** ضبط المسافة بين أزواج المحارف (كيرننغ). */
   kerning?: KernPair[];
+  /** يوجد فقط للمشاريع المستوردة من ملف خط. */
+  source?: SourceLayout;
 }
 
 /**
@@ -136,6 +138,17 @@ export interface KernPair {
   left: string;
   right: string;
   value: number;
+}
+
+/**
+ * مخطط الخط المستورد: مكان كل محرف في الملف الأصلي (رقمه = موضعه في المصفوفة) والجداول الأصلية التي تشير إلى تلك الأرقام.
+ * عند التصدير مع تفعيل «الجداول الأصلية» يبقى ترتيب المحارف كما كان، وتُكتب الجداول كما هي بلا فقد.
+ */
+export interface SourceLayout {
+  slots: Array<{ id: string | null; name: string; advance: number }>;
+  /** جداول خام مرمّزة base64 (GSUB وGPOS وGDEF). */
+  tables: { GSUB?: string; GPOS?: string; GDEF?: string };
+  useOriginal: boolean;
 }
 
 export interface Connector {
