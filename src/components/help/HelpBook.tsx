@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useState } from 'react';
 import { BookOpen } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { t } from '../../i18n';
 
 // نص الكتاب كبير ويُقرأ نادراً، فيُحمَّل عند أول فتح فقط
 const Modal = lazy(() => import('./HelpBookModal').then((m) => ({ default: m.HelpBookModal })));
@@ -19,9 +20,9 @@ export const HelpBookButton: React.FC<{ variant?: 'secondary' | 'quiet'; iconOnl
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant={variant} icon={iconOnly} title="كتاب التعليمات" onClick={() => setOpen(true)}>
+      <Button variant={variant} icon={iconOnly} title={t('كتاب التعليمات')} onClick={() => setOpen(true)}>
         <BookOpen className="h-3.5 w-3.5 stroke-[1.5]" />
-        {!iconOnly && <span>كتاب التعليمات</span>}
+        {!iconOnly && <span>{t('كتاب التعليمات')}</span>}
       </Button>
       {open && <HelpBook onClose={() => setOpen(false)} />}
     </>

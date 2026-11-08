@@ -3,6 +3,7 @@ import { AlertTriangle, Download, Type } from 'lucide-react';
 import { type FontProject } from '../types/font';
 import { downloadBlob } from '../utils/download';
 import { buildFontBuffer, checkProject, fontFileName, toWoff2 } from '../utils/fontBuild';
+import { t } from '../i18n';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 
@@ -35,7 +36,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onClose, project }) =>
       }
       onClose();
     } catch {
-      setBuildError('تعذّر بناء ملف الخط. راجع المحارف وحاول من جديد.');
+      setBuildError(t('تعذّر بناء ملف الخط. راجع المحارف وحاول من جديد.'));
     } finally {
       setBuilding(false);
     }
@@ -45,7 +46,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onClose, project }) =>
 
   return (
     <Modal
-      title="تصدير الخط"
+      title={t('تصدير الخط')}
       icon={<Download className="h-4 w-4 stroke-[1.5]" />}
       onClose={onClose}
     >
@@ -60,17 +61,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onClose, project }) =>
               <h3 className="truncate font-mono text-sm font-bold text-ink">{fileName}</h3>
               <p className="text-xs text-ink-soft">
                 {format === 'woff2'
-                  ? 'WOFF2: مضغوط وخفيف لاستعماله في مواقع الويب'
-                  : 'OTF: ملف خط حقيقي جاهز للتثبيت والاستعمال في أي برنامج'}
+                  ? t('WOFF2: مضغوط وخفيف لاستعماله في مواقع الويب')
+                  : t('OTF: ملف خط حقيقي جاهز للتثبيت والاستعمال في أي برنامج')}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2" role="group" aria-label="صيغة التصدير">
+        <div className="grid grid-cols-2 gap-2" role="group" aria-label={t('صيغة التصدير')}>
           {([
-            ['otf', 'OTF', 'للتثبيت والبرامج'],
-            ['woff2', 'WOFF2', 'لمواقع الويب'],
+            ['otf', 'OTF', t('للتثبيت والبرامج')],
+            ['woff2', 'WOFF2', t('لمواقع الويب')],
           ] as const).map(([id, label, hint]) => (
             <button
               key={id}
@@ -90,16 +91,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onClose, project }) =>
         {/* تنبيهات وأخطاء الفحص */}
         {(hasErrors || report.warnings.length > 0 || buildError) && (
           <div role="alert" className="space-y-2 rounded-2xl border border-ink/20 bg-paper p-3.5 text-xs leading-relaxed">
-            {[...report.errors, ...(buildError ? [buildError] : [])].map((t) => (
-              <p key={t} className="flex items-start gap-2 text-rose-700">
+            {[...report.errors, ...(buildError ? [buildError] : [])].map((msg) => (
+              <p key={msg} className="flex items-start gap-2 text-rose-700">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 stroke-[1.5]" />
-                <span>{t}</span>
+                <span>{msg}</span>
               </p>
             ))}
-            {report.warnings.map((t) => (
-              <p key={t} className="flex items-start gap-2 text-ink-soft">
+            {report.warnings.map((msg) => (
+              <p key={msg} className="flex items-start gap-2 text-ink-soft">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ink/40" />
-                <span>{t}</span>
+                <span>{msg}</span>
               </p>
             ))}
           </div>
@@ -108,7 +109,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onClose, project }) =>
         {/* زر التصدير */}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="quiet" onClick={onClose}>
-            إلغاء
+            {t('إلغاء')}
           </Button>
           <Button
             variant="primary"
@@ -116,7 +117,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onClose, project }) =>
             onClick={downloadFont}
           >
             <Download className="h-4 w-4 stroke-[1.5]" />
-            <span>{building ? 'جارٍ بناء الخط...' : 'تصدير الخط'}</span>
+            <span>{building ? t('جارٍ بناء الخط...') : t('تصدير الخط')}</span>
           </Button>
         </div>
       </div>

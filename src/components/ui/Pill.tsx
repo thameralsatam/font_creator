@@ -1,8 +1,9 @@
 import React from 'react';
+import { t } from '../../i18n';
 
 /** رقم الإصدار: كبسولة موحّدة. */
 export const VersionPill: React.FC<{ version: string; className?: string }> = ({ version, className = '' }) => (
-  <span dir="ltr" title={`الإصدار ${version}`} className={`chip chip-solid font-mono ${className}`}>
+  <span dir="ltr" title={`${t('الإصدار')} ${version}`} className={`chip chip-solid font-mono ${className}`}>
     v{version}
   </span>
 );

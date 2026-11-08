@@ -1,4 +1,5 @@
 import { type FontProject } from '../types/font';
+import { t } from '../i18n';
 
 const STORAGE_KEY = 'font-studio:projects:v1';
 
@@ -138,10 +139,10 @@ export function projectsSize(projects: FontProject[]): number {
 }
 
 export function formatBytes(n: number): string {
-  if (n < 1024) return `${n} بايت`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} ك.ب`;
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} م.ب`;
-  return `${(n / 1024 / 1024 / 1024).toFixed(1)} ج.ب`;
+  if (n < 1024) return `${n} ${t('بايت')}`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} ${t('ك.ب')}`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} ${t('م.ب')}`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(1)} ${t('ج.ب')}`;
 }
 
 /* ============================================================

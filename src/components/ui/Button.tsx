@@ -1,5 +1,6 @@
 import React from 'react';
 import { useHelp } from '../help/HelpContext';
+import { t } from '../../i18n';
 
 /*
   قواعد استعمال الزر في كل المشروع:
@@ -62,7 +63,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={(disabled && !helping) || (soon && !helping)}
         onClick={helping ? () => help.show(helpId!) : onClick}
         aria-pressed={active}
-        title={soon ? (title ? `${title} (قريباً)` : 'قريباً') : title}
+        title={soon ? (title ? `${title} ${t('(قريباً)')}` : t('قريباً')) : title}
         {...rest}
       >
         {children}

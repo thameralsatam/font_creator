@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { type FontProject } from '../types/font';
 import { importFontBuffer } from '../utils/fontBuild';
+import { t, tn } from '../i18n';
 import { Button } from './ui/Button';
 import { Modal, ModalActions } from './ui/Modal';
 
@@ -19,20 +20,20 @@ export const ImportFontButton: React.FC<{ onImport: (project: FontProject) => vo
   const pick = async (file: File | undefined) => {
     if (!file) return;
     if (file.size > MAX_BYTES) {
-      setResult({ title: 'ملف كبير', lines: ['حجم الملف أكبر من 8 ميغابايت، وهو أكبر مما يتسع له التخزين المحلي.'] });
+      setResult({ title: t('ملف كبير'), lines: [t('حجم الملف أكبر من 8 ميغابايت، وهو أكبر مما يتسع له التخزين المحلي.')] });
       return;
     }
     setBusy(true);
     try {
       const r = await importFontBuffer(await file.arrayBuffer(), file.name);
       if (r.imported === 0) {
-        setResult({ title: 'لم يُستورد شيء', lines: ['لا توجد محارف صالحة في هذا الخط.', ...r.notes] });
+        setResult({ title: t('لم يُستورد شيء'), lines: [t('لا توجد محارف صالحة في هذا الخط.'), ...r.notes] });
       } else {
         onImport(r.project);
-        setResult({ title: `تم استيراد ${r.imported} محرف`, lines: r.notes });
+        setResult({ title: tn(r.imported, 'تم استيراد {n} محرف', { one: '{n} Glyphe importiert', other: '{n} Glyphen importiert' }), lines: r.notes });
       }
     } catch (e) {
-      setResult({ title: 'تعذّر الاستيراد', lines: [e instanceof Error ? e.message : 'خطأ غير معروف.'] });
+      setResult({ title: t('تعذّر الاستيراد'), lines: [e instanceof Error ? e.message : t('خطأ غير معروف.')] });
     } finally {
       setBusy(false);
       if (input.current) input.current.value = '';
@@ -50,12 +51,12 @@ export const ImportFontButton: React.FC<{ onImport: (project: FontProject) => vo
       />
       <Button
         icon={iconOnly}
-        title={busy ? 'جارٍ قراءة الخط' : 'استيراد خط OTF أو TTF كمشروع جديد'}
+        title={busy ? t('جارٍ قراءة الخط') : t('استيراد خط OTF أو TTF كمشروع جديد')}
         disabled={busy}
         onClick={() => input.current?.click()}
       >
         <Upload className="h-3.5 w-3.5 stroke-[1.5]" />
-        {!iconOnly && <span>{busy ? 'جارٍ القراءة' : 'استيراد خط'}</span>}
+        {!iconOnly && <span>{busy ? t('جارٍ القراءة') : t('استيراد خط')}</span>}
       </Button>
       {result && (
         <Modal title={result.title} size="sm" onClose={() => setResult(null)}>
@@ -65,7 +66,7 @@ export const ImportFontButton: React.FC<{ onImport: (project: FontProject) => vo
             ))}
           </ul>
           <ModalActions>
-            <Button variant="primary" onClick={() => setResult(null)}>حسناً</Button>
+            <Button variant="primary" onClick={() => setResult(null)}>{t('حسناً')}</Button>
           </ModalActions>
         </Modal>
       )}

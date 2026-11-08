@@ -1,5 +1,6 @@
 import { type FontMetrics, type FontProject, type Glyph, type NewGlyphData } from '../types/font';
 import { computeFeatures, rulesToFea } from './features';
+import { t } from '../i18n';
 
 export const DEFAULT_METRICS: FontMetrics = {
   upm: 1000,
@@ -23,7 +24,7 @@ export function createProject(
   return {
     id: uid('font'),
     name: name.trim(),
-    designer: designer.trim() || 'المصمم',
+    designer: designer.trim() || t('المصمم'),
     version: '1.0.0',
     description: description.trim(),
     createdAt: now,
@@ -67,21 +68,21 @@ export function validateNewGlyph(
   data: NewGlyphData
 ): string | null {
   // الفراغ محرف صالح، فلا نرفض النص المكوّن من مسافة فقط
-  if (!data.char) return 'اكتب المحرف أو الرمز.';
+  if (!data.char) return t('اكتب المحرف أو الرمز.');
   if (!/^[A-Za-z_][A-Za-z0-9._-]*$/.test(data.name)) {
-    return 'اسم المحرف يبدأ بحرف لاتيني ويحوي حروفاً لاتينية وأرقاماً ونقطة وشرطة فقط.';
+    return t('اسم المحرف يبدأ بحرف لاتيني ويحوي حروفاً لاتينية وأرقاماً ونقطة وشرطة فقط.');
   }
   if (data.unicode && !/^U\+[0-9A-F]{4,6}$/i.test(data.unicode)) {
-    return 'صيغة اليونيكود غير صحيحة. مثال صحيح: U+0628';
+    return t('صيغة اليونيكود غير صحيحة. مثال صحيح: U+0628');
   }
   if (existing.some((g) => g.name === data.name)) {
-    return 'يوجد محرف بنفس الاسم في هذا المشروع.';
+    return t('يوجد محرف بنفس الاسم في هذا المشروع.');
   }
   if (
     data.unicode &&
     existing.some((g) => g.unicode.toUpperCase() === data.unicode.toUpperCase())
   ) {
-    return 'يوجد محرف بنفس نقطة اليونيكود في هذا المشروع.';
+    return t('يوجد محرف بنفس نقطة اليونيكود في هذا المشروع.');
   }
   return null;
 }
@@ -94,19 +95,19 @@ export function validateMetrics(metrics: FontMetrics): {
   const errors: string[] = [];
 
   if (metrics.upm < 100 || metrics.upm > 4096) {
-    errors.push('مقياس UPM يجب أن يكون بين 100 و 4096 وحدة.');
+    errors.push(t('مقياس UPM يجب أن يكون بين 100 و 4096 وحدة.'));
   }
   if (metrics.ascender <= 0) {
-    errors.push('ارتفاع الصاعد يجب أن يكون أعلى من خط الأساس.');
+    errors.push(t('ارتفاع الصاعد يجب أن يكون أعلى من خط الأساس.'));
   }
   if (metrics.descender >= 0) {
-    errors.push('عمق الهابط يجب أن يكون قيمة سالبة تحت خط الأساس.');
+    errors.push(t('عمق الهابط يجب أن يكون قيمة سالبة تحت خط الأساس.'));
   }
   if (metrics.capHeight > metrics.ascender) {
-    errors.push('ارتفاع الحروف الكبيرة لا يتجاوز الصاعد.');
+    errors.push(t('ارتفاع الحروف الكبيرة لا يتجاوز الصاعد.'));
   }
   if (metrics.xHeight > metrics.capHeight) {
-    errors.push('ارتفاع الحروف الصغيرة لا يتجاوز ارتفاع الحروف الكبيرة.');
+    errors.push(t('ارتفاع الحروف الصغيرة لا يتجاوز ارتفاع الحروف الكبيرة.'));
   }
 
   return { isValid: errors.length === 0, errors };
@@ -145,7 +146,7 @@ export function duplicateProject(
   const copy: FontProject = {
     ...structuredClone(target),
     id: uid('font'),
-    name: `${target.name} (نسخة)`,
+    name: t('{name} (نسخة)', { name: target.name }),
     createdAt: now,
     updatedAt: now,
   };
@@ -194,7 +195,7 @@ ${f.code.split('\n').map((line) => `    ${line}`).join('\n')}
     .join('\n\n');
 
   const auto = rulesToFea(computeFeatures(project.glyphs));
-  return header + [auto && `# --- مستخرجة تلقائياً من أسماء المحارف ---\n${auto}`, features].filter(Boolean).join('\n\n');
+  return header + [auto && `${t('# --- مستخرجة تلقائياً من أسماء المحارف ---')}\n${auto}`, features].filter(Boolean).join('\n\n');
 }
 
 export function exportProjectJSON(project: FontProject): string {

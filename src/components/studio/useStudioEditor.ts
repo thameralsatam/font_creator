@@ -1,4 +1,5 @@
 import { roundCorners, removeRedundant } from '../../utils/pathOps';
+import { t } from '../../i18n';
 import { booleanContours, type BoolOp } from '../../utils/pathBool';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Contour, type FontMetrics, type Glyph, type Vec } from '../../types/font';
@@ -162,20 +163,20 @@ const PEN_DRAG_PX = 5;
 const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 
 export const MSG = {
-  maxNodes: `وصل المحرف إلى الحد الأقصى من النقاط (${LIMITS.maxNodes}).`,
-  maxContours: `وصل المحرف إلى الحد الأقصى من المسارات (${LIMITS.maxContours}).`,
-  needThree: 'يلزم ثلاث نقاط على الأقل لإغلاق المسار.',
-  needSelection: 'حدد نقطة أو أكثر أولاً.',
-  outOfRange: 'التحويل سيُخرج الرسم عن الحدود المسموحة للمحرف.',
-  noDrawing: 'لا يوجد رسم في هذا المحرف.',
-  badMetric: 'القيمة تُخرج الرسم أو العرض عن الحدود المسموحة.',
-  noOpenPath: 'لا يوجد مسار مفتوح بثلاث نقاط أو أكثر ليُغلق.',
-  needOneClosed: 'حدد نقطة واحدة على مسار مغلق لفتحه عندها.',
-  dirsOk: 'اتجاه كل المسارات صحيح، لا حاجة لتغيير.',
-  alignFail: 'لا مسارات للمحاذاة، أو ستخرج عن حدود المحرف.',
-  distributeFail: 'التوزيع يحتاج ثلاثة مسارات على الأقل، أو يُخرج الرسم عن الحدود.',
-  badValue: 'أدخل أرقاماً صالحة: النسبة أكبر من صفر.',
-  cannotDuplicate: 'التكرار يتجاوز حدود النقاط أو المسارات أو مساحة المحرف.',
+  maxNodes: t('وصل المحرف إلى الحد الأقصى من النقاط ({n}).', { n: LIMITS.maxNodes }),
+  maxContours: t('وصل المحرف إلى الحد الأقصى من المسارات ({n}).', { n: LIMITS.maxContours }),
+  needThree: t('يلزم ثلاث نقاط على الأقل لإغلاق المسار.'),
+  needSelection: t('حدد نقطة أو أكثر أولاً.'),
+  outOfRange: t('التحويل سيُخرج الرسم عن الحدود المسموحة للمحرف.'),
+  noDrawing: t('لا يوجد رسم في هذا المحرف.'),
+  badMetric: t('القيمة تُخرج الرسم أو العرض عن الحدود المسموحة.'),
+  noOpenPath: t('لا يوجد مسار مفتوح بثلاث نقاط أو أكثر ليُغلق.'),
+  needOneClosed: t('حدد نقطة واحدة على مسار مغلق لفتحه عندها.'),
+  dirsOk: t('اتجاه كل المسارات صحيح، لا حاجة لتغيير.'),
+  alignFail: t('لا مسارات للمحاذاة، أو ستخرج عن حدود المحرف.'),
+  distributeFail: t('التوزيع يحتاج ثلاثة مسارات على الأقل، أو يُخرج الرسم عن الحدود.'),
+  badValue: t('أدخل أرقاماً صالحة: النسبة أكبر من صفر.'),
+  cannotDuplicate: t('التكرار يتجاوز حدود النقاط أو المسارات أو مساحة المحرف.'),
 } as const;
 
 /**
@@ -1015,29 +1016,29 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     const one = next.find((c, i) => c !== before[i]);
     flash(
       n === 1 && one && one.closed && one.nodes.length >= 3
-        ? `انعكس اتجاه المسار، وهو الآن ${signedArea(one) > 0 ? 'عكس' : 'مع'} عقارب الساعة.`
-        : `انعكس اتجاه ${n} مسار.`
+        ? signedArea(one) > 0 ? t('انعكس اتجاه المسار، وهو الآن عكس عقارب الساعة.') : t('انعكس اتجاه المسار، وهو الآن مع عقارب الساعة.')
+        : t('انعكس اتجاه {n} مسار.', { n })
     );
   };
 
   /** تقريب الزوايا الحادة في المحدد بنصف قطر معطى. */
   const roundSelected = (radius: number) => {
     const sel = liveSelection();
-    if (sel.size === 0) return flash('حدّد الزوايا التي تريد تقريبها أولاً.');
+    if (sel.size === 0) return flash(t('حدّد الزوايا التي تريد تقريبها أولاً.'));
     const r = roundCorners(work.current.contours, sel, Math.max(1, radius));
-    if (r.count === 0) return flash('لا توجد في التحديد زاوية حادة ضلعاها مستقيمان.');
+    if (r.count === 0) return flash(t('لا توجد في التحديد زاوية حادة ضلعاها مستقيمان.'));
     if (countNodes(r.contours) > LIMITS.maxNodes) return flash(MSG.maxNodes);
     commit({ contours: r.contours });
     setSelection(new Set(r.newIds));
-    flash(`قُرّبت ${r.count} زاوية.`);
+    flash(t('قُرّبت {n} زاوية.', { n: r.count }));
   };
 
   /** حذف النقاط الزائدة في المحدد (أو في المحرف كله إن لم يوجد تحديد). */
   const simplifyPaths = () => {
     const r = removeRedundant(work.current.contours, liveSelection());
-    if (r.removed === 0) return flash('لا توجد نقاط زائدة.');
+    if (r.removed === 0) return flash(t('لا توجد نقاط زائدة.'));
     commit({ contours: r.contours });
-    flash(`حُذفت ${r.removed} نقطة زائدة.`);
+    flash(t('حُذفت {n} نقطة زائدة.', { n: r.removed }));
   };
 
   /** دمج أو طرح أو تقاطع المسارات المغلقة المحددة. الأول في الترتيب هو الأساس. */
@@ -1045,11 +1046,11 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     const before = work.current.contours;
     const picked = new Set(selectedContours().map((c) => c.id));
     const shapes = before.filter((c) => picked.has(c.id) && c.closed && c.nodes.length >= 3);
-    if (shapes.length < 2) return flash('حدّد مسارين مغلقين على الأقل (بنقطة من كل واحد).');
-    flash('جارٍ التنفيذ...');
+    if (shapes.length < 2) return flash(t('حدّد مسارين مغلقين على الأقل (بنقطة من كل واحد).'));
+    flash(t('جارٍ التنفيذ...'));
     const res = await booleanContours(shapes, op);
-    if (work.current.contours !== before) return flash('تغيّر الرسم أثناء العملية، أعد المحاولة.');
-    if (!res) return flash(op === 'intersect' ? 'لا يوجد تقاطع بين المسارات.' : 'تعذّرت العملية على هذه المسارات.');
+    if (work.current.contours !== before) return flash(t('تغيّر الرسم أثناء العملية، أعد المحاولة.'));
+    if (!res) return flash(op === 'intersect' ? t('لا يوجد تقاطع بين المسارات.') : t('تعذّرت العملية على هذه المسارات.'));
     const at = before.findIndex((c) => picked.has(c.id) && shapes.includes(c));
     const rest = before.filter((c) => !shapes.includes(c));
     const next = [...rest.slice(0, at), ...res, ...rest.slice(at)];
@@ -1057,7 +1058,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     if (countNodes(next) > LIMITS.maxNodes) return flash(MSG.maxNodes);
     commit({ contours: fixDirections(next) });
     setSelection(allNodeIds(res));
-    flash(op === 'unite' ? 'تم الدمج.' : op === 'subtract' ? 'تم الطرح.' : 'تم أخذ التقاطع.');
+    flash(op === 'unite' ? t('تم الدمج.') : op === 'subtract' ? t('تم الطرح.') : t('تم أخذ التقاطع.'));
   };
 
   const autoDirection = () => {
@@ -1066,7 +1067,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     const n = wrongDirectionCount(before);
     if (n === 0) return flash(MSG.dirsOk);
     commit({ contours: fixDirections(before) });
-    flash(`صُحّح اتجاه ${n} مسار: الخارجي عكس عقارب الساعة والثقوب معها.`);
+    flash(t('صُحّح اتجاه {n} مسار: الخارجي عكس عقارب الساعة والثقوب معها.', { n }));
   };
 
   const closeSelected = () => {

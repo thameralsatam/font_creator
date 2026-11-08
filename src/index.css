@@ -41,7 +41,6 @@
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-weight: var(--weight-text);
-    direction: rtl;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
   }

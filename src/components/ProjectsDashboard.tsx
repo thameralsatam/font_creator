@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { t, tx } from '../i18n';
 import { BookOpen, Copy, FileText, FolderPlus, HardDrive, PenTool, Plus, Search, Settings2, Trash2 } from 'lucide-react';
 import { type FontProject } from '../types/font';
 import { resolveInfo } from '../utils/fontInfo';
@@ -11,6 +12,7 @@ import { backupDue, lastBackupTime } from '../utils/storage';
 import { uid } from '../utils/fontLogic';
 import { ImportFontButton } from './ImportFontButton';
 import { Button } from './ui/Button';
+import { LangButton } from './ui/LangButton';
 import { CardMenu } from './ui/CardMenu';
 import { Dropdown, MenuItem, MenuLabel } from './ui/Dropdown';
 import { Modal, ModalActions } from './ui/Modal';
@@ -45,18 +47,18 @@ const ProjectCard: React.FC<{
             <GlyphThumb key={g.id} glyph={g} metrics={project.metrics} className="h-8 w-8 sm:h-9 sm:w-9 shrink-0" />
           ))
         ) : (
-          <span className="text-[11px] text-ink-soft">لم يُرسم أي محرف بعد</span>
+          <span className="text-[11px] text-ink-soft">{t('لم يُرسم أي محرف بعد')}</span>
         )}
       </div>
 
       <div className="flex items-center gap-2 px-0.5">
         <h2 className="min-w-0 flex-1 truncate text-base sm:text-lg" title={project.name}>{project.name}</h2>
-        <CardMenu label="إجراءات المشروع">
+        <CardMenu label={t('إجراءات المشروع')}>
           {(close) => (
             <>
-              <MenuItem label="تعديل المعلومات" icon={<FileText className={icon} />} onClick={() => { close(); onEdit(project); }} />
-              <MenuItem label="نسخ المشروع" icon={<Copy className={icon} />} onClick={() => { close(); onDuplicate(project.id); }} />
-              <MenuItem label="حذف المشروع" icon={<Trash2 className={icon} />} onClick={() => { close(); onDelete(project); }} />
+              <MenuItem label={t('تعديل المعلومات')} icon={<FileText className={icon} />} onClick={() => { close(); onEdit(project); }} />
+              <MenuItem label={t('نسخ المشروع')} icon={<Copy className={icon} />} onClick={() => { close(); onDuplicate(project.id); }} />
+              <MenuItem label={t('حذف المشروع')} icon={<Trash2 className={icon} />} onClick={() => { close(); onDelete(project); }} />
             </>
           )}
         </CardMenu>
@@ -69,9 +71,9 @@ const ProjectCard: React.FC<{
       </div>
 
       <div className="flex items-center gap-1 border-t border-ink/10 pt-2 text-[10px] sm:text-[11px] text-ink-soft">
-        <span className="chip"><span className="font-mono">{drawn.length}</span> مكتمل</span>
-        <span className="chip chip-ghost"><span className="font-mono">{project.glyphs.length - drawn.length}</span> ناقص</span>
-        <span className="chip chip-ghost ms-auto"><span className="font-mono">{project.glyphs.length}</span> محرف</span>
+        <span className="chip">{tx('{n} مكتمل', { n: <span className="font-mono">{drawn.length}</span> })}</span>
+        <span className="chip chip-ghost">{tx('{n} ناقص', { n: <span className="font-mono">{project.glyphs.length - drawn.length}</span> })}</span>
+        <span className="chip chip-ghost ms-auto">{tx('{n} محرف', { n: <span className="font-mono">{project.glyphs.length}</span> })}</span>
       </div>
     </article>
   );
@@ -98,7 +100,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
   const needBackup = !remindHidden && !backedUp && backupDue(Date.now(), lastBackupTime(), projects.length > 0);
   const restore = (list: FontProject[]) =>
     list.forEach((p) =>
-      onImportProject(projects.some((x) => x.id === p.id) ? { ...p, id: uid('project'), name: `${p.name} (مستعاد)` } : p)
+      onImportProject(projects.some((x) => x.id === p.id) ? { ...p, id: uid('project'), name: t('{name} (مستعاد)', { name: p.name }) } : p)
     );
 
   const [newName, setNewName] = useState('');
@@ -136,17 +138,18 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
           <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-ink/20 bg-sand/30 sm:flex">
             <PenTool className="h-4 w-4 stroke-[1.5]" />
           </span>
-          <h1 className="truncate text-lg sm:text-2xl">مشاريع الخطوط</h1>
+          <h1 className="truncate text-lg sm:text-2xl">{t('مشاريع الخطوط')}</h1>
           {hasProjects && <CountChip value={projects.length} />}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          <LangButton />
           <ImportFontButton onImport={onImportProject} iconOnly />
-          <Dropdown label="الإعدادات" iconOnly framed icon={<Settings2 className={icon} />} placement="bottom" width={220}>
+          <Dropdown label={t('الإعدادات')} iconOnly framed icon={<Settings2 className={icon} />} placement="bottom" width={220}>
             {(close) => (
               <>
-                <MenuLabel>الموقع</MenuLabel>
+                <MenuLabel>{t('الموقع')}</MenuLabel>
                 <MenuItem
-                  label="كتاب التعليمات"
+                  label={t('كتاب التعليمات')}
                   icon={<BookOpen className={icon} />}
                   onClick={() => {
                     close();
@@ -154,7 +157,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
                   }}
                 />
                 <MenuItem
-                  label="التخزين"
+                  label={t('التخزين')}
                   icon={<HardDrive className={icon} />}
                   onClick={() => {
                     close();
@@ -165,7 +168,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
             )}
           </Dropdown>
           {hasProjects && (
-            <Button variant="primary" icon title="مشروع خط جديد" onClick={() => setShowCreate(true)}>
+            <Button variant="primary" icon title={t('مشروع خط جديد')} onClick={() => setShowCreate(true)}>
               <Plus className={icon} />
             </Button>
           )}
@@ -174,9 +177,9 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
 
       {hasProjects && needBackup && (
         <div role="status" className="flex flex-wrap items-center gap-2 rounded-2xl border border-ink/20 bg-sand/35 p-3 text-xs leading-6">
-          <span className="min-w-0 flex-1">مشاريعك محفوظة داخل المتصفح فقط. نزّل نسخة احتياطية حتى لا تضيع لو مُسحت بيانات الموقع.</span>
-          <Button variant="secondary" onClick={() => { downloadBackup(projects); setBackedUp(true); }}>تنزيل نسخة</Button>
-          <Button variant="quiet" onClick={() => setRemindHidden(true)}>لاحقًا</Button>
+          <span className="min-w-0 flex-1">{t('مشاريعك محفوظة داخل المتصفح فقط. نزّل نسخة احتياطية حتى لا تضيع لو مُسحت بيانات الموقع.')}</span>
+          <Button variant="secondary" onClick={() => { downloadBackup(projects); setBackedUp(true); }}>{t('تنزيل نسخة')}</Button>
+          <Button variant="quiet" onClick={() => setRemindHidden(true)}>{t('لاحقًا')}</Button>
         </div>
       )}
 
@@ -188,14 +191,14 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="ابحث باسم الخط أو المصمم أو الوصف"
-              aria-label="بحث في المشاريع"
+              placeholder={t('ابحث باسم الخط أو المصمم أو الوصف')}
+              aria-label={t('بحث في المشاريع')}
               className="field ps-9"
             />
           </div>
 
           {filtered.length === 0 ? (
-            <p className="py-10 text-center text-sm text-ink-soft">لا توجد مشاريع تطابق بحثك.</p>
+            <p className="py-10 text-center text-sm text-ink-soft">{t('لا توجد مشاريع تطابق بحثك.')}</p>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filtered.map((project) => (
@@ -216,13 +219,13 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-ink/20 bg-sand/35">
             <FolderPlus className="h-6 w-6 stroke-[1.5]" />
           </div>
-          <h2 className="mb-2 text-xl">لا توجد مشاريع خطوط حتى الآن</h2>
+          <h2 className="mb-2 text-xl">{t('لا توجد مشاريع خطوط حتى الآن')}</h2>
           <p className="mb-6 max-w-md text-xs leading-relaxed text-ink-soft sm:text-sm">
-            ابدأ مشروع خطك الأول، ثم ارسم المحارف واضبط المقاييس وابنِ منها خطاً حقيقياً.
+            {t('ابدأ مشروع خطك الأول، ثم ارسم المحارف واضبط المقاييس وابنِ منها خطاً حقيقياً.')}
           </p>
           <Button variant="primary" onClick={() => setShowCreate(true)}>
             <Plus className={icon} />
-            <span>إنشاء مشروع خط جديد</span>
+            <span>{t('إنشاء مشروع خط جديد')}</span>
           </Button>
         </div>
       )}
@@ -231,44 +234,44 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
       {showStorage && <StorageModal projects={projects} onRestore={restore} onClose={() => setShowStorage(false)} />}
 
       {showCreate && (
-        <Modal title="إنشاء مشروع خط جديد" onClose={closeCreate}>
+        <Modal title={t('إنشاء مشروع خط جديد')} onClose={closeCreate}>
           <form onSubmit={submitCreate} className="space-y-3.5">
             <div>
-              <label htmlFor="new-name" className="mb-1 block text-xs text-ink-soft">اسم الخط</label>
+              <label htmlFor="new-name" className="mb-1 block text-xs text-ink-soft">{t('اسم الخط')}</label>
               <input
                 id="new-name"
                 autoFocus
                 required
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="مثال: خط الياقوت"
+                placeholder={t('مثال: خط الياقوت')}
                 className="field"
               />
             </div>
             <div>
-              <label htmlFor="new-designer" className="mb-1 block text-xs text-ink-soft">المصمم أو الاستوديو</label>
+              <label htmlFor="new-designer" className="mb-1 block text-xs text-ink-soft">{t('المصمم أو الاستوديو')}</label>
               <input
                 id="new-designer"
                 value={newDesigner}
                 onChange={(e) => setNewDesigner(e.target.value)}
-                placeholder="المصمم"
+                placeholder={t('المصمم')}
                 className="field"
               />
             </div>
             <div>
-              <label htmlFor="new-desc" className="mb-1 block text-xs text-ink-soft">وصف مختصر</label>
+              <label htmlFor="new-desc" className="mb-1 block text-xs text-ink-soft">{t('وصف مختصر')}</label>
               <textarea
                 id="new-desc"
                 rows={3}
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
-                placeholder="خط نصي وعناوين بهندسة متزنة"
+                placeholder={t('خط نصي وعناوين بهندسة متزنة')}
                 className="field"
               />
             </div>
             <ModalActions>
-              <Button onClick={closeCreate}>إلغاء</Button>
-              <Button type="submit" variant="primary">بدء المشروع</Button>
+              <Button onClick={closeCreate}>{t('إلغاء')}</Button>
+              <Button type="submit" variant="primary">{t('بدء المشروع')}</Button>
             </ModalActions>
           </form>
         </Modal>
@@ -283,12 +286,12 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
       )}
 
       {deleting && (
-        <Modal title="تأكيد حذف المشروع" size="sm" onClose={() => setDeleting(null)}>
+        <Modal title={t('تأكيد حذف المشروع')} size="sm" onClose={() => setDeleting(null)}>
           <p className="text-xs leading-relaxed text-ink-soft">
-            سيُحذف «{deleting.name}» نهائياً مع كل ما رُسم فيه من محارف، ولا يمكن استرجاعه.
+            {t('سيُحذف «{name}» نهائياً مع كل ما رُسم فيه من محارف، ولا يمكن استرجاعه.', { name: deleting.name })}
           </p>
           <ModalActions>
-            <Button onClick={() => setDeleting(null)}>تراجع</Button>
+            <Button onClick={() => setDeleting(null)}>{t('تراجع')}</Button>
             <Button
               variant="primary"
               onClick={() => {
@@ -296,7 +299,7 @@ export const ProjectsDashboard: React.FC<ProjectsDashboardProps> = ({
                 setDeleting(null);
               }}
             >
-              تأكيد الحذف
+              {t('تأكيد الحذف')}
             </Button>
           </ModalActions>
         </Modal>

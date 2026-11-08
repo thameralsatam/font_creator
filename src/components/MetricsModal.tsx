@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AlertCircle, Sliders } from 'lucide-react';
 import { type FontMetrics, type FontProject } from '../types/font';
 import { validateMetrics } from '../utils/fontLogic';
+import { t } from '../i18n';
 import { Button } from './ui/Button';
 import { Modal, ModalActions } from './ui/Modal';
 
@@ -13,11 +14,11 @@ interface MetricsModalProps {
 }
 
 const FIELDS: Array<{ key: keyof FontMetrics; label: string }> = [
-  { key: 'ascender', label: 'الصاعد' },
-  { key: 'capHeight', label: 'ارتفاع الحروف الكبيرة' },
-  { key: 'xHeight', label: 'ارتفاع الحروف الصغيرة' },
-  { key: 'descender', label: 'الهابط' },
-  { key: 'upm', label: 'مقياس مربع الخط (UPM)' },
+  { key: 'ascender', label: t('الصاعد') },
+  { key: 'capHeight', label: t('ارتفاع الحروف الكبيرة') },
+  { key: 'xHeight', label: t('ارتفاع الحروف الصغيرة') },
+  { key: 'descender', label: t('الهابط') },
+  { key: 'upm', label: t('مقياس مربع الخط (UPM)') },
 ];
 
 export const MetricsModal: React.FC<MetricsModalProps> = ({ onClose, project, onSave }) => {
@@ -43,7 +44,7 @@ export const MetricsModal: React.FC<MetricsModalProps> = ({ onClose, project, on
   );
   const validation = validateMetrics(parsed);
   const errors = hasBadNumber
-    ? ['كل المقاييس يجب أن تكون أعداداً صحيحة.']
+    ? [t('كل المقاييس يجب أن تكون أعداداً صحيحة.')]
     : validation.errors;
   const canSave = !hasBadNumber && validation.isValid;
 
@@ -56,8 +57,8 @@ export const MetricsModal: React.FC<MetricsModalProps> = ({ onClose, project, on
 
   return (
     <Modal
-      title="مقاييس الخط"
-      subtitle="الأبعاد الرأسية لمربع الخط"
+      title={t('مقاييس الخط')}
+      subtitle={t('الأبعاد الرأسية لمربع الخط')}
       icon={<Sliders className="h-4 w-4 stroke-[1.5]" />}
       size="lg"
       onClose={onClose}
@@ -79,8 +80,8 @@ export const MetricsModal: React.FC<MetricsModalProps> = ({ onClose, project, on
               </div>
             ))}
             <div className="rounded-2xl border border-ink/10 bg-ink/5 p-2.5">
-              <span className="block text-[11px] text-ink-soft">خط الأساس</span>
-              <span className="mt-1 block py-0.5 font-mono text-xs text-ink-soft">0 (ثابت)</span>
+              <span className="block text-[11px] text-ink-soft">{t('خط الأساس')}</span>
+              <span className="mt-1 block py-0.5 font-mono text-xs text-ink-soft">{t('0 (ثابت)')}</span>
             </div>
           </div>
         </div>
@@ -89,7 +90,7 @@ export const MetricsModal: React.FC<MetricsModalProps> = ({ onClose, project, on
           <div role="alert" className="space-y-1 rounded-2xl border border-ink/20 bg-sand/30 p-3 text-xs">
             <div className="flex items-center gap-1.5">
               <AlertCircle className="h-3.5 w-3.5 stroke-[1.5]" />
-              <span>يرجى مراجعة تناسق المقاييس:</span>
+              <span>{t('يرجى مراجعة تناسق المقاييس:')}</span>
             </div>
             <ul className="list-inside list-disc space-y-0.5 text-[11px]">
               {errors.map((err) => (
@@ -100,9 +101,9 @@ export const MetricsModal: React.FC<MetricsModalProps> = ({ onClose, project, on
         )}
 
         <ModalActions>
-          <Button onClick={onClose}>إلغاء</Button>
+          <Button onClick={onClose}>{t('إلغاء')}</Button>
           <Button type="submit" variant="primary" disabled={!canSave}>
-            حفظ المقاييس
+            {t('حفظ المقاييس')}
           </Button>
         </ModalActions>
       </form>

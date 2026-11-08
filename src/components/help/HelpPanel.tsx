@@ -2,6 +2,7 @@ import React from 'react';
 import { BookOpen, X } from 'lucide-react';
 import { STUDIO_HELP } from '../../help/studioHelp';
 import { useHelp } from './HelpContext';
+import { t } from '../../i18n';
 
 /** بطاقة الشرح العائمة في وضع التعليمات. */
 export const HelpPanel: React.FC<{ onOpenBook: () => void }> = ({ onOpenBook }) => {
@@ -20,7 +21,7 @@ export const HelpPanel: React.FC<{ onOpenBook: () => void }> = ({ onOpenBook }) 
         <h3 className="text-sm">{topic.title}</h3>
         <button
           type="button"
-          title="إغلاق الشرح"
+          title={t('إغلاق الشرح')}
           className="btn btn-quiet btn-icon relative z-10 shrink-0"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => help.show(null)}
@@ -29,13 +30,13 @@ export const HelpPanel: React.FC<{ onOpenBook: () => void }> = ({ onOpenBook }) 
         </button>
       </div>
       <div className="mt-2 space-y-2 text-xs leading-6 text-ink-soft">
-        {topic.body.map((t) => (
-          <p key={t}>{t}</p>
+        {topic.body.map((line) => (
+          <p key={line}>{line}</p>
         ))}
       </div>
       {topic.keys && (
         <p className="mt-2 text-[11px] text-ink-soft">
-          الاختصار: <span dir="ltr" className="font-mono text-ink">{topic.keys}</span>
+          {t('الاختصار:')} <span dir="ltr" className="font-mono text-ink">{topic.keys}</span>
         </p>
       )}
       <button
@@ -44,7 +45,7 @@ export const HelpPanel: React.FC<{ onOpenBook: () => void }> = ({ onOpenBook }) 
         onClick={onOpenBook}
       >
         <BookOpen className="h-3.5 w-3.5 stroke-[1.5]" />
-        افتح كتاب التعليمات
+        {t('افتح كتاب التعليمات')}
       </button>
     </div>
   );

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ChevronDown, Layers } from 'lucide-react';
 import { type Glyph, type NewGlyphData } from '../types/font';
 import { PRESETS, missingOf } from '../utils/presets';
+import { t, tn } from '../i18n';
 import { Button } from './ui/Button';
 import { Modal, ModalActions } from './ui/Modal';
 
@@ -38,8 +39,8 @@ export const PresetModal: React.FC<PresetModalProps> = ({ existing, onAdd, onClo
 
   return (
     <Modal
-      title="محارف جاهزة"
-      subtitle="اختر مجموعة كاملة أو افتحها واختر محارف بعينها. تُضاف فارغة لترسمها"
+      title={t('محارف جاهزة')}
+      subtitle={t('اختر مجموعة كاملة أو افتحها واختر محارف بعينها. تُضاف فارغة لترسمها')}
       icon={<Layers className="h-4 w-4 stroke-[1.5]" />}
       size="lg"
       onClose={onClose}
@@ -67,14 +68,14 @@ export const PresetModal: React.FC<PresetModalProps> = ({ existing, onAdd, onClo
                   </span>
                 </button>
                 <span className="chip chip-ghost shrink-0 font-mono">
-                  {done ? 'مضافة' : `${chosen}/${fresh.length}`}
+                  {done ? t('مضافة') : `${chosen}/${fresh.length}`}
                 </span>
                 {!done && (
                   <Button
                     variant={all ? 'primary' : 'secondary'}
                     onClick={() => flip(fresh.map((g) => g.name), !all)}
                   >
-                    {all ? 'إلغاء الكل' : 'الكل'}
+                    {all ? t('إلغاء الكل') : t('الكل')}
                   </Button>
                 )}
               </div>
@@ -107,9 +108,9 @@ export const PresetModal: React.FC<PresetModalProps> = ({ existing, onAdd, onClo
         })}
       </div>
       <ModalActions>
-        <Button onClick={onClose}>إلغاء</Button>
+        <Button onClick={onClose}>{t('إلغاء')}</Button>
         <Button variant="primary" disabled={picked.size === 0} onClick={submit}>
-          {picked.size === 0 ? 'إضافة' : `إضافة ${picked.size} محرف`}
+          {picked.size === 0 ? t('إضافة') : tn(picked.size, 'إضافة {n} محرف', { one: '{n} Glyphe hinzufügen', other: '{n} Glyphen hinzufügen' })}
         </Button>
       </ModalActions>
     </Modal>

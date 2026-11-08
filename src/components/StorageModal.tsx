@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { t } from '../i18n';
 import { Download, HardDrive, ShieldCheck, Upload } from 'lucide-react';
 import { type FontProject } from '../types/font';
 import { type StorageInfo, backupJson, formatBytes, getStorageInfo, markBackupDone, parseBackup, projectsSize, requestPersistence } from '../utils/storage';
@@ -30,9 +31,9 @@ export const StorageModal: React.FC<{ projects: FontProject[]; onRestore: (list:
     e.target.value = '';
     if (!f) return;
     const list = parseBackup(await f.text());
-    if (!list) return setMsg('الملف ليس نسخة احتياطية صالحة.');
+    if (!list) return setMsg(t('الملف ليس نسخة احتياطية صالحة.'));
     onRestore(list);
-    setMsg(`أُضيف ${list.length} مشروع من النسخة (كنسخ جديدة، ولم يُستبدل شيء).`);
+    setMsg(t('أُضيف {n} مشروع من النسخة (كنسخ جديدة، ولم يُستبدل شيء).', { n: list.length }));
   };
   const mine = projectsSize(projects);
 
@@ -52,23 +53,23 @@ export const StorageModal: React.FC<{ projects: FontProject[]; onRestore: (list:
 
   return (
     <Modal
-      title="التخزين"
-      subtitle="أين تُحفظ مشاريعك وكم تستهلك"
+      title={t('التخزين')}
+      subtitle={t('أين تُحفظ مشاريعك وكم تستهلك')}
       icon={<HardDrive className="h-4 w-4 stroke-[1.5]" />}
       size="sm"
       onClose={onClose}
     >
       <div className="mt-3 space-y-3 text-sm">
         <div className="plate p-3.5">
-          <Row label="مشاريعك" value={formatBytes(mine)} />
-          <Row label="كل بيانات الموقع" value={info?.usage != null ? formatBytes(info.usage) : '—'} />
-          <Row label="الحد المسموح" value={info?.quota != null ? formatBytes(info.quota) : '—'} />
+          <Row label={t('مشاريعك')} value={formatBytes(mine)} />
+          <Row label={t('كل بيانات الموقع')} value={info?.usage != null ? formatBytes(info.usage) : '—'} />
+          <Row label={t('الحد المسموح')} value={info?.quota != null ? formatBytes(info.quota) : '—'} />
           {ratio !== null && <Progress value={Math.round(ratio * 1000)} max={1000} className="mt-2" />}
         </div>
 
         {ratio !== null && ratio > 0.8 && (
           <p className="rounded-2xl border border-ink/20 p-3 text-xs leading-6">
-            المساحة قاربت على الامتلاء. صدّر خطوطك واحذف ما لا تحتاجه.
+            {t('المساحة قاربت على الامتلاء. صدّر خطوطك واحذف ما لا تحتاجه.')}
           </p>
         )}
 
@@ -76,26 +77,26 @@ export const StorageModal: React.FC<{ projects: FontProject[]; onRestore: (list:
           <ShieldCheck className="h-4 w-4 shrink-0 stroke-[1.5]" />
           <span className="min-w-0 flex-1 text-xs leading-6">
             {info?.persisted === true
-              ? 'بياناتك محمية: المتصفح لن يمسحها تلقائياً.'
+              ? t('بياناتك محمية: المتصفح لن يمسحها تلقائياً.')
               : info?.persisted === false
-                ? 'بياناتك غير محمية من المسح التلقائي عند ضيق مساحة جهازك.'
-                : 'متصفحك لا يخبرنا بحالة الحماية.'}
+                ? t('بياناتك غير محمية من المسح التلقائي عند ضيق مساحة جهازك.')
+                : t('متصفحك لا يخبرنا بحالة الحماية.')}
           </span>
           {info?.persisted === false && (
-            <Button onClick={() => void protect()}>طلب الحماية</Button>
+            <Button onClick={() => void protect()}>{t('طلب الحماية')}</Button>
           )}
         </div>
 
         <div className="rounded-2xl border border-ink/15 p-3">
-          <p className="mb-2 text-xs leading-6">النسخة الاحتياطية ملف واحد يحمل كل مشاريعك. احتفظ به خارج المتصفح.</p>
+          <p className="mb-2 text-xs leading-6">{t('النسخة الاحتياطية ملف واحد يحمل كل مشاريعك. احتفظ به خارج المتصفح.')}</p>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" disabled={projects.length === 0} onClick={() => { downloadBackup(projects); setMsg('نُزّلت النسخة الاحتياطية.'); }}>
+            <Button variant="secondary" disabled={projects.length === 0} onClick={() => { downloadBackup(projects); setMsg(t('نُزّلت النسخة الاحتياطية.')); }}>
               <Download className="h-4 w-4 stroke-[1.5]" />
-              <span>تنزيل نسخة احتياطية</span>
+              <span>{t('تنزيل نسخة احتياطية')}</span>
             </Button>
             <Button onClick={() => fileRef.current?.click()}>
               <Upload className="h-4 w-4 stroke-[1.5]" />
-              <span>استعادة من نسخة</span>
+              <span>{t('استعادة من نسخة')}</span>
             </Button>
           </div>
           <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void restore(e)} />
@@ -103,8 +104,7 @@ export const StorageModal: React.FC<{ projects: FontProject[]; onRestore: (list:
         </div>
 
         <p className="text-xs leading-6 text-ink-soft">
-          المشاريع تُحفظ داخل متصفحك فقط. مسح بيانات الموقع من إعدادات المتصفح يحذفها. للأمان صدّر
-          خطك من وقت لآخر، فملف الخط يحمل رسمك وقواعدك ويمكن استيراده لاحقاً.
+          {t('المشاريع تُحفظ داخل متصفحك فقط. مسح بيانات الموقع من إعدادات المتصفح يحذفها. للأمان صدّر خطك من وقت لآخر، فملف الخط يحمل رسمك وقواعدك ويمكن استيراده لاحقاً.')}
         </p>
       </div>
     </Modal>

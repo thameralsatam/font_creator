@@ -1,3 +1,4 @@
+import { isRtl } from '../../i18n';
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreHorizontal } from 'lucide-react';
@@ -101,7 +102,7 @@ export const CardMenu: React.FC<{
         createPortal(
           <div
             ref={panelRef}
-            dir="rtl"
+            dir={isRtl() ? 'rtl' : 'ltr'}
             style={{
               position: 'fixed',
               left: pos.left,

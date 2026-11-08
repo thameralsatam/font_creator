@@ -9,6 +9,7 @@ import { ExportModal } from './components/ExportModal';
 import { useProjects } from './state/useProjects';
 import { type FontMetrics, type NewGlyphData } from './types/font';
 import { createGlyph } from './utils/fontLogic';
+import { t } from './i18n';
 import { applyGlyphMeta, duplicateGlyph, type GlyphMeta } from './utils/glyphLogic';
 
 export type AppView = 'dashboard' | 'overview' | 'studio';
@@ -111,7 +112,7 @@ export default function App() {
   if (!store.ready) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper text-sm text-ink-soft">
-        جارٍ تحميل مشاريعك
+        {t('جارٍ تحميل مشاريعك')}
       </div>
     );
   }
@@ -170,7 +171,7 @@ export default function App() {
       )}
 
       {screen === 'studio' && activeProject && activeGlyph && (
-        <Suspense fallback={<div className="grid min-h-screen place-items-center text-sm text-ink-soft">جارٍ التحميل...</div>}>
+        <Suspense fallback={<div className="grid min-h-screen place-items-center text-sm text-ink-soft">{t('جارٍ التحميل...')}</div>}>
         <StudioScreen
           project={activeProject}
           glyph={activeGlyph}

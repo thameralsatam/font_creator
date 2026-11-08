@@ -1,4 +1,5 @@
 import { type Glyph } from '../types/font';
+import { t } from '../i18n';
 import { type Rule, computeFeatures } from './features';
 
 export interface FeaError {
@@ -61,25 +62,25 @@ export function parseFea(text: string, names: ReadonlySet<string>): { rules: Rul
   };
 
   while (i < toks.length) {
-    const t = toks[i];
-    if (t.text === 'languagesystem') {
+    const tk = toks[i];
+    if (tk.text === 'languagesystem') {
       skipStatement();
       continue;
     }
-    if (t.text !== 'feature') {
-      errors.push({ line: t.line, message: `«${t.text}» غير مدعومة. المدعوم: كتل feature وأوامر sub فقط.` });
+    if (tk.text !== 'feature') {
+      errors.push({ line: tk.line, message: t('«{word}» غير مدعومة. المدعوم: كتل feature وأوامر sub فقط.', { word: tk.text }) });
       skipStatement();
       continue;
     }
     const tag = toks[i + 1];
     const open = toks[i + 2];
     if (!tag || !/^[A-Za-z0-9]{4}$/.test(tag.text)) {
-      errors.push({ line: t.line, message: 'وسم الميزة يجب أن يكون أربعة أحرف، مثل init أو rlig.' });
+      errors.push({ line: tk.line, message: t('وسم الميزة يجب أن يكون أربعة أحرف، مثل init أو rlig.') });
       i++;
       continue;
     }
     if (!open || open.text !== '{') {
-      errors.push({ line: tag.line, message: 'بعد وسم الميزة يجب أن تأتي { .' });
+      errors.push({ line: tag.line, message: t('بعد وسم الميزة يجب أن تأتي { .') });
       i += 2;
       continue;
     }
@@ -97,44 +98,44 @@ export function parseFea(text: string, names: ReadonlySet<string>): { rules: Rul
       while (i < toks.length && toks[i].text !== ';' && toks[i].text !== '}') words.push(toks[i++].text);
       if (toks[i]?.text === ';') i++;
       else {
-        errors.push({ line: start.line, message: 'ينقص ; في نهاية العبارة.' });
+        errors.push({ line: start.line, message: t('ينقص ; في نهاية العبارة.') });
         continue;
       }
       if (words[0] !== 'sub') {
-        errors.push({ line: start.line, message: `«${words[0]}» غير مدعومة داخل الميزة. المدعوم: sub فقط.` });
+        errors.push({ line: start.line, message: t('«{word}» غير مدعومة داخل الميزة. المدعوم: sub فقط.', { word: words[0] }) });
         continue;
       }
       const by = words.indexOf('by');
       const from = words.slice(1, by);
       const to = words.slice(by + 1);
       if (by < 2 || to.length !== 1) {
-        errors.push({ line: start.line, message: 'الصيغة: sub أ by ب;   أو   sub أ ب by ج;' });
+        errors.push({ line: start.line, message: t('الصيغة: {a}   أو   {b}', { a: 'sub A by B;', b: 'sub A B by C;' }) });
         continue;
       }
       if ([...from, ...to].some((n) => /[[\]']/.test(n))) {
-        errors.push({ line: start.line, message: 'الأقواس والمجموعات غير مدعومة بعد. اكتب أسماء المحارف مباشرة.' });
+        errors.push({ line: start.line, message: t('الأقواس والمجموعات غير مدعومة بعد. اكتب أسماء المحارف مباشرة.') });
         continue;
       }
       const missing = [...from, ...to].find((n) => !names.has(n));
       if (missing) {
-        errors.push({ line: start.line, message: `المحرف «${missing}» غير موجود في المشروع.` });
+        errors.push({ line: start.line, message: t('المحرف «{name}» غير موجود في المشروع.', { name: missing }) });
         continue;
       }
       const key = `${tag.text}|${from.join(' ')}`;
       if (seen.has(key)) {
-        errors.push({ line: start.line, message: 'قاعدة مكررة لنفس المصدر في هذه الميزة.' });
+        errors.push({ line: start.line, message: t('قاعدة مكررة لنفس المصدر في هذه الميزة.') });
         continue;
       }
       seen.add(key);
       rules.push({ feature: tag.text, kind: from.length === 1 ? 'single' : 'ligature', from, to: to[0] });
     }
-    if (!closed) errors.push({ line: tag.line, message: 'الكتلة غير مغلقة: ينقص } .' });
+    if (!closed) errors.push({ line: tag.line, message: t('الكتلة غير مغلقة: ينقص } .') });
     else if (toks[i] && toks[i].text === tag.text) {
       i++;
       if (toks[i]?.text === ';') i++;
-      else errors.push({ line: tag.line, message: 'ينقص ; بعد اسم الميزة الختامي.' });
+      else errors.push({ line: tag.line, message: t('ينقص ; بعد اسم الميزة الختامي.') });
     } else {
-      errors.push({ line: tag.line, message: `بعد } يجب أن يأتي وسم الميزة نفسه (${tag.text}) ثم ; .` });
+      errors.push({ line: tag.line, message: t('بعد } يجب أن يأتي وسم الميزة نفسه ({tag}) ثم ; .', { tag: tag.text }) });
     }
   }
   return { rules, errors };

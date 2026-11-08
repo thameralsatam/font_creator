@@ -5,6 +5,7 @@ import {
   Copy,
   Trash2,
   Link2,
+  ArrowLeft,
   ArrowRight,
   ArrowUpDown,
   Filter,
@@ -20,6 +21,7 @@ import {
   Sparkles,
   Upload,
 } from 'lucide-react';
+import { isRtl, t, tx } from '../i18n';
 import { type Contour, type FontProject, type Glyph, type GlyphCategory, type GlyphForm, type NewGlyphData } from '../types/font';
 import { LIMITS, countNodes, fixDirections } from '../utils/pathEdit';
 import { downloadBlob, downloadTextFile } from '../utils/download';
@@ -74,12 +76,13 @@ interface ProjectOverviewProps {
 }
 
 const PAGE = 60;
+const BackIcon = isRtl() ? ArrowRight : ArrowLeft;
 const icon = 'h-4 w-4 stroke-[1.5]';
 
 const SORTS: Array<{ id: SortMode; label: string }> = [
-  { id: 'ready', label: 'الجاهزة أولاً' },
-  { id: 'added', label: 'حسب الإضافة' },
-  { id: 'code', label: 'حسب اليونيكود' },
+  { id: 'ready', label: t('الجاهزة أولاً') },
+  { id: 'added', label: t('حسب الإضافة') },
+  { id: 'code', label: t('حسب اليونيكود') },
 ];
 
 export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
@@ -158,12 +161,12 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
     for (const f of list) {
       const name = f.name.replace(/\.svg$/i, '').trim().replace(/[^A-Za-z0-9._-]/g, '_');
       if (!name || seen.has(name)) {
-        out.failed.push(`${f.name}: اسم غير صالح أو مكرر`);
+        out.failed.push(t('{name}: اسم غير صالح أو مكرر', { name: f.name }));
         continue;
       }
       seen.add(name);
       const res = svgToGlyph(await f.text(), metrics);
-      if (!res.ok) {
+      if (res.ok === false) {
         out.failed.push(`${f.name}: ${res.error}`);
         continue;
       }
@@ -195,7 +198,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
     const id = svgTarget.current;
     if (!file || !id) return;
     const res = svgToGlyph(await file.text(), metrics);
-    if (!res.ok) {
+    if (res.ok === false) {
       setSvgError(res.error);
       return;
     }
@@ -204,7 +207,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
     // الإضافة لا تستبدل شيئاً: يبقى رسمه وعرضه ويُضاف رسم الملف إليه
     const merged = fixDirections([...target.contours, ...res.contours]);
     if (merged.length > LIMITS.maxContours || countNodes(merged) > LIMITS.maxNodes) {
-      setSvgError('الإضافة تتجاوز الحد المسموح من المسارات أو النقاط في المحرف الواحد.');
+      setSvgError(t('الإضافة تتجاوز الحد المسموح من المسارات أو النقاط في المحرف الواحد.'));
       return;
     }
     props.onSetGlyphSvg(id, merged, target.advanceWidth);
@@ -243,16 +246,16 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
       {/* الترويسة */}
       <header className="capsule flex flex-col gap-2.5 p-3 sm:p-4">
         <div className="flex items-center gap-2 sm:gap-2.5">
-          <Button variant="quiet" icon title="الرجوع إلى قائمة المشاريع" onClick={onBackToProjects}>
-            <ArrowRight className={icon} />
+          <Button variant="quiet" icon title={t('الرجوع إلى قائمة المشاريع')} onClick={onBackToProjects}>
+            <BackIcon className={icon} />
           </Button>
           <h1 className="min-w-0 flex-1 truncate text-base sm:text-xl" title={project.name}>{project.name}</h1>
-          <Dropdown label="الإعدادات" iconOnly icon={<Settings2 className={icon} />} placement="bottom" width={230}>
+          <Dropdown label={t('الإعدادات')} iconOnly icon={<Settings2 className={icon} />} placement="bottom" width={230}>
             {(close) => (
               <>
-                <MenuLabel>إعدادات الخط</MenuLabel>
+                <MenuLabel>{t('إعدادات الخط')}</MenuLabel>
                 <MenuItem
-                  label="معلومات الخط"
+                  label={t('معلومات الخط')}
                   icon={<FileText className={icon} />}
                   onClick={() => {
                     close();
@@ -260,7 +263,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   }}
                 />
                 <MenuItem
-                  label="المقاييس"
+                  label={t('المقاييس')}
                   icon={<Sliders className={icon} />}
                   onClick={() => {
                     close();
@@ -268,7 +271,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   }}
                 />
                 <MenuItem
-                  label="المسافة بين الأزواج"
+                  label={t('المسافة بين الأزواج')}
                   icon={<ArrowLeftRight className={icon} />}
                   hint={project.kerning?.length ? String(project.kerning.length) : undefined}
                   onClick={() => {
@@ -277,7 +280,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   }}
                 />
                 <MenuItem
-                  label="الوصلات"
+                  label={t('الوصلات')}
                   icon={<Link2 className={icon} />}
                   hint={project.connectors?.length ? String(project.connectors.length) : undefined}
                   onClick={() => {
@@ -286,7 +289,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   }}
                 />
                 <MenuItem
-                  label="ميزات الأوبن تايب"
+                  label={t('ميزات الأوبن تايب')}
                   icon={<Sparkles className={icon} />}
                   hint={rules ? String(rules) : undefined}
                   onClick={() => {
@@ -298,7 +301,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             )}
           </Dropdown>
           <HelpBookButton iconOnly />
-          <Button variant="primary" icon onClick={onOpenExport} title="تصدير الخط">
+          <Button variant="primary" icon onClick={onOpenExport} title={t('تصدير الخط')}>
             <Download className={icon} />
           </Button>
         </div>
@@ -311,13 +314,13 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
 
         <div className="grid grid-cols-3 gap-2">
           {[
-            { label: 'مكتمل', value: ready },
-            { label: 'ناقص', value: notReadyIds.length },
-            { label: 'قاعدة', value: rules },
-          ].map((t) => (
-            <div key={t.label} className="plate flex flex-col items-center gap-0.5 py-1.5 sm:py-2">
-              <span className="font-mono text-base sm:text-lg leading-none">{t.value}</span>
-              <span className="text-[10px] sm:text-[11px] text-ink-soft">{t.label}</span>
+            { label: t('مكتمل'), value: ready },
+            { label: t('ناقص'), value: notReadyIds.length },
+            { label: t('قاعدة'), value: rules },
+          ].map((stat) => (
+            <div key={stat.label} className="plate flex flex-col items-center gap-0.5 py-1.5 sm:py-2">
+              <span className="font-mono text-base sm:text-lg leading-none">{stat.value}</span>
+              <span className="text-[10px] sm:text-[11px] text-ink-soft">{stat.label}</span>
             </div>
           ))}
         </div>
@@ -330,15 +333,15 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
       <section className="flex min-w-0 flex-col gap-3">
         <div className="flex items-center justify-between gap-2.5 px-0.5">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <h2 className="text-base sm:text-lg">المحارف</h2>
+            <h2 className="text-base sm:text-lg">{t('المحارف')}</h2>
             <CountChip value={glyphs.length} />
           </div>
           {!isEmpty && (
             <div className="flex items-center gap-1 sm:gap-1.5">
-              <Dropdown label="ترتيب وملفات وتنظيف" iconOnly framed icon={<ArrowUpDown className={icon} />} placement="bottom" width={210}>
+              <Dropdown label={t('ترتيب وملفات وتنظيف')} iconOnly framed icon={<ArrowUpDown className={icon} />} placement="bottom" width={210}>
                 {(close) => (
                   <>
-                    <MenuLabel>ترتيب العرض</MenuLabel>
+                    <MenuLabel>{t('ترتيب العرض')}</MenuLabel>
                     {SORTS.map((s) => (
                       <MenuItem
                         key={s.id}
@@ -351,9 +354,9 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                         }}
                       />
                     ))}
-                    <MenuLabel>ملفات SVG</MenuLabel>
+                    <MenuLabel>{t('ملفات SVG')}</MenuLabel>
                     <MenuItem
-                      label="استيراد عدة ملفات"
+                      label={t('استيراد عدة ملفات')}
                       icon={<Upload className={icon} />}
                       onClick={() => {
                         close();
@@ -361,7 +364,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                       }}
                     />
                     <MenuItem
-                      label="تصدير كل المحارف"
+                      label={t('تصدير كل المحارف')}
                       icon={<Download className={icon} />}
                       onClick={() => {
                         close();
@@ -370,9 +373,9 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                     />
                     {notReadyIds.length > 0 && (
                       <>
-                        <MenuLabel>تنظيف</MenuLabel>
+                        <MenuLabel>{t('تنظيف')}</MenuLabel>
                         <MenuItem
-                          label="حذف المحارف الفارغة"
+                          label={t('حذف المحارف الفارغة')}
                           icon={<Eraser className={icon} />}
                           hint={String(notReadyIds.length)}
                           onClick={() => {
@@ -385,13 +388,13 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   </>
                 )}
               </Dropdown>
-              <Button variant="secondary" icon active={selecting} title="تحديد عدة محارف" onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
+              <Button variant="secondary" icon active={selecting} title={t('تحديد عدة محارف')} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
                 <CheckSquare className={icon} />
               </Button>
-              <Button variant="secondary" icon title="مجموعات جاهزة" onClick={() => setShowPreset(true)}>
+              <Button variant="secondary" icon title={t('مجموعات جاهزة')} onClick={() => setShowPreset(true)}>
                 <Layers className={icon} />
               </Button>
-              <Button variant="primary" icon title="إضافة محرف" onClick={() => setShowAdd(true)}>
+              <Button variant="primary" icon title={t('إضافة محرف')} onClick={() => setShowAdd(true)}>
                 <Plus className={icon} />
               </Button>
             </div>
@@ -406,13 +409,13 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                 type="search"
                 value={filter.query}
                 onChange={(e) => patchFilter({ query: e.target.value })}
-                placeholder="ابحث بالاسم أو الحرف أو الرمز"
-                aria-label="بحث في المحارف"
+                placeholder={t('ابحث بالاسم أو الحرف أو الرمز')}
+                aria-label={t('بحث في المحارف')}
                 className="field ps-9"
               />
             </label>
             <Dropdown
-              label="تصفية المحارف"
+              label={t('تصفية المحارف')}
               iconOnly
               framed
               active={filter.status !== 'all' || filter.category !== 'all' || filter.form !== 'all'}
@@ -422,17 +425,17 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             >
               {() => (
                 <>
-                  <MenuLabel>الحالة</MenuLabel>
-                  {([['all', 'الكل'], ['ready', 'المرسومة'], ['empty', 'الفارغة']] as const).map(([id, label]) => (
+                  <MenuLabel>{t('الحالة')}</MenuLabel>
+                  {([['all', t('الكل')], ['ready', t('المرسومة')], ['empty', t('الفارغة')]] as const).map(([id, label]) => (
                     <MenuItem key={id} label={label} active={filter.status === id} onClick={() => patchFilter({ status: id })} />
                   ))}
-                  <MenuLabel>التصنيف</MenuLabel>
-                  <MenuItem label="الكل" active={filter.category === 'all'} onClick={() => patchFilter({ category: 'all' })} />
+                  <MenuLabel>{t('التصنيف')}</MenuLabel>
+                  <MenuItem label={t('الكل')} active={filter.category === 'all'} onClick={() => patchFilter({ category: 'all' })} />
                   {(Object.keys(CATEGORY_LABEL) as GlyphCategory[]).map((id) => (
                     <MenuItem key={id} label={CATEGORY_LABEL[id]} active={filter.category === id} onClick={() => patchFilter({ category: id })} />
                   ))}
-                  <MenuLabel>الشكل</MenuLabel>
-                  <MenuItem label="الكل" active={filter.form === 'all'} onClick={() => patchFilter({ form: 'all' })} />
+                  <MenuLabel>{t('الشكل')}</MenuLabel>
+                  <MenuItem label={t('الكل')} active={filter.form === 'all'} onClick={() => patchFilter({ form: 'all' })} />
                   {(Object.keys(FORM_LABEL) as GlyphForm[]).map((id) => (
                     <MenuItem key={id} label={FORM_LABEL[id]} active={filter.form === id} onClick={() => patchFilter({ form: id })} />
                   ))}
@@ -445,35 +448,35 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
         {filtering && (
           <div className="flex items-center justify-between gap-2 px-0.5 text-xs text-ink-soft">
             <span>
-              <span className="font-mono text-ink">{shown.length}</span> من <span className="font-mono">{glyphs.length}</span> محرف
+              {tx('{a} من {b} محرف', { a: <span className="font-mono text-ink">{shown.length}</span>, b: <span className="font-mono">{glyphs.length}</span> })}
             </span>
             <Button variant="quiet" onClick={() => patchFilter(NO_FILTER)}>
               <X className="h-3.5 w-3.5 stroke-[1.5]" />
-              <span>مسح التصفية</span>
+              <span>{t('مسح التصفية')}</span>
             </Button>
           </div>
         )}
 
         {isEmpty ? (
           <div className="card-flat flex flex-col items-center rounded-2xl p-8 text-center sm:p-10">
-            <p className="mb-1 text-base">لا توجد محارف في هذا المشروع حتى الآن</p>
+            <p className="mb-1 text-base">{t('لا توجد محارف في هذا المشروع حتى الآن')}</p>
             <p className="mb-4 max-w-sm text-xs leading-relaxed text-ink-soft">
-              أضف محرفك الأول، أو اختر مجموعة جاهزة للبدء مباشرة في رسم خطك.
+              {t('أضف محرفك الأول، أو اختر مجموعة جاهزة للبدء مباشرة في رسم خطك.')}
             </p>
             <div className="flex items-center gap-2.5">
               <Button variant="primary" onClick={() => setShowAdd(true)}>
                 <Plus className={icon} />
-                <span>إضافة محرف</span>
+                <span>{t('إضافة محرف')}</span>
               </Button>
               <Button onClick={() => setShowPreset(true)}>
                 <Layers className={icon} />
-                <span>مجموعات جاهزة</span>
+                <span>{t('مجموعات جاهزة')}</span>
               </Button>
             </div>
           </div>
         ) : (
           shown.length === 0 ? (
-            <p className="py-10 text-center text-sm text-ink-soft">لا توجد محارف تطابق البحث أو التصفية.</p>
+            <p className="py-10 text-center text-sm text-ink-soft">{t('لا توجد محارف تطابق البحث أو التصفية.')}</p>
           ) : (
           <>
             <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7">
@@ -497,7 +500,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             {shown.length > limit && (
               <div className="flex justify-center">
                 <Button onClick={() => setLimit((n) => n + PAGE)}>
-                  عرض المزيد ({shown.length - limit})
+                  {t('عرض المزيد ({n})', { n: shown.length - limit })}
                 </Button>
               </div>
             )}
@@ -509,27 +512,27 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
       {selecting && (
         <div className="capsule sticky bottom-3 z-30 flex flex-wrap items-center gap-1.5 p-2 shadow-xl">
           <span className="px-2 text-sm">
-            <span className="font-mono">{picked.size}</span> محدد
+            {tx('{n} محدد', { n: <span className="font-mono">{picked.size}</span> })}
           </span>
-          <Button variant="quiet" onClick={() => setPicked(new Set(shown.map((g) => g.id)))}>تحديد المعروض</Button>
-          <Button variant="quiet" disabled={picked.size === 0} onClick={() => setPicked(new Set())}>مسح التحديد</Button>
+          <Button variant="quiet" onClick={() => setPicked(new Set(shown.map((g) => g.id)))}>{t('تحديد المعروض')}</Button>
+          <Button variant="quiet" disabled={picked.size === 0} onClick={() => setPicked(new Set())}>{t('مسح التحديد')}</Button>
           <span className="flex-1" />
           <Button variant="secondary" disabled={picked.size === 0} onClick={() => setShowCopy(true)}>
             <Copy className={icon} />
-            <span>نسخ إلى مشروع</span>
+            <span>{t('نسخ إلى مشروع')}</span>
           </Button>
           <Button
             variant="secondary"
             disabled={picked.size === 0}
             onClick={() => {
-              deleteWithUndo([...picked], `حُذف ${picked.size} محرف`);
+              deleteWithUndo([...picked], t('حُذف {n} محرف', { n: picked.size }));
               stopSelecting();
             }}
           >
             <Trash2 className={icon} />
-            <span>حذف</span>
+            <span>{t('حذف')}</span>
           </Button>
-          <Button variant="quiet" onClick={stopSelecting}>إنهاء</Button>
+          <Button variant="quiet" onClick={stopSelecting}>{t('إنهاء')}</Button>
         </div>
       )}
 
@@ -542,19 +545,19 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             const r = props.onCopyToProject(targetId, [...picked], replace);
             setShowCopy(false);
             if (!r) return;
-            const parts = [r.added && `أُضيف ${r.added}`, r.replaced && `استُبدل ${r.replaced}`, r.skipped && `تُخطي ${r.skipped}`].filter(Boolean);
-            setNote(parts.join('، ') || 'لم يتغير شيء');
+            const parts = [r.added && t('أُضيف {n}', { n: r.added }), r.replaced && t('استُبدل {n}', { n: r.replaced }), r.skipped && t('تُخطي {n}', { n: r.skipped })].filter(Boolean);
+            setNote(parts.join(t('، ')) || t('لم يتغير شيء'));
             window.setTimeout(() => setNote(null), 4000);
             stopSelecting();
           }}
         />
       )}
-      {note && <Toast message={note} plain actionLabel="حسنًا" onAction={() => setNote(null)} />}
+      {note && <Toast message={note} plain actionLabel={t('حسنًا')} onAction={() => setNote(null)} />}
 
       {undo && (
         <Toast
           message={undo.message}
-          actionLabel="تراجع"
+          actionLabel={t('تراجع')}
           onAction={() => {
             props.onRestoreGlyphs(undo.items);
             window.clearTimeout(undoTimer.current);
@@ -584,7 +587,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             setShowFeatures(false);
             onEnterStudio(id);
           }}
-          onSaveCustomFea={(t) => props.onUpdateProject({ customFea: t })}
+          onSaveCustomFea={(fea) => props.onUpdateProject({ customFea: fea })}
           onSetOriginal={(use) => project.source && props.onUpdateProject({ source: { ...project.source, useOriginal: use } })}
           onClose={() => setShowFeatures(false)}
         />
@@ -604,12 +607,14 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
       <input ref={batchInput} type="file" multiple accept=".svg,image/svg+xml" className="hidden" onChange={(e) => void onBatchFiles(e)} />
 
       {batch && (
-        <Modal title="استيراد ملفات SVG" size="sm" onClose={() => setBatch(null)}>
+        <Modal title={t('استيراد ملفات SVG')} size="sm" onClose={() => setBatch(null)}>
           <div className="space-y-2 text-sm leading-7">
             <p>
-              <span className="font-mono">{batch.adds.length}</span> محرف جديد سيُضاف،
-              و<span className="font-mono">{batch.replaces.length}</span> محرف موجود سيُستبدل رسمه
-              {batch.replaces.length > 0 && ' (لا يمكن التراجع)'}.
+              {tx('{a} محرف جديد سيُضاف، و{b} محرف موجود سيُستبدل رسمه{warn}.', {
+                a: <span className="font-mono">{batch.adds.length}</span>,
+                b: <span className="font-mono">{batch.replaces.length}</span>,
+                warn: batch.replaces.length > 0 ? t(' (لا يمكن التراجع)') : '',
+              })}
             </p>
             {batch.failed.length > 0 && (
               <ul className="space-y-1 rounded-2xl border border-ink/20 p-3 text-xs">
@@ -620,7 +625,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             )}
           </div>
           <ModalActions>
-            <Button onClick={() => setBatch(null)}>إلغاء</Button>
+            <Button onClick={() => setBatch(null)}>{t('إلغاء')}</Button>
             <Button
               variant="primary"
               disabled={batch.adds.length + batch.replaces.length === 0}
@@ -629,57 +634,56 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                 setBatch(null);
               }}
             >
-              تنفيذ
+              {t('تنفيذ')}
             </Button>
           </ModalActions>
         </Modal>
       )}
 
       {svgError && (
-        <Modal title="تعذّر استيراد SVG" size="sm" onClose={() => setSvgError(null)}>
+        <Modal title={t('تعذّر استيراد SVG')} size="sm" onClose={() => setSvgError(null)}>
           <p className="text-sm leading-7">{svgError}</p>
           <ModalActions>
-            <Button variant="primary" onClick={() => setSvgError(null)}>حسناً</Button>
+            <Button variant="primary" onClick={() => setSvgError(null)}>{t('حسناً')}</Button>
           </ModalActions>
         </Modal>
       )}
 
       {deleting && (
-        <Modal title="حذف المحرف" size="sm" onClose={() => setDeletingId(null)}>
+        <Modal title={t('حذف المحرف')} size="sm" onClose={() => setDeletingId(null)}>
           <p className="text-sm leading-7">
-            سيُحذف المحرف <span dir="ltr" className="font-mono">{deleting.name}</span> مع رسمه نهائياً ولا يمكن التراجع.
+            {tx('سيُحذف المحرف {name} مع رسمه نهائياً ولا يمكن التراجع.', { name: <span dir="ltr" className="font-mono">{deleting.name}</span> })}
           </p>
           <ModalActions>
-            <Button onClick={() => setDeletingId(null)}>إلغاء</Button>
+            <Button onClick={() => setDeletingId(null)}>{t('إلغاء')}</Button>
             <Button
               variant="primary"
               onClick={() => {
-                deleteWithUndo([deleting.id], `حُذف المحرف ${deleting.name}`);
+                deleteWithUndo([deleting.id], t('حُذف المحرف {name}', { name: deleting.name }));
                 setDeletingId(null);
               }}
             >
-              حذف
+              {t('حذف')}
             </Button>
           </ModalActions>
         </Modal>
       )}
 
       {confirmEmpty && (
-        <Modal title="حذف المحارف غير المرسومة" size="sm" onClose={() => setConfirmEmpty(false)}>
+        <Modal title={t('حذف المحارف غير المرسومة')} size="sm" onClose={() => setConfirmEmpty(false)}>
           <p className="text-sm leading-7">
-            سيُحذف <span className="font-mono">{notReadyIds.length}</span> محرف لم يُرسم فيه مسار مغلق بعد
-            (محرف الفراغ يبقى). لا يمكن التراجع، لكن تستطيع إعادتها من المجموعات الجاهزة.
+            {tx('سيُحذف {n} محرف لم يُرسم فيه مسار مغلق بعد (محرف الفراغ يبقى). لا يمكن التراجع، لكن تستطيع إعادتها من المجموعات الجاهزة.', { n: <span className="font-mono">{notReadyIds.length}</span> })}
           </p>
           <ModalActions>
-            <Button onClick={() => setConfirmEmpty(false)}>إلغاء</Button>
+            <Button onClick={() => setConfirmEmpty(false)}>{t('إلغاء')}</Button>
             <Button
               variant="primary"
               onClick={() => {
-                deleteWithUndo(notReadyIds, `حُذف ${notReadyIds.length} محرف فارغ`);
+                deleteWithUndo(notReadyIds, t('حُذف {n} محرف فارغ', { n: notReadyIds.length }));
                 setConfirmEmpty(false);
               }}
             >
-              حذف
+              {t('حذف')}
             </Button>
           </ModalActions>
         </Modal>

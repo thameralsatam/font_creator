@@ -1,4 +1,5 @@
 import { type Glyph, type GlyphForm, type NewGlyphData } from '../types/font';
+import { t } from '../i18n';
 
 /*
   ميزات الأوبن تايب الأساسية للخط العربي، تُستخرج تلقائياً من أسماء المحارف:
@@ -16,11 +17,11 @@ export type FormSuffix = 'init' | 'medi' | 'fina' | 'isol';
 export type FeatureTag = FormSuffix | 'rlig';
 
 export const FEATURE_INFO: Record<FeatureTag, { label: string; description: string }> = {
-  isol: { label: 'المنفصل', description: 'يُستعمل الحرف حين لا يتصل بما قبله ولا بما بعده.' },
-  init: { label: 'البداية', description: 'يُستعمل الحرف في أول الكلمة متصلاً بما بعده.' },
-  medi: { label: 'الوسط', description: 'يُستعمل الحرف في وسط الكلمة متصلاً من الجهتين.' },
-  fina: { label: 'النهاية', description: 'يُستعمل الحرف في آخر الكلمة متصلاً بما قبله.' },
-  rlig: { label: 'الروابط', description: 'يستبدل حرفين متتاليين بمحرف واحد مثل لام وألف.' },
+  isol: { label: t('المنفصل'), description: t('يُستعمل الحرف حين لا يتصل بما قبله ولا بما بعده.') },
+  init: { label: t('البداية'), description: t('يُستعمل الحرف في أول الكلمة متصلاً بما بعده.') },
+  medi: { label: t('الوسط'), description: t('يُستعمل الحرف في وسط الكلمة متصلاً من الجهتين.') },
+  fina: { label: t('النهاية'), description: t('يُستعمل الحرف في آخر الكلمة متصلاً بما قبله.') },
+  rlig: { label: t('الروابط'), description: t('يستبدل حرفين متتاليين بمحرف واحد مثل لام وألف.') },
 };
 
 export const FEATURE_ORDER: FeatureTag[] = ['isol', 'fina', 'medi', 'init', 'rlig'];
@@ -150,7 +151,7 @@ export function computeFeatures(glyphs: Glyph[]): FeatureReport {
       const need = parts.map((p, i) => `${p}.${i === 0 ? firstForm : i === parts.length - 1 ? 'fina' : 'medi'}`);
       const missing = need.filter((n) => !names.has(n));
       if (missing.length) {
-        gaps.push({ glyph: g.name, message: `ينقص: ${missing.join('، ')}` });
+        gaps.push({ glyph: g.name, message: t('ينقص: {list}', { list: missing.join(t('، ')) }) });
       } else {
         rules.push({ feature: 'rlig', kind: 'ligature', from: need, to: g.name });
       }
@@ -170,7 +171,7 @@ export function computeFeatures(glyphs: Glyph[]): FeatureReport {
       // الأشكال الأخرى (init, medi, fina) تبحث عن base أو base.isol كأصل
       const source = names.has(base) ? base : names.has(`${base}.isol`) ? `${base}.isol` : null;
       if (!source) {
-        gaps.push({ glyph: g.name, message: `لا يوجد المحرف الأساسي ${base}` });
+        gaps.push({ glyph: g.name, message: t('لا يوجد المحرف الأساسي {base}', { base }) });
         continue;
       }
       rules.push({ feature: suffix, kind: 'single', from: [source], to: g.name });

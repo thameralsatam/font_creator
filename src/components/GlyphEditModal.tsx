@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { type Glyph, type GlyphCategory, type GlyphForm } from '../types/font';
 import { type GlyphMeta, validateGlyphEdit } from '../utils/glyphLogic';
 import { CATEGORY_LABEL, FORM_LABEL } from '../utils/labels';
+import { t } from '../i18n';
 import { Button } from './ui/Button';
 import { Modal, ModalActions } from './ui/Modal';
 
@@ -43,10 +44,10 @@ export const GlyphEditModal: React.FC<GlyphEditModalProps> = ({ glyph, glyphs, o
   const clear = () => setError(null);
 
   return (
-    <Modal title="تعديل المحرف" subtitle="الرسم لا يتغير، فقط بياناته" onClose={onClose}>
+    <Modal title={t('تعديل المحرف')} subtitle={t('الرسم لا يتغير، فقط بياناته')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3.5">
         <div>
-          <label htmlFor="e-char" className="mb-1 block text-xs text-ink-soft">المحرف أو الرمز</label>
+          <label htmlFor="e-char" className="mb-1 block text-xs text-ink-soft">{t('المحرف أو الرمز')}</label>
           <input
             id="e-char"
             autoFocus
@@ -61,7 +62,7 @@ export const GlyphEditModal: React.FC<GlyphEditModalProps> = ({ glyph, glyphs, o
           />
         </div>
         <div>
-          <label htmlFor="e-name" className="mb-1 block text-xs text-ink-soft">اسم المحرف في الخط</label>
+          <label htmlFor="e-name" className="mb-1 block text-xs text-ink-soft">{t('اسم المحرف في الخط')}</label>
           <input
             id="e-name"
             dir="ltr"
@@ -75,7 +76,7 @@ export const GlyphEditModal: React.FC<GlyphEditModalProps> = ({ glyph, glyphs, o
         </div>
         <div>
           <label htmlFor="e-unicode" className="mb-1 block text-xs text-ink-soft">
-            نقطة اليونيكود (اتركها فارغة للأشكال غير المرمّزة)
+            {t('نقطة اليونيكود (اتركها فارغة للأشكال غير المرمّزة)')}
           </label>
           <input
             id="e-unicode"
@@ -91,7 +92,7 @@ export const GlyphEditModal: React.FC<GlyphEditModalProps> = ({ glyph, glyphs, o
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="e-cat" className="mb-1 block text-xs text-ink-soft">التصنيف</label>
+            <label htmlFor="e-cat" className="mb-1 block text-xs text-ink-soft">{t('التصنيف')}</label>
             <select
               id="e-cat"
               value={category}
@@ -104,7 +105,7 @@ export const GlyphEditModal: React.FC<GlyphEditModalProps> = ({ glyph, glyphs, o
             </select>
           </div>
           <div>
-            <label htmlFor="e-form" className="mb-1 block text-xs text-ink-soft">الشكل</label>
+            <label htmlFor="e-form" className="mb-1 block text-xs text-ink-soft">{t('الشكل')}</label>
             <select
               id="e-form"
               value={form}
@@ -123,8 +124,8 @@ export const GlyphEditModal: React.FC<GlyphEditModalProps> = ({ glyph, glyphs, o
         )}
 
         <ModalActions>
-          <Button onClick={onClose}>إلغاء</Button>
-          <Button type="submit" variant="primary">حفظ</Button>
+          <Button onClick={onClose}>{t('إلغاء')}</Button>
+          <Button type="submit" variant="primary">{t('حفظ')}</Button>
         </ModalActions>
       </form>
     </Modal>

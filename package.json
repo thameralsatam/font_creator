@@ -37,6 +37,7 @@
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.28.0",
     "tailwindcss": "^4.3.3",
+    "ts-parser": "npm:typescript@^5.9.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

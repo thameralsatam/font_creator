@@ -3,6 +3,7 @@ import { Check, Copy, Download, Pencil, Trash2, Upload } from 'lucide-react';
 import { type FontMetrics, type Glyph } from '../types/font';
 import { isReady } from '../utils/glyphLogic';
 import { CATEGORY_LABEL, FORM_LABEL } from '../utils/labels';
+import { t } from '../i18n';
 import { GlyphThumb } from './GlyphThumb';
 import { CardMenu } from './ui/CardMenu';
 import { MenuItem } from './ui/Dropdown';
@@ -41,14 +42,14 @@ const GlyphCardBase: React.FC<GlyphCardProps> = ({ glyph, metrics, onOpen, onEdi
           {selected && <Check className="h-3.5 w-3.5 stroke-2" />}
         </span>
       ) : (
-      <CardMenu label="إجراءات المحرف" className="absolute start-4 top-4 z-20">
+      <CardMenu label={t('إجراءات المحرف')} className="absolute start-4 top-4 z-20">
         {(close) => (
           <>
-            <MenuItem label="تعديل البيانات" icon={<Pencil className={ic} />} onClick={() => { close(); onEdit(glyph.id); }} />
-            <MenuItem label="تكرار" icon={<Copy className={ic} />} onClick={() => { close(); onDuplicate(glyph.id); }} />
-            <MenuItem label="تصدير SVG" icon={<Download className={ic} />} onClick={() => { close(); onExportSvg(glyph.id); }} />
-            <MenuItem label="إضافة رسم من SVG" icon={<Upload className={ic} />} onClick={() => { close(); onImportSvg(glyph.id); }} />
-            <MenuItem label="حذف" icon={<Trash2 className={ic} />} onClick={() => { close(); onDelete(glyph.id); }} />
+            <MenuItem label={t('تعديل البيانات')} icon={<Pencil className={ic} />} onClick={() => { close(); onEdit(glyph.id); }} />
+            <MenuItem label={t('تكرار')} icon={<Copy className={ic} />} onClick={() => { close(); onDuplicate(glyph.id); }} />
+            <MenuItem label={t('تصدير SVG')} icon={<Download className={ic} />} onClick={() => { close(); onExportSvg(glyph.id); }} />
+            <MenuItem label={t('إضافة رسم من SVG')} icon={<Upload className={ic} />} onClick={() => { close(); onImportSvg(glyph.id); }} />
+            <MenuItem label={t('حذف')} icon={<Trash2 className={ic} />} onClick={() => { close(); onDelete(glyph.id); }} />
           </>
         )}
       </CardMenu>
@@ -58,13 +59,13 @@ const GlyphCardBase: React.FC<GlyphCardProps> = ({ glyph, metrics, onOpen, onEdi
         onClick={() => (selecting ? onToggle?.(glyph.id) : onOpen(glyph.id))}
         aria-pressed={selecting ? !!selected : undefined}
         className="flex w-full flex-col gap-2.5 p-3 text-start"
-        title={selecting ? 'تحديد المحرف' : 'فتح المحرف في الاستوديو'}
+        title={selecting ? t('تحديد المحرف') : t('فتح المحرف في الاستوديو')}
       >
         <div className="plate relative flex h-24 sm:h-28 items-center justify-center p-2 overflow-hidden">
           <GlyphThumb glyph={glyph} metrics={metrics} className="h-full w-full p-1" />
           {!ready && (
             <span className="absolute bottom-2 end-2 rounded-md bg-paper/90 px-1.5 py-0.5 font-mono text-[10px] text-ink-soft shadow-sm">
-              فارغ
+              {t('فارغ')}
             </span>
           )}
         </div>

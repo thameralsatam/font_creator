@@ -6,6 +6,7 @@ import { contourArrow, effectiveGridStep } from '../../utils/pathEdit';
 import { type PointerInfo, type StudioEditor } from './useStudioEditor';
 import { useViewport } from './useViewport';
 import { ANCHOR_LABEL } from '../../utils/labels';
+import { t } from '../../i18n';
 
 export interface ViewOptions {
   grid: boolean;
@@ -73,11 +74,11 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   const tile = step * s;
 
   const metricLines = [
-    { v: metrics.ascender, label: 'الصاعد', strong: false },
-    { v: metrics.capHeight, label: 'ارتفاع الحروف الكبيرة', strong: false },
-    { v: metrics.xHeight, label: 'ارتفاع الحروف الصغيرة', strong: false },
-    { v: 0, label: 'خط الأساس', strong: true },
-    { v: metrics.descender, label: 'الهابط', strong: false },
+    { v: metrics.ascender, label: t('الصاعد'), strong: false },
+    { v: metrics.capHeight, label: t('ارتفاع الحروف الكبيرة'), strong: false },
+    { v: metrics.xHeight, label: t('ارتفاع الحروف الصغيرة'), strong: false },
+    { v: 0, label: t('خط الأساس'), strong: true },
+    { v: metrics.descender, label: t('الهابط'), strong: false },
   ];
   const showLabels = s >= 0.15;
 
@@ -223,7 +224,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
       className={`block h-full w-full touch-none select-none ${cursor}`}
       style={{ direction: 'ltr' }}
       role="img"
-      aria-label={`لوحة رسم المحرف ${glyph.name}`}
+      aria-label={t('لوحة رسم المحرف {name}', { name: glyph.name })}
     >
       <defs>
         <pattern id="studio-grid" x={ox} y={oy} width={tile} height={tile} patternUnits="userSpaceOnUse">
@@ -520,7 +521,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
         const my = (sy(a.y) + sy(b.y)) / 2;
         const t1 = Math.round(d).toString();
         // علامة الاتجاه (U+200E) تمنع الاتجاه العربي من قلب الأرقام والإشارات
-        const t2 = `س \u200E${dx}   ص \u200E${dy}   \u200E${ang.toFixed(1)}°`;
+        const t2 = `${t('س')} \u200E${dx}   ${t('ص')} \u200E${dy}   \u200E${ang.toFixed(1)}°`;
         const w = Math.max(t2.length * 6.6, 70) + 16;
         return (
           <g className="pointer-events-none">
@@ -544,7 +545,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
           fontSize="14"
           className="pointer-events-none fill-ink-soft"
         >
-          اختر أداة القلم وارسم أول نقطة.
+          {t('اختر أداة القلم وارسم أول نقطة.')}
         </text>
       )}
     </svg>

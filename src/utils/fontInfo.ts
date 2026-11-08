@@ -1,4 +1,5 @@
 import { type FontInfo, type FontProject } from '../types/font';
+import { t } from '../i18n';
 
 /** اسم PostScript: حروف لاتينية وأرقام وشرطة فقط، بحد 63 حرفاً. */
 export function safePsName(name: string): string {
@@ -56,15 +57,15 @@ export interface InfoForm {
 /** أخطاء بالعربية، أو قائمة فارغة إن كانت القيم صالحة. */
 export function validateInfo(f: InfoForm): string[] {
   const errors: string[] = [];
-  if (!f.name.trim()) errors.push('اسم العائلة مطلوب.');
+  if (!f.name.trim()) errors.push(t('اسم العائلة مطلوب.'));
   if (f.info.postScriptName.trim() && !/^[A-Za-z0-9-]{1,63}$/.test(f.info.postScriptName.trim())) {
-    errors.push('اسم PostScript حروف لاتينية وأرقام وشرطة فقط، وبحد أقصى 63 حرفاً.');
+    errors.push(t('اسم PostScript حروف لاتينية وأرقام وشرطة فقط، وبحد أقصى 63 حرفاً.'));
   }
   if (f.version.trim() && !/^\d+(\.\d+){0,2}$/.test(f.version.trim())) {
-    errors.push('الإصدار أرقام تفصلها نقاط، مثل 1.0 أو 2.1.3.');
+    errors.push(t('الإصدار أرقام تفصلها نقاط، مثل 1.0 أو 2.1.3.'));
   }
-  for (const [label, v] of [['رابط الترخيص', f.info.licenseUrl], ['رابط المصمم', f.info.designerUrl]] as const) {
-    if (v.trim() && !/^https?:\/\/\S+$/i.test(v.trim())) errors.push(`${label} يبدأ بـ http:// أو https://`);
+  for (const [label, v] of [[t('رابط الترخيص'), f.info.licenseUrl], [t('رابط المصمم'), f.info.designerUrl]] as const) {
+    if (v.trim() && !/^https?:\/\/\S+$/i.test(v.trim())) errors.push(t('{label} يبدأ بـ http:// أو https://', { label }));
   }
   return errors;
 }

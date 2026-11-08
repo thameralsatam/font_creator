@@ -1,4 +1,5 @@
 import { type Glyph, type GlyphCategory, type GlyphForm, type NewGlyphData } from '../types/font';
+import { t } from '../i18n';
 import { JOINING, formsFor, formUnicode, type FormSuffix } from './features';
 
 /*
@@ -56,10 +57,10 @@ const FORMS: NewGlyphData[] = LETTERS.flatMap(([cp, name]) =>
 
 /** لام ألف بأنواعها: المنفصل/البداية بلا اتصال، و.fina حين يتصل بحرف قبله. */
 const LAM_ALEF: Array<[number, number, string, string]> = [
-  [0xfefb, 0xfefc, 'lam_alef', 'ل\u0627'],
-  [0xfef7, 0xfef8, 'lam_alefHamzaAbove', 'ل\u0623'],
-  [0xfef9, 0xfefa, 'lam_alefHamzaBelow', 'ل\u0625'],
-  [0xfef5, 0xfef6, 'lam_alefMadda', 'ل\u0622'],
+  [0xfefb, 0xfefc, 'lam_alef', 'ل\u0627'], // i18n-keep
+  [0xfef7, 0xfef8, 'lam_alefHamzaAbove', 'ل\u0623'], // i18n-keep
+  [0xfef9, 0xfefa, 'lam_alefHamzaBelow', 'ل\u0625'], // i18n-keep
+  [0xfef5, 0xfef6, 'lam_alefMadda', 'ل\u0622'], // i18n-keep
 ];
 const LIGATURES: NewGlyphData[] = LAM_ALEF.flatMap(([iso, fin, name, chars]) => [
   { ...item(iso, name, 'ligature', 650), char: chars },
@@ -71,44 +72,44 @@ const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'e
 export const PRESETS: PresetSet[] = [
   {
     id: 'letters',
-    label: 'الحروف العربية',
-    description: 'الحروف الهجائية وأشكال الهمزة والتاء المربوطة والألف المقصورة بالصيغة المنفصلة .isol (36 محرفاً).',
+    label: t('الحروف العربية'),
+    description: t('الحروف الهجائية وأشكال الهمزة والتاء المربوطة والألف المقصورة بالصيغة المنفصلة .isol (36 محرفاً).'),
     items: LETTERS.map(([cp, n]) => item(cp, `${n}.isol`, 'letter', 600)),
   },
   {
     id: 'forms',
-    label: 'أشكال الحروف (بداية ووسط ونهاية)',
-    description: 'الأشكال التي يحتاجها كل حرف بحسب اتصاله مع رموز يونيكود القياسية لأشكال العرض: ثلاثة للمتصل من الجهتين وواحد للمتصل بما قبله فقط (81 محرفاً).',
+    label: t('أشكال الحروف (بداية ووسط ونهاية)'),
+    description: t('الأشكال التي يحتاجها كل حرف بحسب اتصاله مع رموز يونيكود القياسية لأشكال العرض: ثلاثة للمتصل من الجهتين وواحد للمتصل بما قبله فقط (81 محرفاً).'),
     items: FORMS,
   },
   {
     id: 'ligatures',
-    label: 'لام ألف (ترابط)',
-    description: 'أربعة ترابطات للام مع الألف وأنواعها، ولكل منها شكل متصل بما قبله. تعمل بميزة rlig وتحتاج أشكال اللام والألف أولاً (8 محارف).',
+    label: t('لام ألف (ترابط)'),
+    description: t('أربعة ترابطات للام مع الألف وأنواعها، ولكل منها شكل متصل بما قبله. تعمل بميزة rlig وتحتاج أشكال اللام والألف أولاً (8 محارف).'),
     items: LIGATURES,
   },
   {
     id: 'marks',
-    label: 'علامات التشكيل',
-    description: 'الفتحة والضمة والكسرة والشدة والسكون والتنوين (8 علامات، عرضها صفر).',
+    label: t('علامات التشكيل'),
+    description: t('الفتحة والضمة والكسرة والشدة والسكون والتنوين (8 علامات، عرضها صفر).'),
     items: MARKS.map(([cp, n]) => item(cp, n, 'diacritic', 0)),
   },
   {
     id: 'arabicDigits',
-    label: 'الأرقام العربية',
-    description: 'الأرقام الشرقية من ٠ إلى ٩.',
+    label: t('الأرقام العربية'),
+    description: t('الأرقام الشرقية من ٠ إلى ٩.'),
     items: WORDS.map((w, i) => item(0x0660 + i, `${w}.ar`, 'number', 560)),
   },
   {
     id: 'latinDigits',
-    label: 'الأرقام اللاتينية',
-    description: 'الأرقام من 0 إلى 9.',
+    label: t('الأرقام اللاتينية'),
+    description: t('الأرقام من 0 إلى 9.'),
     items: WORDS.map((w, i) => item(0x0030 + i, w, 'number', 560)),
   },
   {
     id: 'punct',
-    label: 'الفراغ وعلامات الترقيم',
-    description: 'الفراغ والنقطة والفاصلة والفاصلة العربية وعلامة الاستفهام العربية والشرطة والنقطتان.',
+    label: t('الفراغ وعلامات الترقيم'),
+    description: t('الفراغ والنقطة والفاصلة والفاصلة العربية وعلامة الاستفهام العربية والشرطة والنقطتان.'),
     items: [
       item(0x0020, 'space', 'symbol', 250),
       item(0x002e, 'period', 'symbol', 260),
