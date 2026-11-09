@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from './Button';
+import { t } from '../../i18n';
 
 /*
   النافذة المنبثقة الموحّدة. تُركَّب فقط عند فتحها، فتبدأ كل مرة بحالة نظيفة.
@@ -75,7 +76,7 @@ export const Modal: React.FC<ModalProps> = ({
               {subtitle && <p className="mt-0.5 text-xs text-ink-soft">{subtitle}</p>}
             </div>
           </div>
-          <Button variant="quiet" icon title="إغلاق" onClick={onClose}>
+          <Button variant="quiet" icon title={t('إغلاق')} onClick={onClose}>
             <X className="h-4 w-4 stroke-[1.5]" />
           </Button>
         </div>

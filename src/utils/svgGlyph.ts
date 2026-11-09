@@ -1,6 +1,7 @@
 import { type Contour, type FontMetrics, type Glyph } from '../types/font';
 import { commandsToContours } from './fontBuild';
 import { LIMITS, countNodes, fixDirections } from './pathEdit';
+import { t } from '../i18n';
 
 const r2 = (n: number) => Number(n.toFixed(2));
 
@@ -250,14 +251,14 @@ export type SvgImportResult =
  * وكل أوامر المسار بما فيها الأقواس. الألوان تُتجاهل، والأشكال بلا تعبئة (fill="none") تُتجاوز.
  */
 export function svgToGlyph(text: string, m: FontMetrics): SvgImportResult {
-  if (!/<svg[\s>]/i.test(text)) return { ok: false, error: 'الملف ليس SVG صالحاً.' };
+  if (!/<svg[\s>]/i.test(text)) return { ok: false, error: t('الملف ليس SVG صالحاً.') };
   let vb = text.match(/viewBox\s*=\s*["']\s*([-\d.eE+]+)[\s,]+([-\d.eE+]+)[\s,]+([-\d.eE+]+)[\s,]+([-\d.eE+]+)\s*["']/i)?.slice(1).map(Number);
   if (!vb) {
     const w = Number(text.match(/<svg[^>]*\swidth\s*=\s*["']([\d.]+)/i)?.[1]);
     const h = Number(text.match(/<svg[^>]*\sheight\s*=\s*["']([\d.]+)/i)?.[1]);
     if (w > 0 && h > 0) vb = [0, 0, w, h];
   }
-  if (!vb || !(vb[2] > 0) || !(vb[3] > 0)) return { ok: false, error: 'لم أجد مقاس الرسم (viewBox) في الملف.' };
+  if (!vb || !(vb[2] > 0) || !(vb[3] > 0)) return { ok: false, error: t('لم أجد مقاس الرسم (viewBox) في الملف.') };
   const [vx, vy, vw, vh] = vb;
   const s = (m.ascender - m.descender) / vh;
   const toFont: Mat = [s, 0, 0, -s, -vx * s, m.ascender + vy * s];
@@ -314,11 +315,11 @@ export function svgToGlyph(text: string, m: FontMetrics): SvgImportResult {
     for (const c of parseD(d)) cmds.push(applyMat(c, mat));
   }
 
-  if (shapes === 0) return { ok: false, error: 'لا توجد أشكال قابلة للقراءة في الملف. المدعوم: path وrect وcircle وellipse وpolygon، وuse إذا أشار إلى واحد منها (المجموعات المستدعاة غير مدعومة).' };
+  if (shapes === 0) return { ok: false, error: t('لا توجد أشكال قابلة للقراءة في الملف. المدعوم: path وrect وcircle وellipse وpolygon، وuse إذا أشار إلى واحد منها (المجموعات المستدعاة غير مدعومة).') };
   const raw = commandsToContours(cmds).map((c) => ({ ...c, closed: true }));
-  if (raw.length === 0) return { ok: false, error: 'لم أجد في الملف مساراً صالحاً.' };
-  if (raw.length > LIMITS.maxContours) return { ok: false, error: `عدد المسارات ${raw.length} يتجاوز الحد (${LIMITS.maxContours}).` };
+  if (raw.length === 0) return { ok: false, error: t('لم أجد في الملف مساراً صالحاً.') };
+  if (raw.length > LIMITS.maxContours) return { ok: false, error: t('عدد المسارات {n} يتجاوز الحد ({max}).', { n: raw.length, max: LIMITS.maxContours }) };
   const nodes = countNodes(raw);
-  if (nodes > LIMITS.maxNodes) return { ok: false, error: `عدد النقاط ${nodes} يتجاوز الحد (${LIMITS.maxNodes}). بسّط الرسم في برنامج الرسم.` };
+  if (nodes > LIMITS.maxNodes) return { ok: false, error: t('عدد النقاط {n} يتجاوز الحد ({max}). بسّط الرسم في برنامج الرسم.', { n: nodes, max: LIMITS.maxNodes }) };
   return { ok: true, contours: fixDirections(raw), advanceWidth: Math.max(100, Math.round(vw * s)) };
 }

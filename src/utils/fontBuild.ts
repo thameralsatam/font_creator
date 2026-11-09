@@ -14,6 +14,7 @@ import { projectRules } from './feaParse';
 import { infoOf, parseVersion, resolveInfo, safePsName } from './fontInfo';
 import { type Anchor, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, readGpos, readRawTable } from './gpos';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
+import { isRtl, t } from '../i18n';
 
 /*
   بناء ملف خط حقيقي (OTF) من المشروع واستيراد خط موجود إلى مشروع.
@@ -47,31 +48,32 @@ export function parseUnicode(u: string): number | null {
   return cp <= 0x10ffff ? cp : null;
 }
 
+const SEP = () => (isRtl() ? '، ' : ', ');
 const list = (names: string[]) =>
-  names.length <= 4 ? names.join('، ') : `${names.slice(0, 4).join('، ')} و${names.length - 4} أخرى`;
+  names.length <= 4 ? names.join(SEP()) : t('{names} و{n} أخرى', { names: names.slice(0, 4).join(SEP()), n: names.length - 4 });
 
 export function checkProject(project: FontProject): BuildReport {
   const errors: string[] = [];
   const warnings: string[] = [];
   const glyphs = project.glyphs;
 
-  if (glyphs.length === 0) errors.push('لا توجد محارف في المشروع.');
+  if (glyphs.length === 0) errors.push(t('لا توجد محارف في المشروع.'));
   else if (!glyphs.some((g) => parseUnicode(g.unicode) !== null)) {
-    errors.push('لا يوجد أي محرف له رمز يونيكود، فلن يُظهر الخط شيئاً عند الكتابة.');
+    errors.push(t('لا يوجد أي محرف له رمز يونيكود، فلن يُظهر الخط شيئاً عند الكتابة.'));
   }
   const m = validateMetrics(project.metrics);
   if (!m.isValid) errors.push(...m.errors);
 
   const open = glyphs.filter((g) => g.contours.some((c) => !c.closed));
-  if (open.length) warnings.push(`مسارات مفتوحة ستُغلق بخط مستقيم عند التصدير في: ${list(open.map((g) => g.name))}.`);
+  if (open.length) warnings.push(t('مسارات مفتوحة ستُغلق بخط مستقيم عند التصدير في: {names}.', { names: list(open.map((g) => g.name)) }));
 
   const wrong = glyphs.filter((g) => wrongDirectionCount(g.contours) > 0);
-  if (wrong.length) warnings.push(`اتجاه مسارات خاطئ (ثقوب قد تظهر مملوءة) في: ${list(wrong.map((g) => g.name))}. استعمل ضبط الاتجاه تلقائياً.`);
+  if (wrong.length) warnings.push(t('اتجاه مسارات خاطئ (ثقوب قد تظهر مملوءة) في: {names}. استعمل ضبط الاتجاه تلقائياً.', { names: list(wrong.map((g) => g.name)) }));
 
   const empty = glyphs.filter(
     (g) => g.contours.length === 0 && g.advanceWidth > 0 && g.name !== 'space' && parseUnicode(g.unicode) !== 0x20
   );
-  if (empty.length) warnings.push(`محارف بلا رسم: ${list(empty.map((g) => g.name))}.`);
+  if (empty.length) warnings.push(t('محارف بلا رسم: {names}.', { names: list(empty.map((g) => g.name)) }));
 
   const noCode = glyphs.filter((g) => parseUnicode(g.unicode) === null);
   const feats = computeFeatures(glyphs);
@@ -79,42 +81,42 @@ export function checkProject(project: FontProject): BuildReport {
   const unnamed = noCode.filter((g) => !fea.rules.some((r) => r.to === g.name));
   const original = !!project.source?.useOriginal;
   if (!original && unnamed.length && noCode.length < glyphs.length) {
-    warnings.push(`محارف بلا رمز يونيكود ولا ميزة تستدعيها فلن تظهر أبداً: ${list(unnamed.map((g) => g.name))}. سمِّها بلاحقة .init أو .medi أو .fina.`);
+    warnings.push(t('محارف بلا رمز يونيكود ولا ميزة تستدعيها فلن تظهر أبداً: {names}. سمِّها بلاحقة .init أو .medi أو .fina.', { names: list(unnamed.map((g) => g.name)) }));
   }
   const nameSet = new Set(glyphs.map((g) => g.name));
   const usingOriginal = !!project.source?.useOriginal;
   const orphan = usingOriginal ? [] : (project.kerning ?? []).filter((k) => !nameSet.has(k.left) || !nameSet.has(k.right));
-  if (orphan.length) warnings.push(`${orphan.length} زوج في ضبط المسافات يشير إلى محرف محذوف أو أُعيدت تسميته، ولن يُكتب.`);
+  if (orphan.length) warnings.push(t('{n} زوج في ضبط المسافات يشير إلى محرف محذوف أو أُعيدت تسميته، ولن يُكتب.', { n: orphan.length }));
   const marksWithAnchor = glyphs.filter((g) => g.category === 'diacritic' && g.anchors.some((a) => a.name === 'top' || a.name === 'bottom'));
   const basesWithAnchor = glyphs.filter((g) => g.category !== 'diacritic' && g.anchors.some((a) => a.name === 'top' || a.name === 'bottom'));
   if (!usingOriginal && basesWithAnchor.length > 0 && marksWithAnchor.length === 0)
-    warnings.push('على بعض الحروف نقاط ارتكاز (فوق/تحت) لكن لا علامة تشكيل لها ارتكاز، فلن يُكتب تموضع التشكيل.');
+    warnings.push(t('على بعض الحروف نقاط ارتكاز (فوق/تحت) لكن لا علامة تشكيل لها ارتكاز، فلن يُكتب تموضع التشكيل.'));
   if (!usingOriginal && marksWithAnchor.length > 0 && basesWithAnchor.length === 0)
-    warnings.push('لعلامات التشكيل نقاط ارتكاز لكن لا حرف لديه ارتكاز مقابل، فلن يُكتب تموضع التشكيل.');
+    warnings.push(t('لعلامات التشكيل نقاط ارتكاز لكن لا حرف لديه ارتكاز مقابل، فلن يُكتب تموضع التشكيل.'));
   const wideMarks = usingOriginal ? [] : marksWithAnchor.filter((g) => g.advanceWidth !== 0);
-  if (wideMarks.length) warnings.push(`علامات تشكيل لها عرض غير صفري (قد تأخذ حيزاً في برامج قديمة): ${list(wideMarks.map((g) => g.name))}.`);
+  if (wideMarks.length) warnings.push(t('علامات تشكيل لها عرض غير صفري (قد تأخذ حيزاً في برامج قديمة): {names}.', { names: list(wideMarks.map((g) => g.name)) }));
   const byCode = new Map<number, string[]>();
   glyphs.forEach((g) => {
     const c = parseUnicode(g.unicode);
     if (c !== null) byCode.set(c, [...(byCode.get(c) ?? []), g.name]);
   });
   const dupCode = [...byCode.values()].filter((v) => v.length > 1);
-  if (dupCode.length) warnings.push(`محارف تشترك في رمز يونيكود واحد (يُعتمد أحدها فقط): ${list(dupCode.map((v) => v.join(' و ')))}.`);
+  if (dupCode.length) warnings.push(t('محارف تشترك في رمز يونيكود واحد (يُعتمد أحدها فقط): {names}.', { names: list(dupCode.map((v) => v.join(isRtl() ? ' و ' : ' & '))) }));
   const seen = new Set<string>();
   const dupName = new Set<string>();
   glyphs.forEach((g) => (seen.has(g.name) ? dupName.add(g.name) : seen.add(g.name)));
-  if (dupName.size) warnings.push(`أسماء محارف مكررة: ${list([...dupName])}.`);
+  if (dupName.size) warnings.push(t('أسماء محارف مكررة: {names}.', { names: list([...dupName]) }));
   const stacked = glyphs.filter((g) =>
     g.contours.some((c) => c.nodes.some((n, i) => {
       const m = c.nodes[(i + 1) % c.nodes.length];
       return c.nodes.length > 2 && m !== n && Math.abs(m.x - n.x) < 0.5 && Math.abs(m.y - n.y) < 0.5;
     }))
   );
-  if (stacked.length) warnings.push(`نقاط متراكبة فوق بعضها في: ${list(stacked.map((g) => g.name))}.`);
+  if (stacked.length) warnings.push(t('نقاط متراكبة فوق بعضها في: {names}.', { names: list(stacked.map((g) => g.name)) }));
   if (original) return { errors, warnings };
-  if (fea.errors.length) warnings.push(`في قواعد الأوبن تايب التي كتبتها ${fea.errors.length} خطأ، وهذه القواعد لن تُكتب في الخط. راجعها في تبويب الكود.`);
-  if (feats.gaps.length) warnings.push(`ميزات ناقصة: ${list(feats.gaps.map((x) => `${x.glyph} (${x.message})`))}.`);
-  if (feats.mismatches.length) warnings.push(`شكل المحرف لا يطابق لاحقة اسمه: ${list(feats.mismatches)}.`);
+  if (fea.errors.length) warnings.push(t('في قواعد الأوبن تايب التي كتبتها {n} خطأ، وهذه القواعد لن تُكتب في الخط. راجعها في تبويب الكود.', { n: fea.errors.length }));
+  if (feats.gaps.length) warnings.push(t('ميزات ناقصة: {names}.', { names: list(feats.gaps.map((x) => `${x.glyph} (${x.message})`)) }));
+  if (feats.mismatches.length) warnings.push(t('شكل المحرف لا يطابق لاحقة اسمه: {names}.', { names: list(feats.mismatches) }));
   return { errors, warnings };
 }
 
@@ -407,14 +409,14 @@ export interface ImportResult {
 export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?: ArrayBuffer): ImportResult {
   const notes: string[] = [];
   const upm = font.unitsPerEm;
-  if (!(upm >= 100 && upm <= 4096)) throw new Error('مقياس الخط (وحدات المربع) خارج المدى المدعوم من 100 إلى 4096.');
+  if (!(upm >= 100 && upm <= 4096)) throw new Error(t('مقياس الخط (وحدات المربع) خارج المدى المدعوم من 100 إلى 4096.'));
 
   const names = font.names as unknown as Record<string, Record<string, string> | undefined>;
   const pick = (key: string) => {
     const v = names[key];
     return v ? v.en ?? v.ar ?? Object.values(v)[0] : undefined;
   };
-  const familyName = pick('fontFamily') || fileName.replace(/\.[^.]+$/, '') || 'خط مستورد';
+  const familyName = pick('fontFamily') || fileName.replace(/\.[^.]+$/, '') || t('خط مستورد');
   const project = createProject(familyName, pick('designer') ?? '', pick('description') ?? '');
   project.version = parseVersion(pick('version'));
   project.info = {
@@ -485,10 +487,10 @@ export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?:
     glyphs.push({ ...glyph, contours });
   }
 
-  if (skippedLimits) notes.push(`${skippedLimits} محرف تجاوز حد النقاط (${LIMITS.maxNodes}) أو المسارات (${LIMITS.maxContours}) فلم يُستورد.`);
-  if (skippedRange) notes.push(`${skippedRange} محرف خارج المجال المسموح للإحداثيات فلم يُستورد.`);
-  if (skippedCap) notes.push(`${skippedCap} محرف زائد عن الحد الأقصى (${MAX_IMPORT_GLYPHS}) فلم يُستورد.`);
-  if (!validateMetrics(metrics).isValid) notes.push('مقاييس الخط المستورد غير متناسقة، راجعها من نافذة المقاييس.');
+  if (skippedLimits) notes.push(t('{n} محرف تجاوز حد النقاط ({nodes}) أو المسارات ({contours}) فلم يُستورد.', { n: skippedLimits, nodes: LIMITS.maxNodes, contours: LIMITS.maxContours }));
+  if (skippedRange) notes.push(t('{n} محرف خارج المجال المسموح للإحداثيات فلم يُستورد.', { n: skippedRange }));
+  if (skippedCap) notes.push(t('{n} محرف زائد عن الحد الأقصى ({max}) فلم يُستورد.', { n: skippedCap, max: MAX_IMPORT_GLYPHS }));
+  if (!validateMetrics(metrics).isValid) notes.push(t('مقاييس الخط المستورد غير متناسقة، راجعها من نافذة المقاييس.'));
   project.glyphs = glyphs;
   if (rawBuffer) {
     // نحفظ مكان كل محرف والجداول الأصلية لنعيد كتابتها كما هي عند التصدير بلا فقد
@@ -506,15 +508,15 @@ export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?:
     }
     if (tables.GSUB || tables.GPOS) {
       project.source = { slots, tables, useOriginal: true };
-      notes.push('حُفظت جداول الصياغة الأصلية كما هي (الأشكال السياقية، التشكيل، التقارب) وستُكتب في الخط عند التصدير بلا فقد. يمكنك إيقافها من نافذة ميزات الأوبن تايب.');
+      notes.push(t('حُفظت جداول الصياغة الأصلية كما هي (الأشكال السياقية، التشكيل، التقارب) وستُكتب في الخط عند التصدير بلا فقد. يمكنك إيقافها من نافذة ميزات الأوبن تايب.'));
     }
   }
   const fea = readFontRules(font, nameByIndex, glyphs);
   if (fea.count > 0) {
     project.customFea = fea.text;
-    notes.push(`استُوردت ${fea.count} قاعدة من الخط إلى صندوق «قواعدك» في ميزات الأوبن تايب.`);
+    notes.push(t('استُوردت {n} قاعدة من الخط إلى صندوق «قواعدك» في ميزات الأوبن تايب.', { n: fea.count }));
   } else {
-    notes.push('لم أجد في الخط قواعد تبديل أو دمج قابلة للاستيراد.');
+    notes.push(t('لم أجد في الخط قواعد تبديل أو دمج قابلة للاستيراد.'));
   }
   if ((font.tables as unknown as { gpos?: unknown }).gpos) {
     const g = rawBuffer ? readGpos(rawBuffer) : null;
@@ -540,12 +542,12 @@ export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?:
       };
       g.marks.forEach((m) => put(m.gid, m.cls === 0 ? 'top' : 'bottom', m, true));
       g.bases.forEach((b) => b.anchors.forEach((a, c) => a && put(b.gid, c === 0 ? 'top' : 'bottom', a, false)));
-      if (kerning.length) notes.push(`استُوردت ${kerning.length} قاعدة مسافة بين أزواج المحارف.`);
-      if (anchored) notes.push(`استُوردت ${anchored} نقطة ارتكاز لتموضع التشكيل.`);
-      if (g.skipped) notes.push('بعض قواعد المسافات مكتوبة بصيغة الفئات ولا تُستورد بعد.');
+      if (kerning.length) notes.push(t('استُوردت {n} قاعدة مسافة بين أزواج المحارف.', { n: kerning.length }));
+      if (anchored) notes.push(t('استُوردت {n} نقطة ارتكاز لتموضع التشكيل.', { n: anchored }));
+      if (g.skipped) notes.push(t('بعض قواعد المسافات مكتوبة بصيغة الفئات ولا تُستورد بعد.'));
     }
     if (!g || (g.pairs.length === 0 && g.marks.length === 0)) {
-      notes.push('قواعد المواضع في الخط الأصلي بصيغة غير مدعومة للاستيراد، فلم تُستورد.');
+      notes.push(t('قواعد المواضع في الخط الأصلي بصيغة غير مدعومة للاستيراد، فلم تُستورد.'));
     }
   }
   return { project, notes, imported: glyphs.length };
@@ -611,7 +613,7 @@ function emReady(em: { calledRun?: boolean; onRuntimeInitialized?: () => void })
       resolve();
       return;
     }
-    const timer = setTimeout(() => reject(new Error('تعذّر تشغيل وحدة الضغط.')), 20000);
+    const timer = setTimeout(() => reject(new Error(t('تعذّر تشغيل وحدة الضغط.'))), 20000);
     const prev = em.onRuntimeInitialized;
     em.onRuntimeInitialized = () => {
       clearTimeout(timer);
@@ -627,7 +629,7 @@ export async function toWoff2(buf: ArrayBuffer): Promise<Uint8Array> {
   const em = (mod as { default?: typeof mod.default }).default ?? (mod as unknown as typeof mod.default);
   await emReady(em);
   const out = em.compress(new Uint8Array(buf));
-  if (out === false) throw new Error('فشل تحويل الخط إلى WOFF2.');
+  if (out === false) throw new Error(t('فشل تحويل الخط إلى WOFF2.'));
   return out;
 }
 
@@ -636,7 +638,7 @@ async function fromWoff2(buf: ArrayBuffer): Promise<Uint8Array> {
   const em = (mod as { default?: typeof mod.default }).default ?? (mod as unknown as typeof mod.default);
   await emReady(em);
   const out = em.decompress(new Uint8Array(buf));
-  if (out === false) throw new Error('فشل فك WOFF2.');
+  if (out === false) throw new Error(t('فشل فك WOFF2.'));
   return out;
 }
 
@@ -651,7 +653,7 @@ export async function importFontBuffer(buf: ArrayBuffer, fileName: string): Prom
       const raw = await fromWoff2(buf);
       buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
     } catch {
-      throw new Error('تعذّرت قراءة ملف WOFF2. الملف تالف.');
+      throw new Error(t('تعذّرت قراءة ملف WOFF2. الملف تالف.'));
     }
   }
   const ot = await loadOpenType();
@@ -659,7 +661,7 @@ export async function importFontBuffer(buf: ArrayBuffer, fileName: string): Prom
   try {
     font = ot.parse(buf);
   } catch {
-    throw new Error('تعذّرت قراءة الملف. المدعوم هو OTF وTTF وWOFF وWOFF2، وهذا الملف تالف أو بصيغة أخرى.');
+    throw new Error(t('تعذّرت قراءة الملف. المدعوم هو OTF وTTF وWOFF وWOFF2، وهذا الملف تالف أو بصيغة أخرى.'));
   }
   return fontToProject(font, fileName, buf);
 }

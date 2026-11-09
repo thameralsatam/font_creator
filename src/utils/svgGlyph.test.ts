@@ -7,7 +7,7 @@ import { glyphToSvg, svgToGlyph } from './svgGlyph';
 
 const m = { upm: 1000, ascender: 800, descender: -200, xHeight: 500, capHeight: 700, baseline: 0 } as never;
 const box = (r: ReturnType<typeof svgToGlyph>) => {
-  if (!r.ok) throw new Error(r.error);
+  if (r.ok === false) throw new Error(r.error);
   const b = getContourBounds(r.contours[0])!;
   return [b.xMin, b.yMin, b.xMax, b.yMax];
 };
@@ -41,7 +41,7 @@ test('circle and arc commands become curves with the right extent', () => {
 test('use pointing to a path in defs is rendered with its transform', () => {
   const svg = '<?xml version="1.0"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "x.dtd"><svg viewBox="0 0 1920 1920" xmlns:xlink="http://www.w3.org/1999/xlink"><use transform="matrix(1,0,0,1,900,900) scale(0.5,0.5)" xlink:href="#s" x="0" y="0"/><defs><path d="m-500-100l1000 0 0 200 -1000 0z" id="s"/></defs></svg>';
   const r = svgToGlyph(svg, m);
-  if (!r.ok) throw new Error(r.error);
+  if (r.ok === false) throw new Error(r.error);
   assert.equal(r.contours.length, 1);
 });
 

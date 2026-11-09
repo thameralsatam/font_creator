@@ -41,6 +41,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
+import { isRtl, t } from '../../i18n';
 import { type AnchorPoint, type Guide, type Connector, type FontMetrics, type FontProject, type Glyph } from '../../types/font';
 import { MAX_CONNECTORS } from '../../utils/glyphLogic';
 import { uid } from '../../utils/fontLogic';
@@ -75,19 +76,20 @@ interface StudioScreenProps {
 const ZOOM_PRESETS = [25, 50, 100, 200];
 
 const SELECT_MODES: Array<{ id: SelectMode; label: string; hint: string }> = [
-  { id: 'replace', label: 'تحديد عادي', hint: 'كل تحديد جديد يستبدل السابق' },
-  { id: 'add', label: 'جمع إلى المحدد', hint: 'يبقى السابق ويُضاف الجديد' },
-  { id: 'subtract', label: 'طرح من المحدد', hint: 'ما تحدده يُزال من المحدد' },
+  { id: 'replace', label: t('تحديد عادي'), hint: t('كل تحديد جديد يستبدل السابق') },
+  { id: 'add', label: t('جمع إلى المحدد'), hint: t('يبقى السابق ويُضاف الجديد') },
+  { id: 'subtract', label: t('طرح من المحدد'), hint: t('ما تحدده يُزال من المحدد') },
 ];
 
+const BackIcon = isRtl() ? ArrowRight : ArrowLeft;
 const icon = 'h-4 w-4 stroke-[1.5]';
 
 const TOOLS: Array<{ id: ToolId; label: string; key: string; Icon: typeof PenTool }> = [
-  { id: 'select', label: 'تحديد', key: 'V', Icon: MousePointer2 },
-  { id: 'move', label: 'تحريك', key: 'M', Icon: Move },
-  { id: 'pen', label: 'قلم', key: 'P', Icon: PenTool },
-  { id: 'hand', label: 'اللوحة', key: 'H', Icon: Hand },
-  { id: 'ruler', label: 'مسطرة', key: 'R', Icon: RulerIcon },
+  { id: 'select', label: t('تحديد'), key: 'V', Icon: MousePointer2 },
+  { id: 'move', label: t('تحريك'), key: 'M', Icon: Move },
+  { id: 'pen', label: t('قلم'), key: 'P', Icon: PenTool },
+  { id: 'hand', label: t('اللوحة'), key: 'H', Icon: Hand },
+  { id: 'ruler', label: t('مسطرة'), key: 'R', Icon: RulerIcon },
 ];
 
 /** حقل رقمي داخل القائمة: يُطبَّق عند Enter أو مغادرة الحقل، وإن كانت القيمة غير صالحة يرجع القديم. */
@@ -172,13 +174,13 @@ const PrecisePanel: React.FC<{
     <div className="space-y-2 px-2 pb-1" onPointerDown={help.on ? () => help.show('t.precise') : undefined}>
       <div className="flex items-center gap-3">
         <div className="flex shrink-0 flex-col items-center gap-1">
-          <div dir="ltr" className="relative h-12 w-12 rounded-md border border-ink/40" title="مركز الدوران والتحجيم">
+          <div dir="ltr" className="relative h-12 w-12 rounded-md border border-ink/40" title={t('مركز الدوران والتحجيم')}>
             {[0, 1, 2].flatMap((ix) =>
               [0, 1, 2].map((iy) => (
                 <button
                   key={`${ix}${iy}`}
                   type="button"
-                  aria-label="مركز الدوران"
+                  aria-label={t('مركز الدوران')}
                   onClick={() => !help.on && setPv([ix, iy])}
                   style={{ left: `${ix * 50}%`, top: `${(2 - iy) * 50}%` }}
                   className={`absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border ${
@@ -188,12 +190,12 @@ const PrecisePanel: React.FC<{
               ))
             )}
           </div>
-          <span className="text-[10px] text-ink-soft">المركز</span>
+          <span className="text-[10px] text-ink-soft">{t('المركز')}</span>
         </div>
         <div className="min-w-0 flex-1 space-y-1.5">
-          {field('دوران °', rot, setRot)}
-          {field('العرض %', sw, setSw)}
-          {field('الارتفاع %', sh, setSh)}
+          {field(t('دوران °'), rot, setRot)}
+          {field(t('العرض %'), sw, setSw)}
+          {field(t('الارتفاع %'), sh, setSh)}
         </div>
       </div>
       <Button
@@ -201,18 +203,18 @@ const PrecisePanel: React.FC<{
         className="w-full"
         onClick={() => !help.on && onApply({ rotate: Number(rot), scaleX: Number(sw), scaleY: Number(sh), ix: pv[0], iy: pv[1] })}
       >
-        تطبيق
+        {t('تطبيق')}
       </Button>
     </div>
   );
 };
 
 /*
-  ترتيب الاستوديو:
-  - الشريط العلوي: التنقل ثم الأدوات ثم مجموعات الميزات (كل مجموعة داخل زر منسدل).
-  - اللوحة في الوسط.
-  - الشريط السفلي: التكبير ثم التراجع ثم حالة المحرف.
-  كل شريط بسطر واحد قابل للسحب، والقوائم تنزل من الزر نفسه.
+  {t('ترتيب الاستوديو:')}
+  {t('- الشريط العلوي: التنقل ثم الأدوات ثم مجموعات الميزات (كل مجموعة داخل زر منسدل).')}
+  {t('- اللوحة في الوسط.')}
+  {t('- الشريط السفلي: التكبير ثم التراجع ثم حالة المحرف.')}
+  {t('كل شريط بسطر واحد قابل للسحب، والقوائم تنزل من الزر نفسه.')}
 */
 const StudioInner: React.FC<StudioScreenProps> = ({
   project,
@@ -266,15 +268,15 @@ const StudioInner: React.FC<StudioScreenProps> = ({
   const connectors = project.connectors ?? [];
   const saveSelectionAsConnector = () => {
     const picked = editor.selectedContours();
-    if (picked.length === 0) return editor.notify('حدد نقاط الوصلة أولاً.');
-    if (connectors.length >= MAX_CONNECTORS) return editor.notify(`وصلت إلى حد الوصلات (${MAX_CONNECTORS}).`);
+    if (picked.length === 0) return editor.notify(t('حدد نقاط الوصلة أولاً.'));
+    if (connectors.length >= MAX_CONNECTORS) return editor.notify(t('وصلت إلى حد الوصلات ({n}).', { n: MAX_CONNECTORS }));
     const next: Connector = {
       id: uid('conn'),
-      name: `وصلة ${connectors.length + 1}`,
+      name: t('وصلة {n}', { n: connectors.length + 1 }),
       contours: centerOnOrigin(picked),
     };
     onUpdateProject({ connectors: [...connectors, next] });
-    editor.notify('حُفظت الوصلة. غيّر اسمها من إعدادات المشروع.');
+    editor.notify(t('حُفظت الوصلة. غيّر اسمها من إعدادات المشروع.'));
   };
   const svgInput = useRef<HTMLInputElement>(null);
 
@@ -302,7 +304,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
   const toggle = (key: keyof ViewOptions) => setOptions((o) => ({ ...o, [key]: !o[key] }));
   const setGuides = (fn: (all: Guide[]) => Guide[]) => onUpdateGlyph((g) => ({ ...g, guides: fn(g.guides ?? []) }));
   const addGuide = (axis: 'h' | 'v', pos: number) => {
-    if ((glyph.guides ?? []).length >= MAX_GUIDES) return editor.notify(`الحد الأقصى ${MAX_GUIDES} خطاً للمحرف الواحد.`);
+    if ((glyph.guides ?? []).length >= MAX_GUIDES) return editor.notify(t('الحد الأقصى {n} خطاً للمحرف الواحد.', { n: MAX_GUIDES }));
     if (!options.guides) toggle('guides');
     setGuides((all) => [...all, { id: uid('guide'), axis, pos: Math.round(pos) }]);
   };
@@ -335,7 +337,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     e.target.value = '';
     if (!file) return;
     const res = svgToGlyph(await file.text(), metrics);
-    if (!res.ok) {
+    if (res.ok === false) {
       editor.notify(res.error);
       return;
     }
@@ -347,7 +349,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
 
   const nodeCount = glyph.contours.reduce((sum, c) => sum + c.nodes.length, 0);
   const pathState =
-    glyph.contours.length === 0 ? '—' : glyph.contours.every((c) => c.closed) ? 'مغلق' : 'مفتوح';
+    glyph.contours.length === 0 ? '—' : glyph.contours.every((c) => c.closed) ? t('مغلق') : t('مفتوح');
 
   const hasSelection = editor.selection.size > 0;
   const selPoint = (() => {
@@ -362,9 +364,9 @@ const StudioInner: React.FC<StudioScreenProps> = ({
   return (
     <div className="fixed inset-0 z-40 flex flex-col gap-2 bg-paper-deep p-2 sm:gap-3 sm:p-3">
       {/* الشريط العلوي */}
-      <DragScroll label="الشريط العلوي" className="glass-panel shrink-0 rounded-2xl">
-        <Button variant="quiet" icon helpId="back" title="الرجوع إلى المشروع" onClick={onBack}>
-          <ArrowRight className={icon} />
+      <DragScroll label={t('الشريط العلوي')} className="glass-panel shrink-0 rounded-2xl">
+        <Button variant="quiet" icon helpId="back" title={t('الرجوع إلى المشروع')} onClick={onBack}>
+          <BackIcon className={icon} />
         </Button>
 
         <Dropdown
@@ -377,7 +379,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
         >
           {(close) => (
             <>
-              <MenuLabel>اختر المحرف</MenuLabel>
+              <MenuLabel>{t('اختر المحرف')}</MenuLabel>
               <div className="grid grid-cols-4 gap-1 p-1">
                 {project.glyphs.map((g) => (
                   <button
@@ -423,7 +425,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             >
               {(close) => (
                 <>
-                  <MenuLabel>طريقة التحديد</MenuLabel>
+                  <MenuLabel>{t('طريقة التحديد')}</MenuLabel>
                   {SELECT_MODES.map((m) => (
                     <MenuItem
                       key={m.id}
@@ -460,59 +462,59 @@ const StudioInner: React.FC<StudioScreenProps> = ({
 
         {editor.penContourId && (
           <>
-            <Button variant="secondary" helpId="finishPen" title="إنهاء المسار (Enter)" onClick={editor.finishPen}>
+            <Button variant="secondary" helpId="finishPen" title={t('إنهاء المسار (Enter)')} onClick={editor.finishPen}>
               <Check className={icon} />
-              <span>إنهاء المسار</span>
+              <span>{t('إنهاء المسار')}</span>
             </Button>
             <BarDivider />
           </>
         )}
 
-        <Dropdown label="عرض" helpId="view" icon={<Eye className={icon} />} placement="bottom" width={300}>
+        <Dropdown label={t('عرض')} helpId="view" icon={<Eye className={icon} />} placement="bottom" width={300}>
           {() => (
             <>
-              <MenuLabel>إظهار</MenuLabel>
-              <MenuItem label="الشبكة" helpId="view.grid" active={options.grid} onClick={() => toggle('grid')} />
-              <MenuItem label="خطوط المقاييس" helpId="view.metrics" active={options.metrics} onClick={() => toggle('metrics')} />
-              <MenuItem label="النقاط والمقابض" helpId="view.nodes" active={options.nodes} onClick={() => toggle('nodes')} />
-              <MenuItem label="نقاط الارتكاز" helpId="view.anchors" active={options.anchors} onClick={() => toggle('anchors')} />
-              <MenuItem label="خطوط الدليل" helpId="view.guides" active={options.guides} onClick={() => toggle('guides')} />
+              <MenuLabel>{t('إظهار')}</MenuLabel>
+              <MenuItem label={t('الشبكة')} helpId="view.grid" active={options.grid} onClick={() => toggle('grid')} />
+              <MenuItem label={t('خطوط المقاييس')} helpId="view.metrics" active={options.metrics} onClick={() => toggle('metrics')} />
+              <MenuItem label={t('النقاط والمقابض')} helpId="view.nodes" active={options.nodes} onClick={() => toggle('nodes')} />
+              <MenuItem label={t('نقاط الارتكاز')} helpId="view.anchors" active={options.anchors} onClick={() => toggle('anchors')} />
+              <MenuItem label={t('خطوط الدليل')} helpId="view.guides" active={options.guides} onClick={() => toggle('guides')} />
               <MenuDivider />
-              <MenuLabel>خطوط الدليل ({(glyph.guides ?? []).length})</MenuLabel>
+              <MenuLabel>{t('خطوط الدليل ({n})', { n: (glyph.guides ?? []).length })}</MenuLabel>
               {(glyph.guides ?? []).map((g) => (
                 <div key={g.id} className="flex items-center">
                   <div className="min-w-0 flex-1">
                     <NumberRow
-                      label={g.axis === 'h' ? 'أفقي (الارتفاع)' : 'رأسي (الموضع)'}
+                      label={g.axis === 'h' ? t('أفقي (الارتفاع)') : t('رأسي (الموضع)')}
                       helpId="view.guides"
                       value={g.pos}
                       onCommit={(n) => setGuides((all) => all.map((x) => (x.id === g.id ? { ...x, pos: Math.round(n) } : x)))}
                     />
                   </div>
-                  <Button variant="quiet" icon title="حذف الخط" onClick={() => setGuides((all) => all.filter((x) => x.id !== g.id))}>
+                  <Button variant="quiet" icon title={t('حذف الخط')} onClick={() => setGuides((all) => all.filter((x) => x.id !== g.id))}>
                     <Trash2 className={icon} />
                   </Button>
                 </div>
               ))}
-              <MenuItem label="دليل أفقي عند النقطة المحددة" helpId="view.guides" disabled={!selPoint} onClick={() => selPoint && addGuide('h', selPoint.y)} />
-              <MenuItem label="دليل رأسي عند النقطة المحددة" helpId="view.guides" disabled={!selPoint} onClick={() => selPoint && addGuide('v', selPoint.x)} />
-              <MenuItem label="دليل أفقي جديد" helpId="view.guides" onClick={() => addGuide('h', metrics.xHeight)} />
-              <MenuItem label="دليل رأسي جديد" helpId="view.guides" onClick={() => addGuide('v', Math.round(glyph.advanceWidth / 2))} />
+              <MenuItem label={t('دليل أفقي عند النقطة المحددة')} helpId="view.guides" disabled={!selPoint} onClick={() => selPoint && addGuide('h', selPoint.y)} />
+              <MenuItem label={t('دليل رأسي عند النقطة المحددة')} helpId="view.guides" disabled={!selPoint} onClick={() => selPoint && addGuide('v', selPoint.x)} />
+              <MenuItem label={t('دليل أفقي جديد')} helpId="view.guides" onClick={() => addGuide('h', metrics.xHeight)} />
+              <MenuItem label={t('دليل رأسي جديد')} helpId="view.guides" onClick={() => addGuide('v', Math.round(glyph.advanceWidth / 2))} />
               <MenuItem
-                label="مسح كل خطوط الدليل"
+                label={t('مسح كل خطوط الدليل')}
                 helpId="view.guidesClear"
                 disabled={!glyph.guides || glyph.guides.length === 0}
                 onClick={() => setGuides(() => [])}
               />
-              <MenuItem label="أسهم اتجاه المسارات" helpId="view.direction" active={options.direction} onClick={() => toggle('direction')} />
+              <MenuItem label={t('أسهم اتجاه المسارات')} helpId="view.direction" active={options.direction} onClick={() => toggle('direction')} />
               <div className="hidden lg:block">
-                <MenuItem label="قائمة المحارف الجانبية" helpId="sideList" active={showList} onClick={toggleList} />
+                <MenuItem label={t('قائمة المحارف الجانبية')} helpId="sideList" active={showList} onClick={toggleList} />
               </div>
             </>
           )}
         </Dropdown>
 
-        <Dropdown label="المسار" helpId="path" icon={<Spline className={icon} />} placement="bottom" width={310}>
+        <Dropdown label={t('المسار')} helpId="path" icon={<Spline className={icon} />} placement="bottom" width={310}>
           {(close) => {
             const go = (fn: () => void) => () => {
               fn();
@@ -520,34 +522,34 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             };
             return (
               <>
-                <MenuLabel>قفل المقبضين (للمحدد)</MenuLabel>
-                <MenuItem label="أحرار" hint="كل مقبض مستقل" helpId="p.corner" disabled={!hasSelection} onClick={go(editor.corner)} />
-                <MenuItem label="متقابلان بطول حر" hint="خط واحد" helpId="p.smooth" disabled={!hasSelection} onClick={go(editor.smooth)} />
-                <MenuItem label="متقابلان بنفس الطول" hint="تماثل" helpId="p.mirror" disabled={!hasSelection} onClick={go(editor.mirror)} />
-                <MenuItem label="مقفلان بوضعهما الحالي" hint="يتحركان معاً" helpId="p.locked" disabled={!hasSelection} onClick={go(editor.lock)} />
-                <MenuItem label="نقطة عادية" hint="بلا مقبضين" helpId="p.plain" disabled={!hasSelection} onClick={go(editor.plain)} />
-                <MenuItem label="تنعيم تلقائي" helpId="p.auto" disabled={!hasSelection} onClick={go(editor.autoSmooth)} />
+                <MenuLabel>{t('قفل المقبضين (للمحدد)')}</MenuLabel>
+                <MenuItem label={t('أحرار')} hint={t('كل مقبض مستقل')} helpId="p.corner" disabled={!hasSelection} onClick={go(editor.corner)} />
+                <MenuItem label={t('متقابلان بطول حر')} hint={t('خط واحد')} helpId="p.smooth" disabled={!hasSelection} onClick={go(editor.smooth)} />
+                <MenuItem label={t('متقابلان بنفس الطول')} hint={t('تماثل')} helpId="p.mirror" disabled={!hasSelection} onClick={go(editor.mirror)} />
+                <MenuItem label={t('مقفلان بوضعهما الحالي')} hint={t('يتحركان معاً')} helpId="p.locked" disabled={!hasSelection} onClick={go(editor.lock)} />
+                <MenuItem label={t('نقطة عادية')} hint={t('بلا مقبضين')} helpId="p.plain" disabled={!hasSelection} onClick={go(editor.plain)} />
+                <MenuItem label={t('تنعيم تلقائي')} helpId="p.auto" disabled={!hasSelection} onClick={go(editor.autoSmooth)} />
                 <MenuDivider />
-                <MenuLabel>عمليات على المسارات (حدّد مسارين أو أكثر)</MenuLabel>
-                <MenuItem label="دمج" hint="شكل واحد" helpId="p.unite" disabled={!hasSelection} onClick={go(() => void editor.booleanOp('unite'))} />
-                <MenuItem label="طرح" hint="الأعلى من الأساس" helpId="p.subtract" disabled={!hasSelection} onClick={go(() => void editor.booleanOp('subtract'))} />
-                <MenuItem label="تقاطع" hint="المشترك فقط" helpId="p.intersect" disabled={!hasSelection} onClick={go(() => void editor.booleanOp('intersect'))} />
+                <MenuLabel>{t('عمليات على المسارات (حدّد مسارين أو أكثر)')}</MenuLabel>
+                <MenuItem label={t('دمج')} hint={t('شكل واحد')} helpId="p.unite" disabled={!hasSelection} onClick={go(() => void editor.booleanOp('unite'))} />
+                <MenuItem label={t('طرح')} hint={t('الأعلى من الأساس')} helpId="p.subtract" disabled={!hasSelection} onClick={go(() => void editor.booleanOp('subtract'))} />
+                <MenuItem label={t('تقاطع')} hint={t('المشترك فقط')} helpId="p.intersect" disabled={!hasSelection} onClick={go(() => void editor.booleanOp('intersect'))} />
                 <MenuDivider />
-                <NumberRow label="نصف قطر التقريب" helpId="p.roundRadius" value={roundRadius} onCommit={(n) => setRoundRadius(clampInt(n, 1, 500))} />
-                <MenuItem label="تقريب الزوايا المحددة" helpId="p.round" disabled={!hasSelection} onClick={go(() => editor.roundSelected(roundRadius))} />
-                <MenuItem label="حذف النقاط الزائدة" hint="للمحدد أو للكل" helpId="p.simplify" disabled={!hasDrawing} onClick={go(editor.simplifyPaths)} />
+                <NumberRow label={t('نصف قطر التقريب')} helpId="p.roundRadius" value={roundRadius} onCommit={(n) => setRoundRadius(clampInt(n, 1, 500))} />
+                <MenuItem label={t('تقريب الزوايا المحددة')} helpId="p.round" disabled={!hasSelection} onClick={go(() => editor.roundSelected(roundRadius))} />
+                <MenuItem label={t('حذف النقاط الزائدة')} hint={t('للمحدد أو للكل')} helpId="p.simplify" disabled={!hasDrawing} onClick={go(editor.simplifyPaths)} />
                 <MenuDivider />
-                <MenuItem label="إغلاق المسار" helpId="p.close" onClick={go(editor.closeSelected)} />
-                <MenuItem label="فتح المسار عند النقطة المحددة" helpId="p.open" disabled={!hasSelection} onClick={go(editor.openAtSelected)} />
-                <MenuItem label="ضبط الاتجاه تلقائياً" helpId="p.fixDir" disabled={!hasDrawing} onClick={go(editor.autoDirection)} />
-                <MenuItem label="عكس اتجاه المسار" helpId="p.reverse" disabled={!hasSelection} onClick={go(editor.reverse)} />
-                <MenuItem label="تحديد الكل" helpId="p.selectAll" hint="Ctrl+A" disabled={!hasDrawing} onClick={go(editor.selectAll)} />
+                <MenuItem label={t('إغلاق المسار')} helpId="p.close" onClick={go(editor.closeSelected)} />
+                <MenuItem label={t('فتح المسار عند النقطة المحددة')} helpId="p.open" disabled={!hasSelection} onClick={go(editor.openAtSelected)} />
+                <MenuItem label={t('ضبط الاتجاه تلقائياً')} helpId="p.fixDir" disabled={!hasDrawing} onClick={go(editor.autoDirection)} />
+                <MenuItem label={t('عكس اتجاه المسار')} helpId="p.reverse" disabled={!hasSelection} onClick={go(editor.reverse)} />
+                <MenuItem label={t('تحديد الكل')} helpId="p.selectAll" hint="Ctrl+A" disabled={!hasDrawing} onClick={go(editor.selectAll)} />
               </>
             );
           }}
         </Dropdown>
 
-        <Dropdown label="تحويل" helpId="transform" icon={<Shapes className={icon} />} placement="bottom" width={300}>
+        <Dropdown label={t('تحويل')} helpId="transform" icon={<Shapes className={icon} />} placement="bottom" width={300}>
           {() => {
             const ib = (id: string, title: string, Ico: typeof Shapes, fn: () => void) => (
               <Button key={title} variant="quiet" icon helpId={id} title={title} disabled={!hasDrawing} onClick={fn}>
@@ -556,45 +558,45 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             );
             return (
               <>
-                <MenuLabel>{hasSelection ? 'على المسارات المحددة' : 'على المحرف كله'}</MenuLabel>
+                <MenuLabel>{hasSelection ? t('على المسارات المحددة') : t('على المحرف كله')}</MenuLabel>
                 <div className="flex flex-wrap gap-1 px-1.5 pb-1.5">
-                  {ib('t.flipH', 'قلب أفقي', FlipHorizontal2, () => editor.flip('h'))}
-                  {ib('t.flipV', 'قلب رأسي', FlipVertical2, () => editor.flip('v'))}
-                  {ib('t.rot90r', 'تدوير 90° يميناً', RotateCw, () => editor.rotate(-90))}
-                  {ib('t.rot90l', 'تدوير 90° يساراً', RotateCcw, () => editor.rotate(90))}
-                  {ib('t.scaleUp', `تكبير ${scalePct}%`, Maximize2, () => editor.scaleBy(1 + scalePct / 100))}
-                  {ib('t.scaleDown', `تصغير ${scalePct}%`, Minimize2, () => editor.scaleBy(1 / (1 + scalePct / 100)))}
+                  {ib('t.flipH', t('قلب أفقي'), FlipHorizontal2, () => editor.flip('h'))}
+                  {ib('t.flipV', t('قلب رأسي'), FlipVertical2, () => editor.flip('v'))}
+                  {ib('t.rot90r', t('تدوير 90° يميناً'), RotateCw, () => editor.rotate(-90))}
+                  {ib('t.rot90l', t('تدوير 90° يساراً'), RotateCcw, () => editor.rotate(90))}
+                  {ib('t.scaleUp', t('تكبير {n}%', { n: scalePct }), Maximize2, () => editor.scaleBy(1 + scalePct / 100))}
+                  {ib('t.scaleDown', t('تصغير {n}%', { n: scalePct }), Minimize2, () => editor.scaleBy(1 / (1 + scalePct / 100)))}
                 </div>
-                <NumberRow label="نسبة التكبير والتصغير %" helpId="t.scaleStep" value={scalePct} onCommit={(n) => setScalePct(clampInt(n, 1, 400))} />
+                <NumberRow label={t('نسبة التكبير والتصغير %')} helpId="t.scaleStep" value={scalePct} onCommit={(n) => setScalePct(clampInt(n, 1, 400))} />
                 <MenuDivider />
-                <MenuLabel>محاذاة وتوزيع</MenuLabel>
+                <MenuLabel>{t('محاذاة وتوزيع')}</MenuLabel>
                 <div className="flex flex-wrap gap-1 px-1.5 pb-1.5">
-                  {ib('t.align', 'محاذاة إلى اليسار', AlignStartVertical, () => editor.align('left'))}
-                  {ib('t.align', 'توسيط أفقي', AlignCenterVertical, () => editor.align('hcenter'))}
-                  {ib('t.align', 'محاذاة إلى اليمين', AlignEndVertical, () => editor.align('right'))}
-                  {ib('t.align', 'محاذاة إلى الأعلى', AlignStartHorizontal, () => editor.align('top'))}
-                  {ib('t.align', 'توسيط رأسي', AlignCenterHorizontal, () => editor.align('vcenter'))}
-                  {ib('t.align', 'محاذاة إلى الأسفل', AlignEndHorizontal, () => editor.align('bottom'))}
-                  {ib('t.distribute', 'توزيع أفقي متساوٍ', AlignHorizontalDistributeCenter, () => editor.distribute('h'))}
-                  {ib('t.distribute', 'توزيع رأسي متساوٍ', AlignVerticalDistributeCenter, () => editor.distribute('v'))}
+                  {ib('t.align', t('محاذاة إلى اليسار'), AlignStartVertical, () => editor.align('left'))}
+                  {ib('t.align', t('توسيط أفقي'), AlignCenterVertical, () => editor.align('hcenter'))}
+                  {ib('t.align', t('محاذاة إلى اليمين'), AlignEndVertical, () => editor.align('right'))}
+                  {ib('t.align', t('محاذاة إلى الأعلى'), AlignStartHorizontal, () => editor.align('top'))}
+                  {ib('t.align', t('توسيط رأسي'), AlignCenterHorizontal, () => editor.align('vcenter'))}
+                  {ib('t.align', t('محاذاة إلى الأسفل'), AlignEndHorizontal, () => editor.align('bottom'))}
+                  {ib('t.distribute', t('توزيع أفقي متساوٍ'), AlignHorizontalDistributeCenter, () => editor.distribute('h'))}
+                  {ib('t.distribute', t('توزيع رأسي متساوٍ'), AlignVerticalDistributeCenter, () => editor.distribute('v'))}
                 </div>
                 <MenuDivider />
-                <MenuLabel>تدوير وتحجيم بقيم</MenuLabel>
+                <MenuLabel>{t('تدوير وتحجيم بقيم')}</MenuLabel>
                 <PrecisePanel help={help} snap={editor.settings.snapGrid} onApply={editor.transformPrecise} />
               </>
             );
           }}
         </Dropdown>
 
-        <Dropdown label="المحرف" helpId="glyphMenu" icon={<Type className={icon} />} placement="bottom" width={310}>
+        <Dropdown label={t('المحرف')} helpId="glyphMenu" icon={<Type className={icon} />} placement="bottom" width={310}>
           {(close) => (
             <>
-              <MenuLabel>العرض والعارضان (بوحدات الخط)</MenuLabel>
-              <NumberRow label="العرض الكامل" helpId="metrics.advance" value={glyph.advanceWidth} onCommit={editor.setAdvance} />
-              <NumberRow label="العارض الأيسر" helpId="metrics.lsb" value={lsb} onCommit={editor.changeLsb} />
-              <NumberRow label="العارض الأيمن" helpId="metrics.rsb" value={rsb} onCommit={editor.changeRsb} />
+              <MenuLabel>{t('العرض والعارضان (بوحدات الخط)')}</MenuLabel>
+              <NumberRow label={t('العرض الكامل')} helpId="metrics.advance" value={glyph.advanceWidth} onCommit={editor.setAdvance} />
+              <NumberRow label={t('العارض الأيسر')} helpId="metrics.lsb" value={lsb} onCommit={editor.changeLsb} />
+              <NumberRow label={t('العارض الأيمن')} helpId="metrics.rsb" value={rsb} onCommit={editor.changeRsb} />
               <MenuItem
-                label="توسيط الرسم داخل العرض"
+                label={t('توسيط الرسم داخل العرض')}
                 helpId="metrics.center"
                 disabled={!hasDrawing}
                 onClick={() => {
@@ -603,10 +605,10 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 }}
               />
               <MenuDivider />
-              <MenuLabel>وصلات المشروع ({connectors.length})</MenuLabel>
+              <MenuLabel>{t('وصلات المشروع ({n})', { n: connectors.length })}</MenuLabel>
               {connectors.length === 0 && (
                 <p className="px-3 py-2 text-xs leading-6 text-ink-soft">
-                  لا وصلات بعد. حدد مسارات واحفظها وصلة، أو أضفها من إعدادات المشروع.
+                  {t('لا وصلات بعد. حدد مسارات واحفظها وصلة، أو أضفها من إعدادات المشروع.')}
                 </p>
               )}
               {connectors.map((c) => (
@@ -622,7 +624,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 />
               ))}
               <MenuItem
-                label="حفظ المحدد كوصلة"
+                label={t('حفظ المحدد كوصلة')}
                 helpId="connectors.save"
                 disabled={!hasSelection}
                 onClick={() => {
@@ -631,13 +633,13 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 }}
               />
               <MenuDivider />
-              <MenuLabel>نقاط الارتكاز (اسحبها على اللوحة)</MenuLabel>
+              <MenuLabel>{t('نقاط الارتكاز (اسحبها على اللوحة)')}</MenuLabel>
               {Object.entries(ANCHOR_LABEL).map(([key, label]) => {
                 const has = glyph.anchors.some((a) => a.name === key);
                 return (
                   <MenuItem
                     key={key}
-                    label={`${has ? 'حذف' : 'إضافة'}: ${label}`}
+                    label={`${has ? t('حذف') : t('إضافة')}: ${label}`}
                     helpId="anchors.edit"
                     onClick={() => {
                       onUpdateGlyph((g) => ({
@@ -651,10 +653,10 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 );
               })}
               <MenuDivider />
-              <MenuLabel>ملفات SVG</MenuLabel>
-              <MenuItem label="إضافة من SVG" helpId="file.add" icon={<FileUp className={icon} />} onClick={() => { close(); pickSvg(); }} />
+              <MenuLabel>{t('ملفات SVG')}</MenuLabel>
+              <MenuItem label={t('إضافة من SVG')} helpId="file.add" icon={<FileUp className={icon} />} onClick={() => { close(); pickSvg(); }} />
               <MenuItem
-                label="تصدير SVG"
+                label={t('تصدير SVG')}
                 helpId="file.export"
                 icon={<FileDown className={icon} />}
                 disabled={!hasDrawing}
@@ -672,18 +674,18 @@ const StudioInner: React.FC<StudioScreenProps> = ({
         <Button
           variant="quiet"
           active={help.on}
-          title="وضع التعليمات"
+          title={t('وضع التعليمات')}
           onClick={() => help.setOn(!help.on)}
         >
           <CircleHelp className={icon} />
-          <span className="hidden md:inline">تعليمات</span>
+          <span className="hidden md:inline">{t('تعليمات')}</span>
         </Button>
       </DragScroll>
 
       <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
         {/* قائمة المحارف الجانبية للشاشات الكبيرة */}
         <aside className={`glass-panel hidden w-52 shrink-0 flex-col overflow-hidden rounded-2xl xl:w-60 ${showList ? 'lg:flex' : ''}`}>
-          <p className="shrink-0 px-3 pb-1 pt-3 text-xs text-ink-soft">المحارف ({project.glyphs.length})</p>
+          <p className="shrink-0 px-3 pb-1 pt-3 text-xs text-ink-soft">{t('المحارف ({n})', { n: project.glyphs.length })}</p>
           <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-1.5 overflow-y-auto p-2">
             {project.glyphs.map((g) => (
               <button
@@ -740,15 +742,15 @@ const StudioInner: React.FC<StudioScreenProps> = ({
       <input ref={svgInput} type="file" accept=".svg,image/svg+xml" className="hidden" onChange={onSvgFile} />
 
       {/* الشريط السفلي */}
-      <DragScroll label="الشريط السفلي" className="glass-panel shrink-0 rounded-2xl">
-        <Button variant="quiet" icon helpId="zoomOut" title="تصغير" onClick={viewport.zoomOut}>
+      <DragScroll label={t('الشريط السفلي')} className="glass-panel shrink-0 rounded-2xl">
+        <Button variant="quiet" icon helpId="zoomOut" title={t('تصغير')} onClick={viewport.zoomOut}>
           <ZoomOut className={icon} />
         </Button>
 
         <Dropdown label={`${viewport.percent}%`} helpId="zoomMenu" labelOnMobile width={180} placement="top">
           {(close) => (
             <>
-              <MenuLabel>مستوى التكبير</MenuLabel>
+              <MenuLabel>{t('مستوى التكبير')}</MenuLabel>
               {ZOOM_PRESETS.map((p) => (
                 <MenuItem
                   key={p}
@@ -761,10 +763,10 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                   }}
                 />
               ))}
-              <NumberRow label="مخصص %" helpId="zoomCustom" value={viewport.percent} onCommit={(n) => { viewport.zoomTo(clampInt(n, 5, 2000)); close(); }} />
+              <NumberRow label={t('مخصص %')} helpId="zoomCustom" value={viewport.percent} onCommit={(n) => { viewport.zoomTo(clampInt(n, 5, 2000)); close(); }} />
               <MenuDivider />
               <MenuItem
-                label="ملاءمة المحرف للشاشة"
+                label={t('ملاءمة المحرف للشاشة')}
                 helpId="fit"
                 onClick={() => {
                   viewport.fit();
@@ -775,19 +777,19 @@ const StudioInner: React.FC<StudioScreenProps> = ({
           )}
         </Dropdown>
 
-        <Button variant="quiet" icon helpId="zoomIn" title="تكبير" onClick={viewport.zoomIn}>
+        <Button variant="quiet" icon helpId="zoomIn" title={t('تكبير')} onClick={viewport.zoomIn}>
           <ZoomIn className={icon} />
         </Button>
-        <Button variant="quiet" icon helpId="fit" title="ملاءمة المحرف للشاشة" onClick={viewport.fit}>
+        <Button variant="quiet" icon helpId="fit" title={t('ملاءمة المحرف للشاشة')} onClick={viewport.fit}>
           <Maximize className={icon} />
         </Button>
 
         <BarDivider />
 
-        <Button variant="quiet" icon helpId="undo" title="تراجع (Ctrl+Z)" disabled={!editor.canUndo} onClick={editor.undo}>
+        <Button variant="quiet" icon helpId="undo" title={t('تراجع (Ctrl+Z)')} disabled={!editor.canUndo} onClick={editor.undo}>
           <Undo2 className={icon} />
         </Button>
-        <Button variant="quiet" icon helpId="redo" title="إعادة (Ctrl+Shift+Z)" disabled={!editor.canRedo} onClick={editor.redo}>
+        <Button variant="quiet" icon helpId="redo" title={t('إعادة (Ctrl+Shift+Z)')} disabled={!editor.canRedo} onClick={editor.redo}>
           <Redo2 className={icon} />
         </Button>
 
@@ -797,22 +799,22 @@ const StudioInner: React.FC<StudioScreenProps> = ({
           variant="quiet"
           icon
           helpId="delete"
-          title="حذف المحدد (Delete)"
+          title={t('حذف المحدد (Delete)')}
           disabled={!hasSelection}
           onClick={editor.deleteSelection}
         >
           <Trash2 className={icon} />
         </Button>
-        <Button variant="quiet" icon helpId="t.duplicate" title="تكرار (Ctrl+D)" disabled={!hasDrawing} onClick={editor.duplicate}>
+        <Button variant="quiet" icon helpId="t.duplicate" title={t('تكرار (Ctrl+D)')} disabled={!hasDrawing} onClick={editor.duplicate}>
           <Copy className={icon} />
         </Button>
 
         <BarDivider />
 
-        <Dropdown label="الشبكة والالتصاق" helpId="gridMenu" icon={<Grid3x3 className={icon} />} placement="top" width={290}>
+        <Dropdown label={t('الشبكة والالتصاق')} helpId="gridMenu" icon={<Grid3x3 className={icon} />} placement="top" width={290}>
           {() => (
             <>
-              <MenuLabel>الشبكة والالتصاق</MenuLabel>
+              <MenuLabel>{t('الشبكة والالتصاق')}</MenuLabel>
               <div className="flex flex-wrap gap-1 px-2 pb-1">
                 {GRID_CHAIN.map((g) => (
                   <Button key={g} variant="quiet" active={editor.settings.gridStep === g} onClick={() => editor.setGridStep(g)}>
@@ -820,16 +822,16 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                   </Button>
                 ))}
               </div>
-              <NumberRow label="حجم الشبكة (حر)" helpId="settings.gridSize" value={editor.settings.gridStep} onCommit={(n) => editor.setGridStep(clampInt(n, 1, 500))} />
-              <MenuLabel>الأحجام أعلاه متداخلة: تبقى الخطوط الكبيرة في مكانها وتظهر بينها خطوط أدق.</MenuLabel>
-              <NumberRow label="خطوة التحريك الحرة" helpId="settings.nudge" value={nudgeStep} onCommit={(n) => setNudgeStep(clampInt(n, 1, 500))} />
-              <MenuItem label="الالتصاق بالشبكة" helpId="settings.snapGrid" active={editor.settings.snapGrid} onClick={() => editor.setSnapGrid(!editor.settings.snapGrid)} />
-              <MenuItem label="الالتصاق بالنقاط والمقاييس" helpId="settings.snapPoints" active={editor.settings.snapPoints} onClick={() => editor.setSnapPoints(!editor.settings.snapPoints)} />
-              <MenuLabel>Shift لتقييد الاتجاه، وAlt لتعطيل الالتصاق مؤقتاً.</MenuLabel>
+              <NumberRow label={t('حجم الشبكة (حر)')} helpId="settings.gridSize" value={editor.settings.gridStep} onCommit={(n) => editor.setGridStep(clampInt(n, 1, 500))} />
+              <MenuLabel>{t('الأحجام أعلاه متداخلة: تبقى الخطوط الكبيرة في مكانها وتظهر بينها خطوط أدق.')}</MenuLabel>
+              <NumberRow label={t('خطوة التحريك الحرة')} helpId="settings.nudge" value={nudgeStep} onCommit={(n) => setNudgeStep(clampInt(n, 1, 500))} />
+              <MenuItem label={t('الالتصاق بالشبكة')} helpId="settings.snapGrid" active={editor.settings.snapGrid} onClick={() => editor.setSnapGrid(!editor.settings.snapGrid)} />
+              <MenuItem label={t('الالتصاق بالنقاط والمقاييس')} helpId="settings.snapPoints" active={editor.settings.snapPoints} onClick={() => editor.setSnapPoints(!editor.settings.snapPoints)} />
+              <MenuLabel>{t('Shift لتقييد الاتجاه، وAlt لتعطيل الالتصاق مؤقتاً.')}</MenuLabel>
             </>
           )}
         </Dropdown>
-        <Button variant="quiet" icon active={aidsOpen} helpId="aids" title="مساعدات الرسم: جيران وصورة تتبع" onClick={() => setAidsOpen((v) => !v)}>
+        <Button variant="quiet" icon active={aidsOpen} helpId="aids" title={t('مساعدات الرسم: جيران وصورة تتبع')} onClick={() => setAidsOpen((v) => !v)}>
           <Layers className={icon} />
         </Button>
 
@@ -837,10 +839,10 @@ const StudioInner: React.FC<StudioScreenProps> = ({
 
         {(
           [
-            ['up', ArrowUp, 0, 1, 'للأعلى'],
-            ['down', ArrowDown, 0, -1, 'للأسفل'],
-            ['left', ArrowLeft, -1, 0, 'لليسار'],
-            ['right', ArrowRight, 1, 0, 'لليمين'],
+            ['up', ArrowUp, 0, 1, t('للأعلى')],
+            ['down', ArrowDown, 0, -1, t('للأسفل')],
+            ['left', ArrowLeft, -1, 0, t('لليسار')],
+            ['right', ArrowRight, 1, 0, t('لليمين')],
           ] as const
         ).map(([k, Ico, dx, dy, name]) => (
           <Button
@@ -848,7 +850,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             variant="quiet"
             icon
             helpId="nudge"
-            title={editor.settings.snapGrid ? `تحريك المحدد ${name} (خطوة شبكة)` : `تحريك المحدد ${name} (${nudgeStep})`}
+            title={editor.settings.snapGrid ? t('تحريك المحدد {name} (خطوة شبكة)', { name }) : t('تحريك المحدد {name} ({step})', { name, step: nudgeStep })}
             disabled={!hasSelection}
             onClick={() => editor.nudgeDir(dx, dy, nudgeStep)}
           >
@@ -863,16 +865,16 @@ const StudioInner: React.FC<StudioScreenProps> = ({
           onPointerDown={help.on ? () => help.show('status') : undefined}
         >
           <span>
-            نقاط <span className="font-mono text-ink">{nodeCount}</span>
+            {t('نقاط')} <span className="font-mono text-ink">{nodeCount}</span>
           </span>
           <span>
-            محدد <span className="font-mono text-ink">{editor.selection.size}</span>
+            {t('محدد')} <span className="font-mono text-ink">{editor.selection.size}</span>
           </span>
           <span>
-            مسارات <span className="font-mono text-ink">{glyph.contours.length}</span>
+            {t('مسارات')} <span className="font-mono text-ink">{glyph.contours.length}</span>
           </span>
           <span>
-            الحالة <span className="text-ink">{pathState}</span>
+            {t('الحالة')} <span className="text-ink">{pathState}</span>
           </span>
           <span className="h-4 w-px bg-ink/20" />
           <span className="font-mono text-ink">{glyph.name}</span>

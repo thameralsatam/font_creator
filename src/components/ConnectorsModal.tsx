@@ -5,6 +5,7 @@ import { MAX_CONNECTORS } from '../utils/glyphLogic';
 import { uid } from '../utils/fontLogic';
 import { centerOnOrigin } from '../utils/pathEdit';
 import { svgToGlyph } from '../utils/svgGlyph';
+import { t, tx } from '../i18n';
 import { ConnectorPreview } from './ConnectorPreview';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -36,23 +37,23 @@ export const ConnectorsModal: React.FC<{
       added.push({ id: uid('conn'), name: f.name.replace(/\.svg$/i, ''), contours: centerOnOrigin(res.contours) });
     }
     if (added.length) onSave([...list, ...added]);
-    if (failed.length) setError(`تعذّر قراءة: ${failed.join('، ')}`);
+    if (failed.length) setError(t('تعذّر قراءة: {names}', { names: failed.join(t('، ')) }));
   };
 
   return (
     <Modal
-      title="الوصلات"
-      subtitle={`حتى ${MAX_CONNECTORS} وصلة تظهر في الاستوديو لتدرجها بضغطة`}
+      title={t('الوصلات')}
+      subtitle={t('حتى {n} وصلة تظهر في الاستوديو لتدرجها بضغطة', { n: MAX_CONNECTORS })}
       size="md"
       onClose={onClose}
     >
       <div className="mt-4 space-y-3">
         <p className="text-xs leading-6 text-ink-soft">
-          أضف الوصلة من ملف SVG هنا، أو من الاستوديو: حدد مساراتها واختر «حفظ المحدد كوصلة» من قائمة الوصلات.
+          {t('أضف الوصلة من ملف SVG هنا، أو من الاستوديو: حدد مساراتها واختر «حفظ المحدد كوصلة» من قائمة الوصلات.')}
         </p>
 
         {list.length === 0 ? (
-          <p className="plate py-6 text-center text-sm text-ink-soft">لا وصلات بعد.</p>
+          <p className="plate py-6 text-center text-sm text-ink-soft">{t('لا وصلات بعد.')}</p>
         ) : (
           <ul className="space-y-2">
             {list.map((c) => (
@@ -64,7 +65,7 @@ export const ConnectorsModal: React.FC<{
                   className="field min-w-0 flex-1"
                   defaultValue={c.name}
                   maxLength={40}
-                  aria-label="اسم الوصلة"
+                  aria-label={t('اسم الوصلة')}
                   onBlur={(e) => {
                     const name = e.target.value.trim() || c.name;
                     if (name !== c.name) onSave(list.map((x) => (x.id === c.id ? { ...x, name } : x)));
@@ -73,7 +74,7 @@ export const ConnectorsModal: React.FC<{
                 <Button
                   variant="quiet"
                   icon
-                  title="حذف الوصلة"
+                  title={t('حذف الوصلة')}
                   onClick={() => onSave(list.filter((x) => x.id !== c.id))}
                 >
                   <Trash2 className="h-4 w-4 stroke-[1.5]" />
@@ -87,11 +88,14 @@ export const ConnectorsModal: React.FC<{
 
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-ink-soft">
-            <span className="font-mono">{list.length}</span> من <span className="font-mono">{MAX_CONNECTORS}</span>
+            {tx('{a} من {b}', {
+              a: <span className="font-mono">{list.length}</span>,
+              b: <span className="font-mono">{MAX_CONNECTORS}</span>,
+            })}
           </span>
           <Button variant="primary" disabled={full} onClick={() => input.current?.click()}>
             <FileUp className="h-4 w-4 stroke-[1.5]" />
-            <span>إضافة من SVG</span>
+            <span>{t('إضافة من SVG')}</span>
           </Button>
         </div>
         <input ref={input} type="file" multiple accept=".svg,image/svg+xml" className="hidden" onChange={(e) => void onFile(e)} />

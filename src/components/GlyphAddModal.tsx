@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { type FontProject, type GlyphCategory, type GlyphForm, type NewGlyphData } from '../types/font';
 import { defaultGlyphName, defaultUnicode, validateNewGlyph } from '../utils/fontLogic';
 import { CATEGORY_LABEL, FORM_LABEL } from '../utils/labels';
+import { t } from '../i18n';
 import { Button } from './ui/Button';
 import { Modal, ModalActions } from './ui/Modal';
 
@@ -47,10 +48,10 @@ export const GlyphAddModal: React.FC<{
   };
 
   return (
-    <Modal title="إضافة محرف جديد" onClose={onClose}>
+    <Modal title={t('إضافة محرف جديد')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3.5">
         <div>
-          <label htmlFor="g-char" className="mb-1 block text-xs text-ink-soft">المحرف أو الرمز</label>
+          <label htmlFor="g-char" className="mb-1 block text-xs text-ink-soft">{t('المحرف أو الرمز')}</label>
           <input
             id="g-char"
             autoFocus
@@ -58,12 +59,12 @@ export const GlyphAddModal: React.FC<{
             maxLength={4}
             value={char}
             onChange={(e) => onChar(e.target.value)}
-            placeholder="مثال: ف"
+            placeholder={t('مثال: {c}', { c: 'ف' })}
             className="field font-heading text-base"
           />
         </div>
         <div>
-          <label htmlFor="g-name" className="mb-1 block text-xs text-ink-soft">اسم المحرف في الخط</label>
+          <label htmlFor="g-name" className="mb-1 block text-xs text-ink-soft">{t('اسم المحرف في الخط')}</label>
           <input
             id="g-name"
             dir="ltr"
@@ -78,7 +79,7 @@ export const GlyphAddModal: React.FC<{
           />
         </div>
         <div>
-          <label htmlFor="g-unicode" className="mb-1 block text-xs text-ink-soft">نقطة اليونيكود</label>
+          <label htmlFor="g-unicode" className="mb-1 block text-xs text-ink-soft">{t('نقطة اليونيكود')}</label>
           <input
             id="g-unicode"
             dir="ltr"
@@ -94,7 +95,7 @@ export const GlyphAddModal: React.FC<{
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="g-cat" className="mb-1 block text-xs text-ink-soft">التصنيف</label>
+            <label htmlFor="g-cat" className="mb-1 block text-xs text-ink-soft">{t('التصنيف')}</label>
             <select id="g-cat" value={category} onChange={(e) => setCategory(e.target.value as GlyphCategory)} className="field">
               {(Object.keys(CATEGORY_LABEL) as GlyphCategory[]).map((k) => (
                 <option key={k} value={k}>{CATEGORY_LABEL[k]}</option>
@@ -102,7 +103,7 @@ export const GlyphAddModal: React.FC<{
             </select>
           </div>
           <div>
-            <label htmlFor="g-form" className="mb-1 block text-xs text-ink-soft">الشكل</label>
+            <label htmlFor="g-form" className="mb-1 block text-xs text-ink-soft">{t('الشكل')}</label>
             <select id="g-form" value={form} onChange={(e) => setForm(e.target.value as GlyphForm)} className="field">
               {(Object.keys(FORM_LABEL) as GlyphForm[]).map((k) => (
                 <option key={k} value={k}>{FORM_LABEL[k]}</option>
@@ -114,8 +115,8 @@ export const GlyphAddModal: React.FC<{
           <p role="alert" className="rounded-xl border border-ink/20 bg-sand/30 p-2.5 text-xs">{error}</p>
         )}
         <ModalActions>
-          <Button onClick={onClose}>إلغاء</Button>
-          <Button type="submit" variant="primary">إضافة</Button>
+          <Button onClick={onClose}>{t('إلغاء')}</Button>
+          <Button type="submit" variant="primary">{t('إضافة')}</Button>
         </ModalActions>
       </form>
     </Modal>

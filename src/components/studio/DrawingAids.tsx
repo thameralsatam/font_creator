@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { ImagePlus, Trash2, X } from 'lucide-react';
 import { type Glyph } from '../../types/font';
 import { Button } from '../ui/Button';
+import { t } from '../../i18n';
 
 /** صورة تتبع خلف الرسم. القيم بوحدات الخط، وتبقى في الجلسة فقط ولا تُحفظ مع المشروع. */
 export interface Trace {
@@ -83,7 +84,7 @@ export const DrawingAids: React.FC<{
         <input
           className="field w-full"
           style={{ height: 32 }}
-          placeholder="حرف أو اسم محرف"
+          placeholder={t('حرف أو اسم محرف')}
           value={neighbors[key]}
           onChange={(e) => onNeighbors({ ...neighbors, [key]: e.target.value })}
         />
@@ -98,33 +99,33 @@ export const DrawingAids: React.FC<{
 
   return (
     <section
-      aria-label="مساعدات الرسم"
+      aria-label={t('مساعدات الرسم')}
       className="glass-panel absolute bottom-3 start-3 z-10 max-h-[calc(100%-1.5rem)] w-[min(17rem,calc(100%-1.5rem))] space-y-3 overflow-y-auto rounded-2xl p-3"
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-sm">مساعدات الرسم</h3>
-        <Button variant="quiet" icon title="إغلاق" onClick={onClose}>
+        <h3 className="text-sm">{t('مساعدات الرسم')}</h3>
+        <Button variant="quiet" icon title={t('إغلاق')} onClick={onClose}>
           <X className="h-4 w-4 stroke-[1.5]" />
         </Button>
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs text-ink-soft">جيران المحرف: يظهران باهتين بجانب رسمك لتقيس المسافة بالعين.</p>
-        {side('left', 'على يسار المحرف')}
-        {side('right', 'على يمين المحرف')}
+        <p className="text-xs text-ink-soft">{t('جيران المحرف: يظهران باهتين بجانب رسمك لتقيس المسافة بالعين.')}</p>
+        {side('left', t('على يسار المحرف'))}
+        {side('right', t('على يمين المحرف'))}
       </div>
 
       <div className="space-y-2 border-t border-ink/10 pt-3">
-        <p className="text-xs text-ink-soft">صورة تتبع: ضع صورة حرفك خلف الرسم وارسم فوقها.</p>
+        <p className="text-xs text-ink-soft">{t('صورة تتبع: ضع صورة حرفك خلف الرسم وارسم فوقها.')}</p>
         <Button variant="secondary" onClick={() => file.current?.click()}>
           <ImagePlus className="h-4 w-4 stroke-[1.5]" />
-          <span>{trace ? 'تغيير الصورة' : 'اختيار صورة'}</span>
+          <span>{trace ? t('تغيير الصورة') : t('اختيار صورة')}</span>
         </Button>
         <input ref={file} type="file" accept="image/*" className="hidden" onChange={pick} />
         {trace && (
           <div className="space-y-2">
             <label className="flex items-center justify-between gap-2 text-xs">
-              <span>الشفافية</span>
+              <span>{t('الشفافية')}</span>
               <input
                 type="range"
                 min={5}
@@ -134,12 +135,12 @@ export const DrawingAids: React.FC<{
                 onChange={(e) => onTrace({ ...trace, opacity: Number(e.target.value) })}
               />
             </label>
-            <Num label="الحجم %" value={trace.scale} onCommit={(n) => n > 0 && onTrace({ ...trace, scale: n })} />
-            <Num label="إزاحة أفقية" value={trace.dx} onCommit={(n) => onTrace({ ...trace, dx: n })} />
-            <Num label="إزاحة رأسية" value={trace.dy} onCommit={(n) => onTrace({ ...trace, dy: n })} />
+            <Num label={t('الحجم %')} value={trace.scale} onCommit={(n) => n > 0 && onTrace({ ...trace, scale: n })} />
+            <Num label={t('إزاحة أفقية')} value={trace.dx} onCommit={(n) => onTrace({ ...trace, dx: n })} />
+            <Num label={t('إزاحة رأسية')} value={trace.dy} onCommit={(n) => onTrace({ ...trace, dy: n })} />
             <div className="flex gap-2">
               <Button variant="quiet" onClick={() => onTrace({ ...trace, scale: 100, dx: 0, dy: 0 })}>
-                إعادة الضبط
+                {t('إعادة الضبط')}
               </Button>
               <Button
                 variant="quiet"
@@ -149,7 +150,7 @@ export const DrawingAids: React.FC<{
                 }}
               >
                 <Trash2 className="h-4 w-4 stroke-[1.5]" />
-                <span>إزالة</span>
+                <span>{t('إزالة')}</span>
               </Button>
             </div>
           </div>

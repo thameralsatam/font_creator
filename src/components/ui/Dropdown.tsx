@@ -1,3 +1,4 @@
+import { isRtl, t } from '../../i18n';
 import React, {
   useCallback,
   useEffect,
@@ -195,7 +196,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
           <div
             ref={panelRef}
             role="menu"
-            dir="rtl"
+            dir={isRtl() ? 'rtl' : 'ltr'}
             style={{
               position: 'fixed',
               left: pos.left,
@@ -246,7 +247,7 @@ export const MenuItem: React.FC<MenuItemProps> = ({
     role="menuitem"
     className={`menu-item ${soon ? 'is-soon' : ''}`}
     disabled={!help.on && (soon || disabled)}
-    title={soon ? `${label} (قريباً)` : undefined}
+    title={soon ? `${label} ${t('(قريباً)')}` : undefined}
     onClick={help.on ? () => help.show(helpId ?? null) : onClick}
   >
     {icon && <span className="flex h-4 w-4 items-center justify-center">{icon}</span>}

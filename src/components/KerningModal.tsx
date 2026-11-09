@@ -3,6 +3,7 @@ import { ArrowLeftRight, Minus, Plus, Trash2 } from 'lucide-react';
 import { type FontProject, type Glyph, type KernPair } from '../types/font';
 import { uid } from '../utils/fontLogic';
 import { glyphFillPath } from '../utils/pathGeometry';
+import { isRtl, t } from '../i18n';
 import { Button } from './ui/Button';
 import { Modal, ModalActions } from './ui/Modal';
 
@@ -69,35 +70,35 @@ export const KerningModal: React.FC<{
 
   return (
     <Modal
-      title="المسافة بين الأزواج"
-      subtitle="قرّب حرفين أو باعد بينهما بعد الصياغة"
+      title={t('المسافة بين الأزواج')}
+      subtitle={t('قرّب حرفين أو باعد بينهما بعد الصياغة')}
       icon={<ArrowLeftRight className="h-4 w-4 stroke-[1.5]" />}
       size="lg"
       onClose={onClose}
     >
       {project.source?.useOriginal && (
         <p className="mt-3 rounded-2xl border border-ink/20 bg-sand/25 p-3 text-xs leading-6">
-          هذا الخط مستورد وجداوله الأصلية مفعّلة، فلا يؤثر ما تضبطه هنا عند التصدير. لتفعيل ضبطك أوقفها من نافذة ميزات الأوبن تايب.
+          {t('هذا الخط مستورد وجداوله الأصلية مفعّلة، فلا يؤثر ما تضبطه هنا عند التصدير. لتفعيل ضبطك أوقفها من نافذة ميزات الأوبن تايب.')}
         </p>
       )}
       {glyphs.length < 2 ? (
-        <p className="mt-3 text-sm leading-7 text-ink-soft">أضف محرفين على الأقل ليظهر ضبط الأزواج.</p>
+        <p className="mt-3 text-sm leading-7 text-ink-soft">{t('أضف محرفين على الأقل ليظهر ضبط الأزواج.')}</p>
       ) : (
         <div className="mt-3 space-y-4 text-sm">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1">
-              <span className="text-xs text-ink-soft">الأول في الكتابة (الأيمن)</span>
+              <span className="text-xs text-ink-soft">{t('الأول في الكتابة (الأيمن)')}</span>
               <select className="field" value={left} onChange={(e) => setLeft(e.target.value)}>{options}</select>
             </label>
             <label className="block space-y-1">
-              <span className="text-xs text-ink-soft">الثاني (الأيسر)</span>
+              <span className="text-xs text-ink-soft">{t('الثاني (الأيسر)')}</span>
               <select className="field" value={right} onChange={(e) => setRight(e.target.value)}>{options}</select>
             </label>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-ink-soft">القيمة (وحدات الخط، السالب يقرّب)</span>
-            <Button variant="secondary" icon title="تقريب أكثر" onClick={() => setValue((v) => v - 10)}>
+            <span className="text-xs text-ink-soft">{t('القيمة (وحدات الخط، السالب يقرّب)')}</span>
+            <Button variant="secondary" icon title={t('تقريب أكثر')} onClick={() => setValue((v) => v - 10)}>
               <Minus className="h-4 w-4 stroke-[1.5]" />
             </Button>
             <input
@@ -109,41 +110,41 @@ export const KerningModal: React.FC<{
                 const n = Number(e.target.value);
                 if (Number.isFinite(n)) setValue(Math.max(-m.upm, Math.min(m.upm, Math.round(n))));
               }}
-              aria-label="قيمة الضبط"
+              aria-label={t('قيمة الضبط')}
             />
-            <Button variant="secondary" icon title="تباعد أكثر" onClick={() => setValue((v) => v + 10)}>
+            <Button variant="secondary" icon title={t('تباعد أكثر')} onClick={() => setValue((v) => v + 10)}>
               <Plus className="h-4 w-4 stroke-[1.5]" />
             </Button>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <PairPreview first={byName.get(left)} second={byName.get(right)} value={0} asc={m.ascender} desc={m.descender} label="بدون ضبط" />
-            <PairPreview first={byName.get(left)} second={byName.get(right)} value={value} asc={m.ascender} desc={m.descender} label="بعد الضبط" />
+            <PairPreview first={byName.get(left)} second={byName.get(right)} value={0} asc={m.ascender} desc={m.descender} label={t('بدون ضبط')} />
+            <PairPreview first={byName.get(left)} second={byName.get(right)} value={value} asc={m.ascender} desc={m.descender} label={t('بعد الضبط')} />
           </div>
 
           <div className="flex items-center gap-2">
             <Button variant="primary" disabled={!left || !right || value === 0 || full} onClick={save}>
-              {existing ? 'تحديث الزوج' : 'إضافة الزوج'}
+              {existing ? t('تحديث الزوج') : t('إضافة الزوج')}
             </Button>
-            {full && <span className="text-xs text-ink-soft">بلغت الحد الأقصى ({MAX_KERN_PAIRS} زوج).</span>}
-            {value === 0 && <span className="text-xs text-ink-soft">القيمة صفر لا تغيّر شيئاً.</span>}
+            {full && <span className="text-xs text-ink-soft">{t('بلغت الحد الأقصى ({n} زوج).', { n: MAX_KERN_PAIRS })}</span>}
+            {value === 0 && <span className="text-xs text-ink-soft">{t('القيمة صفر لا تغيّر شيئاً.')}</span>}
           </div>
 
           <div>
-            <div className="mb-1 text-xs text-ink-soft">الأزواج المضبوطة ({list.length})</div>
+            <div className="mb-1 text-xs text-ink-soft">{t('الأزواج المضبوطة ({n})', { n: list.length })}</div>
             {list.length === 0 ? (
-              <p className="text-xs leading-6 text-ink-soft">لا أزواج بعد.</p>
+              <p className="text-xs leading-6 text-ink-soft">{t('لا أزواج بعد.')}</p>
             ) : (
               <ul className="max-h-48 space-y-1 overflow-y-auto">
                 {list.map((k) => (
                   <li key={k.id} className="flex items-center gap-2 rounded-xl border border-ink/10 px-2 py-1">
                     <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-xs" onClick={() => pick(k)}>
                       <span dir="ltr" className="truncate font-mono">{k.left}</span>
-                      <span aria-hidden>←</span>
+                      <span aria-hidden>{isRtl() ? '←' : '→'}</span>
                       <span dir="ltr" className="truncate font-mono">{k.right}</span>
                       <span dir="ltr" className="ms-auto rounded-full bg-ink/10 px-2 font-mono">{k.value}</span>
                     </button>
-                    <Button variant="quiet" icon title="حذف الزوج" onClick={() => remove(k.id)}>
+                    <Button variant="quiet" icon title={t('حذف الزوج')} onClick={() => remove(k.id)}>
                       <Trash2 className="h-4 w-4 stroke-[1.5]" />
                     </Button>
                   </li>
@@ -154,7 +155,7 @@ export const KerningModal: React.FC<{
         </div>
       )}
       <ModalActions>
-        <Button variant="primary" onClick={onClose}>تم</Button>
+        <Button variant="primary" onClick={onClose}>{t('تم')}</Button>
       </ModalActions>
     </Modal>
   );
