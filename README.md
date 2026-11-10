@@ -24,7 +24,7 @@ A browser-based font editor and type-design tool for Arabic: draw glyphs with BÃ
 
 ## Status
 
-Under active development: the UI and manual are Arabic-only so far, there is no demo project on first launch, and the connection preview is a simulation, not a full shaping engine.
+Under active development: the UI and manual are available in Arabic and German only (no English), there is no demo project on first launch, and the connection preview is a simulation, not a full shaping engine.
 
 ## Development
 
