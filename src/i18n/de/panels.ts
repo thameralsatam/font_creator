@@ -128,6 +128,7 @@ const d: Dict = {
   'نقطة اليونيكود': 'Unicode-Wert',
   'نقل للتعديل': 'Zum Bearbeiten verschieben',
   'نوع {n}': 'Typ {n}',
+  'هذا الخط مستورد وجداوله الأصلية مفعّلة، فتُدمج الإزاحة في جدول التموضع الأصلي دون المساس به. علامات التشكيل المربوطة في الخط الأصلي تبقى على ارتفاعها الأصلي ولا تنزل مع الحرف.': 'Diese Schrift wurde importiert und ihre Originaltabellen sind eingeschaltet, daher wird die Verschiebung in die ursprüngliche Positionierungstabelle eingefügt, ohne sie zu verändern. Im Originalfont angebundene Vokalzeichen bleiben auf ihrer ursprünglichen Höhe und senken sich nicht mit dem Buchstaben.',
   'هذا الخط مستورد وجداوله الأصلية مفعّلة، فلا يؤثر ما تضبطه هنا عند التصدير. لتفعيل ضبطك أوقفها من نافذة ميزات الأوبن تايب.': 'Diese Schrift wurde importiert und ihre Originaltabellen sind eingeschaltet, daher wirkt sich Ihre Einstellung hier nicht auf den Export aus. Schalten Sie sie im Fenster „OpenType-Funktionen“ aus, damit Ihre Einstellung gilt.',
   'هذه الأشكال يحتاجها كل حرف بحسب نوع اتصاله (المتصل من الجهتين يحتاج بداية ووسطاً ونهاية، والمتصل بما قبله فقط يحتاج نهاية).': 'Diese Formen benötigt jeder Buchstabe je nach Art seiner Verbindung (beidseitig verbundene brauchen Initial, Medial und Final, nur nach vorn verbundene nur Final).',
   'يضيف القواعد التلقائية إلى صندوق قواعدك لتعدّلها': 'Fügt die automatischen Regeln in Ihr Regelfeld ein, damit Sie sie ändern können',
