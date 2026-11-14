@@ -249,3 +249,31 @@ test('rect selection, polygon containment and flatten', () => {
   assert.equal(pointInPolygon({ x: 200, y: 100 }, poly), true);
   assert.equal(pointInPolygon({ x: 400, y: 100 }, poly), false);
 });
+
+test('anchors follow lsb shift, centering and transforms', async () => {
+  const { transformAnchors } = await import('./pathEdit');
+  const anchors = [{ id: 'a', name: 'top', x: 250, y: 700 }] as any;
+  const s = { contours: [square()], advanceWidth: 500, anchors };
+  const l = setLsb(s, 50, M);
+  assert.ok(l && l.anchors);
+  const dx = (boundsOf(l.contours)?.xMin ?? 0) - (boundsOf(s.contours)?.xMin ?? 0);
+  assert.equal(l.anchors[0].x, 250 + dx);
+  assert.equal(l.anchors[0].y, 700);
+  const t = transformAnchors(anchors, (p) => ({ x: p.x + 10.4, y: p.y }));
+  assert.equal(t?.[0].x, 260);
+  assert.equal(transformAnchors(undefined, (p) => p), undefined);
+});
+
+test('pasteContours: fresh ids, offset, limits', async () => {
+  const { pasteContours } = await import('./pathEdit');
+  const clip = [square()];
+  const r = pasteContours([], clip, 40, -40, M);
+  assert.ok(r);
+  assert.equal(r.contours.length, 1);
+  assert.notEqual(r.contours[0].id, clip[0].id);
+  assert.ok(r.contours[0].nodes.every((n) => !clip[0].nodes.some((o) => o.id === n.id)));
+  assert.equal(boundsOf(r.contours)?.xMin, (boundsOf(clip)?.xMin ?? 0) + 40);
+  assert.equal(pasteContours([], [], 0, 0, M), null);
+  assert.equal(pasteContours([], clip, 1e7, 0, M), null);
+  assert.equal(pasteContours(Array(24).fill(clip[0]), clip, 0, 0, M), null);
+});

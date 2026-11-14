@@ -642,10 +642,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                     label={`${has ? t('حذف') : t('إضافة')}: ${label}`}
                     helpId="anchors.edit"
                     onClick={() => {
-                      onUpdateGlyph((g) => ({
-                        ...g,
-                        anchors: has ? g.anchors.filter((a) => a.name !== key) : [...g.anchors, defaultAnchor(key, g.advanceWidth, metrics)],
-                      }));
+                      editor.setAnchors((all) => (has ? all.filter((a) => a.name !== key) : [...all, defaultAnchor(key, glyph.advanceWidth, metrics)]));
                       if (!has && !options.anchors) toggle('anchors');
                       close();
                     }}
@@ -715,7 +712,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             onHelp={help.on ? () => help.show('canvas') : undefined}
             neighbors={neighborGlyphs}
             trace={trace}
-            onAnchors={(next) => onUpdateGlyph((g) => ({ ...g, anchors: next }))}
+            onAnchors={(next) => editor.setAnchors(() => next, 'anchor-drag')}
           />
           {aidsOpen && (
             <DrawingAids

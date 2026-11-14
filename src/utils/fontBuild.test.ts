@@ -157,3 +157,24 @@ test('imported font keeps original glyph order and layout tables on export; edit
   const off = await buildFontBuffer({ ...imp.project, source: { ...imp.project.source!, useOriginal: false } });
   assert.equal((ot.default ?? ot).parse(off).getKerningValue(font.charToGlyph('A'), font.charToGlyph('V')) !== undefined, true);
 });
+
+test('cascade rules are written as a chained positioning lookup under dist', async () => {
+  const { buildFontBuffer } = await import('./fontBuild');
+  const { createProject, createGlyph } = await import('./fontLogic');
+  const { readRawTable, featureTags, lookupTypes } = await import('./gpos');
+  const nd = (id: string, x: number, y: number) => ({ id, x, y, kind: 'corner' as const, handleIn: null, handleOut: null });
+  const box = (k: string) => ({ id: 'c' + k, closed: true, nodes: [nd(k + 'a', 50, 0), nd(k + 'b', 550, 0), nd(k + 'c', 550, 600), nd(k + 'd', 50, 600)] });
+  const mk = (n: string, w = 600) => ({ ...createGlyph({ char: n, name: n, unicode: 'U+00' + n.charCodeAt(0).toString(16), category: 'letter' as const }), advanceWidth: w, contours: [box(n)] });
+  const p = createProject('T', 'D', '');
+  p.glyphs = ['A', 'B', 'C'].map((n) => mk(n));
+  p.cascades = [{ id: 'r', glyph: 'B', dy: -80, span: 0 }];
+  const buf = await buildFontBuffer(p);
+  const gpos = readRawTable(buf, 'GPOS');
+  assert.ok(gpos, 'GPOS exists');
+  assert.ok(featureTags(gpos!).includes('dist'));
+  const types = lookupTypes(gpos!);
+  assert.ok(types.includes(1) && types.includes(8));
+  // قاعدة تشير إلى محرف غير موجود لا تكتب شيئاً
+  p.cascades = [{ id: 'r', glyph: 'Zed', dy: -80, span: 0 }];
+  assert.equal(readRawTable(await buildFontBuffer(p), 'GPOS'), null);
+});

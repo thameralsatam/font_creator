@@ -6,6 +6,7 @@ import {
   Trash2,
   Link2,
   ArrowLeft,
+  MoveDown,
   ArrowRight,
   ArrowUpDown,
   Filter,
@@ -39,6 +40,7 @@ import { FontTestPanel } from './FontTestPanel';
 import { FontInfoModal, type InfoPatch } from './FontInfoModal';
 import { ConnectorsModal } from './ConnectorsModal';
 import { KerningModal } from './KerningModal';
+import { CascadeModal } from './CascadeModal';
 import { GlyphAddModal } from './GlyphAddModal';
 import { GlyphCard } from './GlyphCard';
 import { CopyGlyphsModal } from './CopyGlyphsModal';
@@ -97,6 +99,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const [showInfo, setShowInfo] = useState(false);
   const [showConnectors, setShowConnectors] = useState(false);
   const [showKerning, setShowKerning] = useState(false);
+  const [showCascade, setShowCascade] = useState(false);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -268,6 +271,15 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   onClick={() => {
                     close();
                     onOpenMetrics();
+                  }}
+                />
+                <MenuItem
+                  label={t('إزاحة الحروف اللاحقة')}
+                  icon={<MoveDown className={icon} />}
+                  hint={project.cascades?.length ? String(project.cascades.length) : undefined}
+                  onClick={() => {
+                    close();
+                    setShowCascade(true);
                   }}
                 />
                 <MenuItem
@@ -577,6 +589,9 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
       )}
       {showKerning && (
         <KerningModal project={project} onSave={(kerning) => props.onUpdateProject({ kerning })} onClose={() => setShowKerning(false)} />
+      )}
+      {showCascade && (
+        <CascadeModal project={project} onSave={(cascades) => props.onUpdateProject({ cascades })} onClose={() => setShowCascade(false)} />
       )}
       {showInfo && <FontInfoModal project={project} onSave={onUpdateInfo} onClose={() => setShowInfo(false)} />}
       {showFeatures && (

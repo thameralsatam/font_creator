@@ -36,6 +36,7 @@ export const OT_FEATURE_LABEL: Record<string, string> = {
   init: t('شكل البداية'),
   isol: t('الشكل المنفصل'),
   kern: t('التقارب بين الأزواج'),
+  dist: t('إزاحة الحروف اللاحقة'),
   liga: t('الترابط العادي'),
   locl: t('خصائص حسب اللغة'),
   mark: t('تموضع التشكيل على الحروف'),
@@ -56,4 +57,4 @@ export function otFeatureLabel(tag: string): string {
 }
 
 /** ميزات يفعّلها المتصفح تلقائياً. الباقي اختياري ويبدأ مطفأً في المعاينة. */
-export const OT_DEFAULT_ON = new Set(['ccmp', 'locl', 'rlig', 'calt', 'rclt', 'liga', 'clig', 'init', 'medi', 'fina', 'isol', 'kern', 'mark', 'mkmk', 'curs', 'rvrn']);
+export const OT_DEFAULT_ON = new Set(['ccmp', 'locl', 'rlig', 'calt', 'rclt', 'liga', 'clig', 'init', 'medi', 'fina', 'isol', 'kern', 'dist', 'mark', 'mkmk', 'curs', 'rvrn']);

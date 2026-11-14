@@ -5,6 +5,7 @@ import { type FontProject } from '../types/font';
  * المكتبة التي تبني الخط لا تكتب هذه الجداول، فنكتبها هنا بأنفسنا:
  * - ضبط المسافة بين زوج محارف (كيرننغ): نوع 2 صيغة 1.
  * - تموضع علامات التشكيل على الحروف بنقاط الارتكاز: نوع 4 صيغة 1.
+ * - إزاحة الحروف اللاحقة (حركة تتابعية): سياق متسلسل نوع 8 صيغة 3 يستدعي إزاحة مفردة نوع 1.
  */
 
 export interface PairAdjust {
@@ -23,6 +24,20 @@ export interface Anchor {
   x: number;
   y: number;
 }
+
+export interface CascadeAdjust {
+  /** أرقام المحارف التي تبدأ بها الإزاحة (لها الإزاحة والمدى نفسهما). */
+  triggers: number[];
+  dy: number;
+  /** عدد الحروف المتأثرة بعد المحرف (1 إلى MAX_CASCADE_SPAN). */
+  span: number;
+}
+export interface CascadeData {
+  rules: CascadeAdjust[];
+  /** أرقام الحروف التي تُحسب ضمن الكلمة وتُزاح (الفراغ وعلامات الترقيم وعلامات التشكيل خارجها). */
+  letters: number[];
+}
+export const MAX_CASCADE_SPAN = 12;
 
 class W {
   private b: number[] = [];
@@ -150,12 +165,16 @@ interface Lookup {
   type: number;
   subtables: Uint8Array[];
   feature: string;
+  /** هل تُدرج في قائمة ميزة؟ (الإزاحات المفردة تُستدعى من السياق فقط). */
+  inFeature?: boolean;
+  /** علم البحث، مثل 8 لتجاهل العلامات. */
+  flag?: number;
 }
 
 function lookupBytes(l: Lookup): Uint8Array {
   const n = l.subtables.length;
   const head = 6 + 2 * n;
-  const w = new W().u16(l.type).u16(0).u16(n);
+  const w = new W().u16(l.type).u16(l.flag ?? 0).u16(n);
   let off = head;
   l.subtables.forEach((s) => {
     w.u16(off);
@@ -165,9 +184,65 @@ function lookupBytes(l: Lookup): Uint8Array {
   return w.done();
 }
 
+/** إزاحة مفردة رأسية: نوع 1 صيغة 1، قيمة YPlacement فقط. */
+function singleYSubtable(gids: number[], dy: number): Uint8Array {
+  const cov = coverage(gids);
+  return new W().u16(1).u16(6 + 2).u16(0x0002).i16(clamp16(dy)).bytes(cov).done();
+}
+
+/** سياق متسلسل صيغة 3: خلف المدخل `backs` (الأقرب أولاً)، والمدخل واحد، ثم يستدعي بحثاً واحداً. */
+function chainSubtable(backs: Uint8Array[], input: Uint8Array, lookupIndex: number): Uint8Array {
+  const n = backs.length;
+  const head = 2 + 2 + 2 * n + 2 + 2 + 2 + 2 + 4;
+  const w = new W().u16(3).u16(n);
+  let off = head;
+  const covOffs: number[] = [];
+  for (const b of backs) {
+    covOffs.push(off);
+    off += b.length;
+  }
+  covOffs.forEach((o) => w.u16(o));
+  const inOff = off;
+  w.u16(1).u16(inOff);
+  off += input.length;
+  w.u16(0); // لا نظر للأمام
+  w.u16(1).u16(0).u16(lookupIndex);
+  backs.forEach((b) => w.bytes(b));
+  w.bytes(input);
+  return w.done();
+}
+
+/**
+ * تحويل قواعد الإزاحة التتابعية إلى بحوث: إزاحة مفردة لكل قيمة، وبحث سياقي واحد.
+ * قاعدة (محرف م، المسافة k) تعني: المحرف م ثم k حرفاً ثم حرف مُدخل ← يُزاح المُدخل.
+ * ترتيب القواعد بحسب k تصاعدياً فيحكم أقرب محرف مُحفِّز، ولا تتراكم الإزاحات.
+ */
+function cascadeLookups(c: CascadeData, firstIndex: number): Lookup[] {
+  const rules = c.rules.filter((r) => r.triggers.length && r.dy !== 0 && c.letters.length);
+  if (!rules.length) return [];
+  const dys = [...new Set(rules.map((r) => Math.round(r.dy)))];
+  const singles: Lookup[] = dys.map((dy) => ({ type: 1, subtables: [singleYSubtable(c.letters, dy)], feature: 'dist', inFeature: false }));
+  const lettersCov = coverage(c.letters);
+  const subs: Array<{ k: number; bytes: Uint8Array }> = [];
+  for (const r of rules) {
+    const li = firstIndex + dys.indexOf(Math.round(r.dy));
+    const trig = coverage([...new Set(r.triggers)].sort((a, b) => a - b));
+    const span = Math.max(1, Math.min(MAX_CASCADE_SPAN, r.span || MAX_CASCADE_SPAN));
+    for (let k = 0; k < span; k++) {
+      const backs = [...Array(k).fill(lettersCov), trig] as Uint8Array[];
+      subs.push({ k, bytes: chainSubtable(backs, lettersCov, li) });
+    }
+  }
+  subs.sort((a, b) => a.k - b.k);
+  const chain: Lookup = { type: 8, subtables: subs.map((s) => s.bytes), feature: 'dist', flag: 0x0008 };
+  return [...singles, chain];
+}
+
 /** يبني جدول GPOS كاملاً، أو null إن لم يوجد ما يُكتب. */
-export function buildGpos(pairs: PairAdjust[], marks: MarkAnchors | null): Uint8Array | null {
+export function buildGpos(pairs: PairAdjust[], marks: MarkAnchors | null, cascade: CascadeData | null = null): Uint8Array | null {
   const lookups: Lookup[] = [];
+  // الإزاحة التتابعية أولاً: التشكيل يُوضَع بعدها فيتبع الحرف بعد إزاحته
+  if (cascade) lookups.push(...cascadeLookups(cascade, 0));
   const pairTables = pairs.length > 0 ? pairSubtables(pairs) : [];
   if (pairTables.length) lookups.push({ type: 2, subtables: pairTables, feature: 'kern' });
   if (marks && marks.marks.length > 0 && marks.bases.length > 0) {
@@ -177,7 +252,8 @@ export function buildGpos(pairs: PairAdjust[], marks: MarkAnchors | null): Uint8
 
   // قائمة الميزات مرتبة بالاسم، وكل ميزة تشير إلى بحثها
   const feats = lookups
-    .map((l, i) => ({ tag: l.feature, idx: i }))
+    .map((l, i) => ({ tag: l.feature, idx: i, inFeature: l.inFeature !== false }))
+    .filter((f) => f.inFeature)
     .sort((a, b) => (a.tag < b.tag ? -1 : 1));
   const featureTables = feats.map((f) => new W().u16(0).u16(1).u16(f.idx).done());
   const fl = new W().u16(feats.length);
@@ -306,6 +382,7 @@ export interface Positioning {
   pairs: PairAdjust[];
   marks: MarkAnchors | null;
   markGids: number[];
+  cascade: CascadeData | null;
 }
 
 /**
@@ -334,7 +411,27 @@ export function collectPositioning(project: FontProject, gidOf: (name: string) =
       marks.bases.push({ gid, anchors: [top ? { x: top.x, y: top.y } : null, bottom ? { x: bottom.x, y: bottom.y } : null] });
     }
   }
-  return { pairs, marks: marks.marks.length && marks.bases.length ? marks : null, markGids };
+  // الحروف الداخلة في الكلمة: الحروف والروابط فقط
+  const letters: number[] = [];
+  for (const g of project.glyphs) {
+    const gid = gidOf(g.name);
+    if (gid !== undefined && (g.category === 'letter' || g.category === 'ligature')) letters.push(gid);
+  }
+  letters.sort((a, b) => a - b);
+  const rules: CascadeAdjust[] = [];
+  for (const r of project.cascades ?? []) {
+    const gid = gidOf(r.glyph);
+    if (gid === undefined || r.dy === 0 || !letters.includes(gid)) continue;
+    const same = rules.find((x) => x.dy === r.dy && x.span === r.span);
+    if (same) same.triggers.push(gid);
+    else rules.push({ triggers: [gid], dy: r.dy, span: r.span });
+  }
+  return {
+    pairs,
+    marks: marks.marks.length && marks.bases.length ? marks : null,
+    markGids,
+    cascade: rules.length ? { rules, letters } : null,
+  };
 }
 
 /* ============================================================

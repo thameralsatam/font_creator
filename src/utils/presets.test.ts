@@ -36,3 +36,14 @@ test('createGlyph honours a preset advance width, including zero', () => {
   const h = createGlyph({ char: 'a', name: 'a', unicode: 'U+0061', category: 'letter' });
   assert.equal(h.advanceWidth, 500);
 });
+
+test('symbol presets: honorifics, religious ligatures, quran marks, ornaments', () => {
+  const get = (id: string) => PRESETS.find((p) => p.id === id)!.items;
+  assert.equal(get('honorifics').length, 6);
+  assert.equal(get('religious').length, 11);
+  assert.equal(get('quranMarks').length, 19);
+  assert.equal(get('ornaments').length, 4);
+  assert.ok(get('honorifics').every((i) => i.category === 'diacritic' && i.advanceWidth === 0));
+  assert.ok(get('quranMarks').every((i) => i.advanceWidth === 0));
+  assert.ok(get('religious').some((i) => i.unicode === 'U+FDF2'));
+});

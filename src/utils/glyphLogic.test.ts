@@ -92,3 +92,13 @@ test('copyGlyphsInto: add, skip, replace with fresh ids', async () => {
   assert.equal(rep.glyphs[0].advanceWidth, 300);
   assert.equal(rep.glyphs[0].id, target[0].id);
 });
+
+test('copyGlyphsInto: same unicode under another name counts as existing', async () => {
+  const { copyGlyphsInto } = await import('./glyphLogic');
+  const { createGlyph } = await import('./fontLogic');
+  const a = createGlyph({ char: 'ب', name: 'beh.isol', unicode: 'U+0628', category: 'letter' });
+  const b = createGlyph({ char: 'ب', name: 'myBeh', unicode: 'u+0628', category: 'letter' });
+  const r = copyGlyphsInto([a], [b], false);
+  assert.deepEqual([r.added, r.skipped], [0, 1]);
+  assert.equal(r.glyphs.length, 1);
+});
