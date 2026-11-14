@@ -90,14 +90,14 @@ export interface CopyResult {
   skipped: number;
 }
 
-/** ينسخ محارف إلى قائمة محارف مشروع آخر. المطابقة بالاسم: إما يستبدل الموجود أو يتخطاه. */
+/** ينسخ محارف إلى قائمة محارف مشروع آخر. المطابقة بالاسم أو برمز اليونيكود: إما يستبدل الموجود أو يتخطاه. */
 export function copyGlyphsInto(target: Glyph[], src: Glyph[], replace: boolean): CopyResult {
   const next = [...target];
   let added = 0;
   let replaced = 0;
   let skipped = 0;
   for (const g of src) {
-    const i = next.findIndex((t) => t.name === g.name);
+    const i = next.findIndex((t) => t.name === g.name || (!!g.unicode && t.unicode.toUpperCase() === g.unicode.toUpperCase()));
     if (i === -1) {
       next.push(cloneGlyphFresh(g));
       added++;

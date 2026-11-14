@@ -67,6 +67,23 @@ const LIGATURES: NewGlyphData[] = LAM_ALEF.flatMap(([iso, fin, name, chars]) => 
   { ...item(fin, `${name}.fina`, 'ligature', 650), char: chars, form: 'final' as const },
 ]);
 
+const HONORIFICS: Row[] = [
+  [0x0610, 'sallallahouSign'], [0x0611, 'alayheSign'], [0x0612, 'rahmatullahSign'],
+  [0x0613, 'radiAllahouSign'], [0x0614, 'takhallusSign'], [0x0615, 'smallHighTah'],
+];
+
+const RELIGIOUS: Row[] = [
+  [0xfdf2, 'lafzAllah'], [0xfdfa, 'sallallahuAlayhi'], [0xfdfb, 'jallaJalaluhu'], [0xfdfd, 'bismillah'],
+  [0xfdf3, 'akbar'], [0xfdf4, 'mohammad'], [0xfdf5, 'salam'], [0xfdf6, 'rasoul'],
+  [0xfdf7, 'alayhe'], [0xfdf8, 'wasallam'], [0xfdf9, 'salla'],
+];
+
+const QURAN_CP = [
+  ...Array.from({ length: 7 }, (_, i) => 0x06d6 + i),
+  ...Array.from({ length: 6 }, (_, i) => 0x06df + i),
+  0x06e7, 0x06e8, 0x06ea, 0x06eb, 0x06ec, 0x06ed,
+];
+
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
 
 export const PRESETS: PresetSet[] = [
@@ -93,6 +110,35 @@ export const PRESETS: PresetSet[] = [
     label: t('علامات التشكيل'),
     description: t('الفتحة والضمة والكسرة والشدة والسكون والتنوين (8 علامات، عرضها صفر).'),
     items: MARKS.map(([cp, n]) => item(cp, n, 'diacritic', 0)),
+  },
+  {
+    id: 'honorifics',
+    label: t('رموز الترضي والدعاء'),
+    description: t('الرموز الصغيرة فوق الحرف: صلى الله عليه وسلم وعليه السلام ورحمه الله ورضي الله عنه وغيرها (6 علامات، عرضها صفر).'),
+    items: HONORIFICS.map(([cp, n]) => item(cp, n, 'diacritic', 0)),
+  },
+  {
+    id: 'religious',
+    label: t('لفظ الجلالة والصلاة والبسملة'),
+    description: t('رموز يونيكود الجاهزة: لفظ الجلالة وصلى الله عليه وسلم وجل جلاله والبسملة وأجزاؤها (11 محرفاً).'),
+    items: RELIGIOUS.map(([cp, n]) => item(cp, n, 'symbol', 1000)),
+  },
+  {
+    id: 'quranMarks',
+    label: t('علامات الوقف والتجويد'),
+    description: t('علامات المصحف الصغيرة فوق الحرف وتحته (19 علامة، عرضها صفر).'),
+    items: QURAN_CP.map((cp) => item(cp, `quran${cp.toString(16).toUpperCase()}`, 'diacritic', 0)),
+  },
+  {
+    id: 'ornaments',
+    label: t('الأقواس المزخرفة وعلامات الآيات'),
+    description: t('القوسان المزخرفان وعلامة بداية الربع وموضع السجدة (4 رموز).'),
+    items: [
+      item(0xfd3e, 'ornateParenLeft', 'symbol', 400),
+      item(0xfd3f, 'ornateParenRight', 'symbol', 400),
+      item(0x06de, 'startOfRubElHizb', 'symbol', 700),
+      item(0x06e9, 'placeOfSajdah', 'symbol', 700),
+    ],
   },
   {
     id: 'arabicDigits',

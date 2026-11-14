@@ -87,6 +87,14 @@ export function checkProject(project: FontProject): BuildReport {
   const usingOriginal = !!project.source?.useOriginal;
   const orphan = usingOriginal ? [] : (project.kerning ?? []).filter((k) => !nameSet.has(k.left) || !nameSet.has(k.right));
   if (orphan.length) warnings.push(t('{n} زوج في ضبط المسافات يشير إلى محرف محذوف أو أُعيدت تسميته، ولن يُكتب.', { n: orphan.length }));
+  const cascadeBad = usingOriginal
+    ? []
+    : (project.cascades ?? []).filter((r) => {
+        const g = glyphs.find((x) => x.name === r.glyph);
+        return !g || (g.category !== 'letter' && g.category !== 'ligature');
+      });
+  if (cascadeBad.length)
+    warnings.push(t('{n} قاعدة في إزاحة الحروف اللاحقة تشير إلى محرف محذوف أو ليس حرفاً، ولن تُكتب.', { n: cascadeBad.length }));
   const marksWithAnchor = glyphs.filter((g) => g.category === 'diacritic' && g.anchors.some((a) => a.name === 'top' || a.name === 'bottom'));
   const basesWithAnchor = glyphs.filter((g) => g.category !== 'diacritic' && g.anchors.some((a) => a.name === 'top' || a.name === 'bottom'));
   if (!usingOriginal && basesWithAnchor.length > 0 && marksWithAnchor.length === 0)
@@ -272,7 +280,7 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
   }
   // جداول الموضع (كيرننغ وتشكيل): المكتبة لا تكتبها، فنحقنها في الملف بعد البناء
   const pos = collectPositioning(project, (n) => index.get(n));
-  const gpos = buildGpos(pos.pairs, pos.marks);
+  const gpos = buildGpos(pos.pairs, pos.marks, pos.cascade);
   if (!gpos) return buf;
   const extra: Record<string, Uint8Array> = { GPOS: gpos };
   const gdef = pos.marks ? buildGdef(pos.markGids, glyphs.length) : null;

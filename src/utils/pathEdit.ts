@@ -1,4 +1,5 @@
 import {
+  type AnchorPoint,
   type Contour,
   type FontMetrics,
   type PathNode,
@@ -722,6 +723,17 @@ export function autoSmoothNodes(
 export interface Snapshot {
   contours: Contour[];
   advanceWidth: number;
+  /** نقاط الارتكاز: تُزاح وتُحوَّل مع الرسم كله حتى تبقى في مكانها منه. */
+  anchors?: AnchorPoint[];
+}
+
+/** يزيح نقاط الارتكاز أفقياً. */
+const shiftAnchors = (a: AnchorPoint[] | undefined, dx: number): AnchorPoint[] | undefined =>
+  a ? a.map((p) => ({ ...p, x: p.x + dx })) : a;
+
+/** يحوّل نقاط الارتكاز بالدالة نفسها التي حُوِّل بها الرسم. */
+export function transformAnchors(a: AnchorPoint[] | undefined, fn: (p: Vec) => Vec): AnchorPoint[] | undefined {
+  return a ? a.map((p) => { const q = fn({ x: p.x, y: p.y }); return { ...p, x: Math.round(q.x), y: Math.round(q.y) }; }) : a;
 }
 
 export function clampAdvance(v: number, m: FontMetrics): number {
@@ -737,7 +749,7 @@ export function setLsb(s: Snapshot, lsb: number, m: FontMetrics): Snapshot | nul
   const r = coordRange(m);
   if (advanceWidth < 0 || advanceWidth > maxAdvance(m)) return null;
   if (b.xMin + dx < r.xMin || b.xMax + dx > r.xMax) return null;
-  return { contours: translateAll(s.contours, dx, 0), advanceWidth };
+  return { contours: translateAll(s.contours, dx, 0), advanceWidth, anchors: shiftAnchors(s.anchors, dx) };
 }
 
 /** العارض الأيمن = المسافة بين أقصى يمين الرسم ونهاية العرض الكامل. تغييره يغيّر العرض فقط. */
@@ -746,7 +758,7 @@ export function setRsb(s: Snapshot, rsb: number, m: FontMetrics): Snapshot | nul
   if (!b) return null;
   const advanceWidth = Math.round(b.xMax) + Math.round(rsb);
   if (advanceWidth < 0 || advanceWidth > maxAdvance(m)) return null;
-  return { contours: s.contours, advanceWidth };
+  return { contours: s.contours, advanceWidth, anchors: s.anchors };
 }
 
 /** توسيط الرسم داخل العرض الكامل دون تغيير العرض. */
@@ -756,7 +768,7 @@ export function centerInAdvance(s: Snapshot, m: FontMetrics): Snapshot | null {
   const dx = Math.round((s.advanceWidth - (b.xMin + b.xMax)) / 2);
   const r = coordRange(m);
   if (b.xMin + dx < r.xMin || b.xMax + dx > r.xMax) return null;
-  return { contours: translateAll(s.contours, dx, 0), advanceWidth: s.advanceWidth };
+  return { contours: translateAll(s.contours, dx, 0), advanceWidth: s.advanceWidth, anchors: shiftAnchors(s.anchors, dx) };
 }
 
 /* ============================================================
@@ -996,6 +1008,39 @@ export function duplicateContours(
     copies.push({ ...c, id: uid('contour'), nodes });
   }
   return { contours: [...contours, ...copies], newIds };
+}
+
+/** يلصق مسارات منسوخة في قائمة مسارات المحرف بمعرّفات جديدة. يعيد null إن تجاوز الحدود. */
+export function pasteContours(
+  existing: Contour[],
+  clip: Contour[],
+  dx: number,
+  dy: number,
+  m: FontMetrics
+): { contours: Contour[]; newIds: Set<string> } | null {
+  if (clip.length === 0) return null;
+  if (existing.length + clip.length > LIMITS.maxContours) return null;
+  if (countNodes(existing) + countNodes(clip) > LIMITS.maxNodes) return null;
+  const r = coordRange(m);
+  const newIds = new Set<string>();
+  const copies: Contour[] = [];
+  for (const c of clip) {
+    const nodes = c.nodes.map((n) => {
+      const nid = uid('node');
+      newIds.add(nid);
+      return {
+        ...n,
+        id: nid,
+        x: n.x + dx,
+        y: n.y + dy,
+        handleIn: n.handleIn ? { ...n.handleIn } : null,
+        handleOut: n.handleOut ? { ...n.handleOut } : null,
+      };
+    });
+    if (nodes.some((n) => n.x < r.xMin || n.x > r.xMax || n.y < r.yMin || n.y > r.yMax)) return null;
+    copies.push({ ...c, id: uid('contour'), nodes });
+  }
+  return { contours: [...existing, ...copies], newIds };
 }
 
 /** موضع واتجاه سهم يدل على اتجاه المسار (منتصف أول مقطع). */

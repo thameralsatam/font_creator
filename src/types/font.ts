@@ -125,6 +125,8 @@ export interface FontProject {
   connectors?: Connector[];
   /** ضبط المسافة بين أزواج المحارف (كيرننغ). */
   kerning?: KernPair[];
+  /** إزاحة الحروف اللاحقة */
+  cascades?: CascadeRule[];
   /** يوجد فقط للمشاريع المستوردة من ملف خط. */
   source?: SourceLayout;
 }
@@ -138,6 +140,18 @@ export interface KernPair {
   left: string;
   right: string;
   value: number;
+}
+
+/**
+ * إزاحة الحروف اللاحقة (الحركة التتابعية): حين يأتي المحرف `glyph` في كلمة تُزاح الحروف التي بعده رأسياً بمقدار `dy`.
+ * `span` عدد الحروف المتأثرة بعده (من 1 إلى 12)، والصفر يعني كل ما بقي من الكلمة (حتى 12 حرفاً).
+ * الحالة تُحدَّد باسم المحرف نفسه (مثل hah.medi للحاء في الوسط).
+ */
+export interface CascadeRule {
+  id: string;
+  glyph: string;
+  dy: number;
+  span: number;
 }
 
 /**

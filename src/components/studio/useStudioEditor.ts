@@ -2,7 +2,7 @@ import { roundCorners, removeRedundant } from '../../utils/pathOps';
 import { t } from '../../i18n';
 import { booleanContours, type BoolOp } from '../../utils/pathBool';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { type Contour, type FontMetrics, type Glyph, type Vec } from '../../types/font';
+import { type AnchorPoint, type Contour, type FontMetrics, type Glyph, type Vec } from '../../types/font';
 import {
   LIMITS,
   addContourWithNode,
@@ -19,6 +19,7 @@ import {
   countNodes,
   deleteNodes,
   duplicateContours,
+  pasteContours,
   fixDirections,
   flipHFn,
   flipVFn,
@@ -63,6 +64,7 @@ import {
   effectiveGridStep,
   gridNudgeDelta,
   type Snapshot,
+  transformAnchors,
   type SnapContext,
   type SnapResult,
 } from '../../utils/pathEdit';
@@ -162,7 +164,10 @@ const PEN_DRAG_PX = 5;
 
 const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 
-export const MSG = {
+export /** حافظة المسارات داخل التطبيق، تبقى عند الانتقال بين المحارف. */
+let clipboard: { from: string; contours: Contour[] } | null = null;
+
+const MSG = {
   maxNodes: t('وصل المحرف إلى الحد الأقصى من النقاط ({n}).', { n: LIMITS.maxNodes }),
   maxContours: t('وصل المحرف إلى الحد الأقصى من المسارات ({n}).', { n: LIMITS.maxContours }),
   needThree: t('يلزم ثلاث نقاط على الأقل لإغلاق المسار.'),
@@ -176,6 +181,10 @@ export const MSG = {
   alignFail: t('لا مسارات للمحاذاة، أو ستخرج عن حدود المحرف.'),
   distributeFail: t('التوزيع يحتاج ثلاثة مسارات على الأقل، أو يُخرج الرسم عن الحدود.'),
   badValue: t('أدخل أرقاماً صالحة: النسبة أكبر من صفر.'),
+  copied: t('نُسخت المسارات المحددة.'),
+  cutDone: t('قُصّت المسارات المحددة.'),
+  clipEmpty: t('لا شيء منسوخ للصق.'),
+  cannotPaste: t('اللصق يتجاوز حدود النقاط أو المسارات أو مساحة المحرف.'),
   cannotDuplicate: t('التكرار يتجاوز حدود النقاط أو المسارات أو مساحة المحرف.'),
 } as const;
 
@@ -197,14 +206,15 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
   guidesRef.current = glyph.guides;
 
   /* ---------- نسخة العمل ---------- */
-  const work = useRef<Snapshot>({ contours: glyph.contours, advanceWidth: glyph.advanceWidth });
+  const work = useRef<Snapshot>({ contours: glyph.contours, advanceWidth: glyph.advanceWidth, anchors: glyph.anchors });
   const applied = useRef<Snapshot>(work.current);
   if (
     applied.current.contours !== glyph.contours ||
-    applied.current.advanceWidth !== glyph.advanceWidth
+    applied.current.advanceWidth !== glyph.advanceWidth ||
+    applied.current.anchors !== glyph.anchors
   ) {
     // تغيير خارجي (مثل تبديل المحرف): نتبنّاه
-    work.current = { contours: glyph.contours, advanceWidth: glyph.advanceWidth };
+    work.current = { contours: glyph.contours, advanceWidth: glyph.advanceWidth, anchors: glyph.anchors };
     applied.current = work.current;
   }
 
@@ -274,7 +284,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     const next: Snapshot = { ...work.current, ...patch };
     work.current = next;
     applied.current = next;
-    updateRef.current((g) => ({ ...g, contours: next.contours, advanceWidth: next.advanceWidth }));
+    updateRef.current((g) => ({ ...g, contours: next.contours, advanceWidth: next.advanceWidth, anchors: next.anchors ?? g.anchors }));
   };
 
   const syncCounts = () =>
@@ -931,7 +941,13 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
       flash(MSG.outOfRange);
       return;
     }
-    commit({ contours: next });
+    // بلا تحديد يشمل التحويل الرسم كله، فتتحول نقاط الارتكاز معه وتبقى في مكانها منه
+    commit({ contours: next, ...(liveSelection().size === 0 ? { anchors: transformAnchors(work.current.anchors, fn) } : {}) });
+  };
+
+  /** تعديل نقاط الارتكاز (إضافة وحذف وسحب) ضمن سجل التراجع. */
+  const setAnchors = (fn: (all: AnchorPoint[]) => AnchorPoint[], key?: string) => {
+    commit({ anchors: fn(work.current.anchors ?? []) }, key);
   };
 
   const center = () => {
@@ -1092,6 +1108,36 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     commit({ contours: openContourAt(work.current.contours, [...sel][0]) });
   };
 
+  const copySelection = (): boolean => {
+    const sel = liveSelection();
+    const src = work.current.contours.filter((c) => c.nodes.some((n) => sel.has(n.id)));
+    if (src.length === 0) {
+      flash(MSG.needSelection);
+      return false;
+    }
+    clipboard = { from: glyph.id, contours: JSON.parse(JSON.stringify(src)) as Contour[] };
+    return true;
+  };
+
+  const copy = () => {
+    if (copySelection()) flash(MSG.copied);
+  };
+
+  const cut = () => {
+    if (!copySelection()) return;
+    deleteSelection();
+    flash(MSG.cutDone);
+  };
+
+  const paste = () => {
+    if (!clipboard) return flash(MSG.clipEmpty);
+    const same = clipboard.from === glyph.id;
+    const res = pasteContours(work.current.contours, clipboard.contours, same ? 40 : 0, same ? -40 : 0, metricsRef.current);
+    if (!res) return flash(MSG.cannotPaste);
+    commit({ contours: res.contours });
+    setSelection(res.newIds);
+  };
+
   const duplicate = () => {
     const res = duplicateContours(work.current.contours, liveSelection(), 40, -40, metricsRef.current);
     if (!res) return flash(MSG.cannotDuplicate);
@@ -1147,9 +1193,9 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
 
   /* ---------- لوحة المفاتيح ---------- */
   const latest = useRef({
-    undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate, hasMeasure, clearMeasure, nudgeDir,
+    undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate, copy, cut, paste, hasMeasure, clearMeasure, nudgeDir,
   });
-  latest.current = { undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate, hasMeasure, clearMeasure, nudgeDir };
+  latest.current = { undo, redo, selectAll, clearSelection, deleteSelection, nudge, setTool, finishPen, duplicate, copy, cut, paste, hasMeasure, clearMeasure, nudgeDir };
 
   useEffect(() => {
     const typing = (t: EventTarget | null) =>
@@ -1177,6 +1223,15 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
         } else if (e.code === 'KeyD') {
           e.preventDefault();
           L.duplicate();
+        } else if (e.code === 'KeyC') {
+          e.preventDefault();
+          L.copy();
+        } else if (e.code === 'KeyX') {
+          e.preventDefault();
+          L.cut();
+        } else if (e.code === 'KeyV') {
+          e.preventDefault();
+          L.paste();
         }
         return;
       }
@@ -1310,6 +1365,9 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     closeSelected,
     openAtSelected,
     duplicate,
+    copy,
+    cut,
+    paste,
     importContours,
     insertConnector,
     selectedContours,
@@ -1326,6 +1384,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     changeLsb,
     changeRsb,
     centerGlyph,
+    setAnchors,
   };
 }
 
