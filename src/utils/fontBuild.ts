@@ -12,7 +12,7 @@ import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
 import { type Rule, computeFeatures, ruleToFea, rulesForBuild } from './features';
 import { projectRules } from './feaParse';
 import { infoOf, parseVersion, resolveInfo, safePsName } from './fontInfo';
-import { type Anchor, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, readGpos, readRawTable } from './gpos';
+import { type Anchor, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, mergeCascadeIntoGpos, readGpos, readRawTable } from './gpos';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
 import { isRtl, t } from '../i18n';
 
@@ -276,6 +276,12 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
   if (source) {
     const raw: Record<string, Uint8Array> = {};
     for (const t of ['GSUB', 'GPOS', 'GDEF'] as const) if (source.tables[t]) raw[t] = base64ToBytes(source.tables[t]!);
+    // الإزاحة التتابعية تُدمج في جدول التموضع الأصلي دون تغيير بحوثه
+    const casc = collectPositioning(project, (n) => index.get(n)).cascade;
+    if (casc) {
+      const merged = mergeCascadeIntoGpos(raw.GPOS ?? new Uint8Array(0), casc) ?? (raw.GPOS ? null : buildGpos([], null, casc));
+      if (merged) raw.GPOS = merged;
+    }
     return injectTables(buf, raw);
   }
   // جداول الموضع (كيرننغ وتشكيل): المكتبة لا تكتبها، فنحقنها في الملف بعد البناء

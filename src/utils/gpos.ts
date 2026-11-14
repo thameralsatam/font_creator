@@ -296,6 +296,167 @@ export function buildGpos(pairs: PairAdjust[], marks: MarkAnchors | null, cascad
     .done();
 }
 
+
+/**
+ * يدمج الإزاحة التتابعية في جدول GPOS أصلي دون المساس ببحوثه: البحوث الجديدة تُلحق بعد الأصلية (فلا يتغير ترقيم شيء)،
+ * وتُضاف ميزة dist إلى كل لغة في كل خط. يعيد null إن تعذّر (جدول غير مفهوم أو تجاوز حدود الإزاحات).
+ * المخرج: الأقسام الجديدة ثم نسخة كاملة من الجدول الأصلي تبقى بحوثه فيها كما هي.
+ */
+export function mergeCascadeIntoGpos(orig: Uint8Array, cascade: CascadeData): Uint8Array | null {
+  const dv = new DataView(orig.buffer, orig.byteOffset, orig.byteLength);
+  const u16 = (o: number) => (o + 2 <= orig.length ? dv.getUint16(o) : -1);
+  if (orig.length < 10 || u16(0) !== 1) return null;
+  if (u16(2) === 1 && orig.length >= 14 && dv.getUint32(10) !== 0) return null; // تغيّرات ميزات: غير مدعومة
+  const scriptOff = u16(4);
+  const featOff = u16(6);
+  const lookOff = u16(8);
+  if (scriptOff <= 0 || featOff <= 0 || lookOff <= 0) return null;
+
+  // قائمة البحوث الأصلية
+  const n = u16(lookOff);
+  if (n < 0) return null;
+  const oldLookups: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const o = u16(lookOff + 2 + 2 * i);
+    if (o < 0) return null;
+    oldLookups.push(lookOff + o); // موضع مطلق في الجدول الأصلي
+  }
+  const added = cascadeLookups(cascade, n);
+  if (!added.length) return null;
+  const chainIdx = n + added.length - 1;
+
+  // قائمة الميزات: نسخها ثم إدخال dist بحسب الترتيب الأبجدي
+  const fc = u16(featOff);
+  if (fc < 0) return null;
+  const feats: Array<{ tag: string; lookups: number[]; old: number }> = [];
+  for (let i = 0; i < fc; i++) {
+    const r = featOff + 2 + 6 * i;
+    if (r + 6 > orig.length) return null;
+    const tag = String.fromCharCode(orig[r], orig[r + 1], orig[r + 2], orig[r + 3]);
+    const ft = featOff + u16(r + 4);
+    const cnt = u16(ft + 2);
+    if (cnt < 0) return null;
+    const lookups: number[] = [];
+    for (let j = 0; j < cnt; j++) {
+      const v = u16(ft + 4 + 2 * j);
+      if (v < 0) return null;
+      lookups.push(v);
+    }
+    feats.push({ tag, lookups, old: i });
+  }
+  const distAt = feats.filter((f) => f.tag <= 'dist').length; // بعد كل ما يسبقه أبجدياً
+  const order: Array<{ tag: string; lookups: number[]; old: number }> = [
+    ...feats.slice(0, distAt),
+    { tag: 'dist', lookups: [chainIdx], old: -1 },
+    ...feats.slice(distAt),
+  ];
+  const newIndexOf = (oldIdx: number) => order.findIndex((f) => f.old === oldIdx);
+  const distIdx = distAt;
+
+  // قائمة الخطوط: إعادة كتابة كل لغة مع إضافة dist
+  const sc = u16(scriptOff);
+  if (sc < 0) return null;
+  const langSysBytes = (at: number): Uint8Array | null => {
+    const req = u16(at + 2);
+    const cnt = u16(at + 4);
+    if (req < 0 || cnt < 0) return null;
+    const idx: number[] = [];
+    for (let i = 0; i < cnt; i++) {
+      const v = u16(at + 6 + 2 * i);
+      if (v < 0 || v >= fc) return null;
+      idx.push(newIndexOf(v));
+    }
+    if (!idx.includes(distIdx)) idx.push(distIdx);
+    idx.sort((a, b) => a - b);
+    const w = new W().u16(0).u16(req === 0xffff ? 0xffff : newIndexOf(req)).u16(idx.length);
+    idx.forEach((v) => w.u16(v));
+    return w.done();
+  };
+  const scriptTables: Array<{ tag: string; bytes: Uint8Array }> = [];
+  for (let i = 0; i < sc; i++) {
+    const r = scriptOff + 2 + 6 * i;
+    if (r + 6 > orig.length) return null;
+    const tag = String.fromCharCode(orig[r], orig[r + 1], orig[r + 2], orig[r + 3]);
+    const st = scriptOff + u16(r + 4);
+    const defOff = u16(st);
+    const lc = u16(st + 2);
+    if (defOff < 0 || lc < 0) return null;
+    const langs: Array<{ tag: string; bytes: Uint8Array }> = [];
+    for (let j = 0; j < lc; j++) {
+      const lr = st + 4 + 6 * j;
+      const lt = String.fromCharCode(orig[lr], orig[lr + 1], orig[lr + 2], orig[lr + 3]);
+      const b = langSysBytes(st + u16(lr + 4));
+      if (!b) return null;
+      langs.push({ tag: lt, bytes: b });
+    }
+    let def: Uint8Array | null = null;
+    if (defOff !== 0) {
+      def = langSysBytes(st + defOff);
+      if (!def) return null;
+    } else if (langs.length === 0) {
+      def = new W().u16(0).u16(0xffff).u16(1).u16(distIdx).done();
+    }
+    const head = 4 + 6 * langs.length;
+    const w = new W().u16(def ? head : 0).u16(langs.length);
+    let off = head + (def ? def.length : 0);
+    langs.forEach((l) => {
+      w.tag(l.tag).u16(off);
+      off += l.bytes.length;
+    });
+    if (def) w.bytes(def);
+    langs.forEach((l) => w.bytes(l.bytes));
+    scriptTables.push({ tag, bytes: w.done() });
+  }
+  const sl = new W().u16(scriptTables.length);
+  let so = 2 + 6 * scriptTables.length;
+  scriptTables.forEach((t) => {
+    sl.tag(t.tag).u16(so);
+    so += t.bytes.length;
+  });
+  scriptTables.forEach((t) => sl.bytes(t.bytes));
+  const scriptList = sl.done();
+
+  const featTables = order.map((f) => {
+    const w = new W().u16(0).u16(f.lookups.length);
+    f.lookups.forEach((v) => w.u16(v));
+    return w.done();
+  });
+  const fl = new W().u16(order.length);
+  let fo = 2 + 6 * order.length;
+  order.forEach((f, i) => {
+    fl.tag(f.tag).u16(fo);
+    fo += featTables[i].length;
+  });
+  featTables.forEach((t) => fl.bytes(t));
+  const featureList = fl.done();
+
+  // قائمة البحوث الجديدة: القديمة تشير إلى النسخة الأصلية المحفوظة آخر الجدول
+  const addedBytes = added.map(lookupBytes);
+  const listLen = 2 + 2 * (n + added.length);
+  const addedLen = addedBytes.reduce((a, b) => a + b.length, 0);
+  const head = 10;
+  const total = head + scriptList.length + featureList.length + listLen + addedLen;
+  const origStart = total; // بداية نسخة الجدول الأصلي داخل المخرج
+  const listStartAbs = head + scriptList.length + featureList.length;
+  const ll = new W().u16(n + added.length);
+  for (const abs of oldLookups) {
+    const rel = origStart + abs - listStartAbs;
+    if (rel > 0xffff) return null;
+    ll.u16(rel);
+  }
+  let ao = listLen;
+  addedBytes.forEach((b) => {
+    ll.u16(ao);
+    ao += b.length;
+  });
+  const out = new W()
+    .u16(1).u16(0).u16(head).u16(head + scriptList.length).u16(listStartAbs)
+    .bytes(scriptList).bytes(featureList).bytes(ll.done());
+  addedBytes.forEach((b) => out.bytes(b));
+  out.bytes(orig);
+  return out.done();
+}
+
 /** جدول GDEF يصنّف المحارف: علامات التشكيل فئة 3، وغيرها أساس (فئة 1). */
 export function buildGdef(markGids: number[], totalGlyphs: number): Uint8Array | null {
   if (markGids.length === 0) return null;

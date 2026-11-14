@@ -178,3 +178,15 @@ test('cascade rules are written as a chained positioning lookup under dist', asy
   p.cascades = [{ id: 'r', glyph: 'Zed', dy: -80, span: 0 }];
   assert.equal(readRawTable(await buildFontBuffer(p), 'GPOS'), null);
 });
+
+test('cascade merges into an original GPOS without touching its lookups', async () => {
+  const { mergeCascadeIntoGpos, buildGpos, featureTags, lookupTypes } = await import('./gpos');
+  const base = buildGpos([{ first: 1, second: 2, value: -50 }], null);
+  assert.ok(base);
+  const merged = mergeCascadeIntoGpos(base, { rules: [{ triggers: [2], dy: -80, span: 0 }], letters: [1, 2, 3] });
+  assert.ok(merged);
+  assert.ok(featureTags(merged).includes('dist'));
+  assert.ok(featureTags(merged).includes('kern'));
+  assert.ok(lookupTypes(merged).includes(8));
+  assert.equal(mergeCascadeIntoGpos(new Uint8Array(4), { rules: [], letters: [] }), null);
+});
