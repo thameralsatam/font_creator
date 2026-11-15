@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BoxSelect,
+  FileText,
+  Pencil,
   ArrowDown,
   ArrowLeft,
   ArrowRight,
@@ -410,56 +413,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
 
         <BarDivider />
 
-        {TOOLS.map(({ id, label, key, Icon }) =>
-          id === 'select' ? (
-            <Dropdown
-              key={id}
-              label={label}
-              helpId="tool.select"
-              placement="bottom"
-              width={270}
-              active={editor.tool === 'select'}
-              openWhen={editor.tool === 'select'}
-              onOpen={() => editor.setTool('select')}
-              icon={<Icon className={icon} />}
-            >
-              {(close) => (
-                <>
-                  <MenuLabel>{t('طريقة التحديد')}</MenuLabel>
-                  {SELECT_MODES.map((m) => (
-                    <MenuItem
-                      key={m.id}
-                      label={m.label}
-                      hint={m.hint}
-                      helpId={`sel.${m.id}`}
-                      active={editor.selectMode === m.id}
-                      onClick={() => {
-                        editor.setSelectMode(m.id);
-                        editor.setTool('select');
-                        close();
-                      }}
-                    />
-                  ))}
-                </>
-              )}
-            </Dropdown>
-          ) : (
-            <Button
-              key={id}
-              variant="quiet"
-              active={editor.tool === id}
-              helpId={`tool.${id}`}
-              title={`${label} (${key})`}
-              onClick={() => editor.setTool(id)}
-            >
-              <Icon className={icon} />
-              <span className="hidden md:inline">{label}</span>
-            </Button>
-          )
-        )}
-
-        <BarDivider />
-
         {editor.penContourId && (
           <>
             <Button variant="secondary" helpId="finishPen" title={t('إنهاء المسار (Enter)')} onClick={editor.finishPen}>
@@ -469,6 +422,48 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             <BarDivider />
           </>
         )}
+
+        <Dropdown label={t('الملف')} helpId="fileMenu" icon={<FileText className={icon} />} placement="bottom" width={240}>
+          {(close) => (
+            <>
+              <MenuLabel>{t('ملفات SVG')}</MenuLabel>
+              <MenuItem label={t('إضافة من SVG')} helpId="file.add" icon={<FileUp className={icon} />} onClick={() => { close(); pickSvg(); }} />
+              <MenuItem
+                label={t('تصدير SVG')}
+                helpId="file.export"
+                icon={<FileDown className={icon} />}
+                disabled={!hasDrawing}
+                onClick={() => {
+                  downloadTextFile(glyphToSvg(glyph, metrics), `${glyph.name}.svg`, 'image/svg+xml');
+                  close();
+                }}
+              />
+            </>
+          )}
+        </Dropdown>
+
+        <Dropdown label={t('تحرير')} helpId="editMenu" icon={<Pencil className={icon} />} placement="bottom" width={260}>
+          {(close) => {
+            const go = (fn: () => void) => () => {
+              fn();
+              close();
+            };
+            return (
+              <>
+                <MenuItem label={t('تراجع')} hint="Ctrl+Z" helpId="undo" disabled={!editor.canUndo} onClick={go(editor.undo)} />
+                <MenuItem label={t('إعادة')} hint="Ctrl+Shift+Z" helpId="redo" disabled={!editor.canRedo} onClick={go(editor.redo)} />
+                <MenuDivider />
+                <MenuItem label={t('نسخ')} hint="Ctrl+C" helpId="edit.copy" disabled={!hasSelection} onClick={go(editor.copy)} />
+                <MenuItem label={t('قص')} hint="Ctrl+X" helpId="edit.cut" disabled={!hasSelection} onClick={go(editor.cut)} />
+                <MenuItem label={t('لصق')} hint="Ctrl+V" helpId="edit.paste" onClick={go(editor.paste)} />
+                <MenuItem label={t('تكرار')} hint="Ctrl+D" helpId="t.duplicate" disabled={!hasDrawing} onClick={go(editor.duplicate)} />
+                <MenuItem label={t('حذف المحدد')} hint="Delete" helpId="delete" disabled={!hasSelection} onClick={go(editor.deleteSelection)} />
+                <MenuDivider />
+                <MenuItem label={t('تحديد الكل')} hint="Ctrl+A" helpId="p.selectAll" disabled={!hasDrawing} onClick={go(editor.selectAll)} />
+              </>
+            );
+          }}
+        </Dropdown>
 
         <Dropdown label={t('عرض')} helpId="view" icon={<Eye className={icon} />} placement="bottom" width={300}>
           {() => (
@@ -510,6 +505,22 @@ const StudioInner: React.FC<StudioScreenProps> = ({
               <div className="hidden lg:block">
                 <MenuItem label={t('قائمة المحارف الجانبية')} helpId="sideList" active={showList} onClick={toggleList} />
               </div>
+              <MenuItem label={t('مساعدات الرسم: جيران وصورة تتبع')} helpId="aids" active={aidsOpen} onClick={() => setAidsOpen((v) => !v)} />
+              <MenuDivider />
+              <MenuLabel>{t('الشبكة والالتصاق')}</MenuLabel>
+              <div className="flex flex-wrap gap-1 px-2 pb-1">
+                {GRID_CHAIN.map((g) => (
+                  <Button key={g} variant="quiet" active={editor.settings.gridStep === g} onClick={() => editor.setGridStep(g)}>
+                    <span className="font-mono">{g}</span>
+                  </Button>
+                ))}
+              </div>
+              <NumberRow label={t('حجم الشبكة (حر)')} helpId="settings.gridSize" value={editor.settings.gridStep} onCommit={(n) => editor.setGridStep(clampInt(n, 1, 500))} />
+              <MenuLabel>{t('الأحجام أعلاه متداخلة: تبقى الخطوط الكبيرة في مكانها وتظهر بينها خطوط أدق.')}</MenuLabel>
+              <NumberRow label={t('خطوة التحريك الحرة')} helpId="settings.nudge" value={nudgeStep} onCommit={(n) => setNudgeStep(clampInt(n, 1, 500))} />
+              <MenuItem label={t('الالتصاق بالشبكة')} helpId="settings.snapGrid" active={editor.settings.snapGrid} onClick={() => editor.setSnapGrid(!editor.settings.snapGrid)} />
+              <MenuItem label={t('الالتصاق بالنقاط والمقاييس')} helpId="settings.snapPoints" active={editor.settings.snapPoints} onClick={() => editor.setSnapPoints(!editor.settings.snapPoints)} />
+              <MenuLabel>{t('Shift لتقييد الاتجاه، وAlt لتعطيل الالتصاق مؤقتاً.')}</MenuLabel>
             </>
           )}
         </Dropdown>
@@ -543,7 +554,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 <MenuItem label={t('فتح المسار عند النقطة المحددة')} helpId="p.open" disabled={!hasSelection} onClick={go(editor.openAtSelected)} />
                 <MenuItem label={t('ضبط الاتجاه تلقائياً')} helpId="p.fixDir" disabled={!hasDrawing} onClick={go(editor.autoDirection)} />
                 <MenuItem label={t('عكس اتجاه المسار')} helpId="p.reverse" disabled={!hasSelection} onClick={go(editor.reverse)} />
-                <MenuItem label={t('تحديد الكل')} helpId="p.selectAll" hint="Ctrl+A" disabled={!hasDrawing} onClick={go(editor.selectAll)} />
               </>
             );
           }}
@@ -649,19 +659,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                   />
                 );
               })}
-              <MenuDivider />
-              <MenuLabel>{t('ملفات SVG')}</MenuLabel>
-              <MenuItem label={t('إضافة من SVG')} helpId="file.add" icon={<FileUp className={icon} />} onClick={() => { close(); pickSvg(); }} />
-              <MenuItem
-                label={t('تصدير SVG')}
-                helpId="file.export"
-                icon={<FileDown className={icon} />}
-                disabled={!hasDrawing}
-                onClick={() => {
-                  downloadTextFile(glyphToSvg(glyph, metrics), `${glyph.name}.svg`, 'image/svg+xml');
-                  close();
-                }}
-              />
             </>
           )}
         </Dropdown>
@@ -700,6 +697,44 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             ))}
           </div>
         </aside>
+
+        <nav className="flex w-11 shrink-0 flex-col items-center gap-1 self-start rounded-2xl border border-ink/25 bg-surface p-1" aria-label={t('الأدوات')}>
+          {TOOLS.map(({ id, label, key, Icon }) => (
+            <Button
+              key={id}
+              variant="quiet"
+              icon
+              active={editor.tool === id}
+              helpId={`tool.${id}`}
+              title={`${label} (${key})`}
+              onClick={() => editor.setTool(id)}
+            >
+              <Icon className={icon} />
+            </Button>
+          ))}
+          <span className="my-0.5 h-px w-6 bg-ink/20" aria-hidden />
+          <Dropdown label={t('طريقة التحديد')} helpId="tool.selectMode" iconOnly placement="bottom" width={270} icon={<BoxSelect className={icon} />}>
+            {(close) => (
+              <>
+                <MenuLabel>{t('طريقة التحديد')}</MenuLabel>
+                {SELECT_MODES.map((m) => (
+                  <MenuItem
+                    key={m.id}
+                    label={m.label}
+                    hint={m.hint}
+                    helpId={`sel.${m.id}`}
+                    active={editor.selectMode === m.id}
+                    onClick={() => {
+                      editor.setSelectMode(m.id);
+                      editor.setTool('select');
+                      close();
+                    }}
+                  />
+                ))}
+              </>
+            )}
+          </Dropdown>
+        </nav>
 
         <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-ink/25 bg-canvas shadow-sm">
           <StudioCanvas
@@ -788,48 +823,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
         </Button>
         <Button variant="quiet" icon helpId="redo" title={t('إعادة (Ctrl+Shift+Z)')} disabled={!editor.canRedo} onClick={editor.redo}>
           <Redo2 className={icon} />
-        </Button>
-
-        <BarDivider />
-
-        <Button
-          variant="quiet"
-          icon
-          helpId="delete"
-          title={t('حذف المحدد (Delete)')}
-          disabled={!hasSelection}
-          onClick={editor.deleteSelection}
-        >
-          <Trash2 className={icon} />
-        </Button>
-        <Button variant="quiet" icon helpId="t.duplicate" title={t('تكرار (Ctrl+D)')} disabled={!hasDrawing} onClick={editor.duplicate}>
-          <Copy className={icon} />
-        </Button>
-
-        <BarDivider />
-
-        <Dropdown label={t('الشبكة والالتصاق')} helpId="gridMenu" icon={<Grid3x3 className={icon} />} placement="top" width={290}>
-          {() => (
-            <>
-              <MenuLabel>{t('الشبكة والالتصاق')}</MenuLabel>
-              <div className="flex flex-wrap gap-1 px-2 pb-1">
-                {GRID_CHAIN.map((g) => (
-                  <Button key={g} variant="quiet" active={editor.settings.gridStep === g} onClick={() => editor.setGridStep(g)}>
-                    <span className="font-mono">{g}</span>
-                  </Button>
-                ))}
-              </div>
-              <NumberRow label={t('حجم الشبكة (حر)')} helpId="settings.gridSize" value={editor.settings.gridStep} onCommit={(n) => editor.setGridStep(clampInt(n, 1, 500))} />
-              <MenuLabel>{t('الأحجام أعلاه متداخلة: تبقى الخطوط الكبيرة في مكانها وتظهر بينها خطوط أدق.')}</MenuLabel>
-              <NumberRow label={t('خطوة التحريك الحرة')} helpId="settings.nudge" value={nudgeStep} onCommit={(n) => setNudgeStep(clampInt(n, 1, 500))} />
-              <MenuItem label={t('الالتصاق بالشبكة')} helpId="settings.snapGrid" active={editor.settings.snapGrid} onClick={() => editor.setSnapGrid(!editor.settings.snapGrid)} />
-              <MenuItem label={t('الالتصاق بالنقاط والمقاييس')} helpId="settings.snapPoints" active={editor.settings.snapPoints} onClick={() => editor.setSnapPoints(!editor.settings.snapPoints)} />
-              <MenuLabel>{t('Shift لتقييد الاتجاه، وAlt لتعطيل الالتصاق مؤقتاً.')}</MenuLabel>
-            </>
-          )}
-        </Dropdown>
-        <Button variant="quiet" icon active={aidsOpen} helpId="aids" title={t('مساعدات الرسم: جيران وصورة تتبع')} onClick={() => setAidsOpen((v) => !v)}>
-          <Layers className={icon} />
         </Button>
 
         <BarDivider />
