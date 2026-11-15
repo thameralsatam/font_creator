@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from './Button';
@@ -13,12 +13,18 @@ interface ModalProps {
   title: string;
   subtitle?: string;
   icon?: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   onClose: () => void;
   children: React.ReactNode;
 }
 
-const SIZES = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-xl', xl: 'max-w-3xl' } as const;
+const SIZES = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-xl', xl: 'max-w-3xl', '2xl': 'max-w-5xl' } as const;
+
+/** داخل المطبخ تُعرض النوافذ كأقسام بلا إطار ولا خلفية ولا زر إغلاق خاص بها. */
+const EmbedContext = createContext(false);
+export const ModalEmbed: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <EmbedContext.Provider value>{children}</EmbedContext.Provider>
+);
 
 export const Modal: React.FC<ModalProps> = ({
   title,
@@ -30,8 +36,10 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const titleId = useId();
   const downOnBackdrop = useRef(false);
+  const embedded = useContext(EmbedContext);
 
   useEffect(() => {
+    if (embedded) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -42,7 +50,17 @@ export const Modal: React.FC<ModalProps> = ({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [onClose]);
+  }, [onClose, embedded]);
+
+  if (embedded) {
+    return (
+      <section aria-labelledby={titleId}>
+        <h3 id={titleId} className="text-base">{title}</h3>
+        {subtitle && <p className="mt-0.5 text-xs text-ink-soft">{subtitle}</p>}
+        <div className="pt-3">{children}</div>
+      </section>
+    );
+  }
 
   // تُرسم خارج أي حاوية ذات تأثير زجاجي أو تحويل حتى لا تُقصّ أو تنزل تحت طبقات أخرى
   return createPortal(

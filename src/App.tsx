@@ -4,7 +4,7 @@ import { ProjectOverview } from './components/ProjectOverview';
 const StudioScreen = lazy(() =>
   import('./components/studio/StudioScreen').then((m) => ({ default: m.StudioScreen }))
 );
-import { MetricsModal } from './components/MetricsModal';
+import { KitchenPage, type KitchenSection } from './components/KitchenPage';
 import { ExportModal } from './components/ExportModal';
 import { useProjects } from './state/useProjects';
 import { type FontMetrics, type NewGlyphData } from './types/font';
@@ -12,7 +12,7 @@ import { createGlyph } from './utils/fontLogic';
 import { t } from './i18n';
 import { applyGlyphMeta, duplicateGlyph, type GlyphMeta } from './utils/glyphLogic';
 
-export type AppView = 'dashboard' | 'overview' | 'studio';
+export type AppView = 'dashboard' | 'overview' | 'studio' | 'kitchen';
 
 export default function App() {
   const store = useProjects();
@@ -21,7 +21,7 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [selectedGlyphId, setSelectedGlyphId] = useState<string | null>(null);
   const [view, setView] = useState<AppView>('dashboard');
-  const [isMetricsOpen, setIsMetricsOpen] = useState(false);
+  const [kitchenSection, setKitchenSection] = useState<KitchenSection>('features');
   const [isExportOpen, setIsExportOpen] = useState(false);
 
   // لا يوجد مشروع افتراضي بديل: إن لم يوجد المشروع المطلوب نبقى في القائمة
@@ -59,7 +59,6 @@ export default function App() {
     if (activeProjectId === projectId) {
       setActiveProjectId(null);
       setSelectedGlyphId(null);
-      setIsMetricsOpen(false);
       setIsExportOpen(false);
       setView('dashboard');
     }
@@ -139,7 +138,10 @@ export default function App() {
             project={activeProject}
             onBackToProjects={() => setView('dashboard')}
             onEnterStudio={handleEnterStudio}
-            onOpenMetrics={() => setIsMetricsOpen(true)}
+            onOpenKitchen={(sec) => {
+              setKitchenSection(sec);
+              setView('kitchen');
+            }}
             onOpenExport={() => setIsExportOpen(true)}
             onAddNewGlyph={handleAddGlyph}
             onAddPreset={handleAddPreset}
@@ -170,6 +172,22 @@ export default function App() {
         </div>
       )}
 
+      {screen === 'kitchen' && activeProject && (
+        <div className="flex-1 mx-auto w-full max-w-[1680px] px-2.5 py-3 sm:px-4 sm:py-6 md:px-8 animate-view-fade">
+          <KitchenPage
+            key={activeProject.id}
+            project={activeProject}
+            initial={kitchenSection}
+            onClose={() => setView('overview')}
+            onUpdateProject={(patch) => store.updateProject(activeProject.id, patch)}
+            onSaveMetrics={handleSaveMetrics}
+            onUpdateInfo={(patch) => store.updateProject(activeProject.id, patch)}
+            onAddGlyphs={handleAddPreset}
+            onOpenGlyph={handleEnterStudio}
+          />
+        </div>
+      )}
+
       {screen === 'studio' && activeProject && activeGlyph && (
         <Suspense fallback={<div className="grid min-h-screen place-items-center text-sm text-ink-soft">{t('جارٍ التحميل...')}</div>}>
         <StudioScreen
@@ -184,16 +202,6 @@ export default function App() {
       )}
 
       {/* تُركَّب النوافذ فقط عند فتحها حتى تبدأ كل مرة بقيم المشروع الحالية */}
-      {isMetricsOpen && activeProject && (
-        <MetricsModal
-          key={activeProject.id}
-          isOpen
-          onClose={() => setIsMetricsOpen(false)}
-          project={activeProject}
-          onSave={handleSaveMetrics}
-        />
-      )}
-
       {isExportOpen && activeProject && (
         <ExportModal
           isOpen
