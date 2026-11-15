@@ -1,29 +1,24 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeftRight,
   CheckSquare,
   Copy,
   Trash2,
-  Link2,
   ArrowLeft,
-  MoveDown,
   ArrowRight,
   ArrowUpDown,
+  ChefHat,
   Filter,
   Search,
   X,
   Download,
   Eraser,
-  FileText,
   Layers,
   Plus,
-  Settings2,
-  Sliders,
-  Sparkles,
   Upload,
 } from 'lucide-react';
 import { isRtl, t, tx } from '../i18n';
-import { type Contour, type FontProject, type Glyph, type GlyphCategory, type GlyphForm, type NewGlyphData } from '../types/font';
+import { type Contour, type FontMetrics,
+  type FontProject, type Glyph, type GlyphCategory, type GlyphForm, type NewGlyphData } from '../types/font';
 import { LIMITS, countNodes, fixDirections } from '../utils/pathEdit';
 import { downloadBlob, downloadTextFile } from '../utils/download';
 import { zipStore } from '../utils/zip';
@@ -35,12 +30,9 @@ import { resolveInfo } from '../utils/fontInfo';
 import { glyphToSvg, svgToGlyph } from '../utils/svgGlyph';
 import { type GlyphFilter, type GlyphMeta, type SortMode, NO_FILTER, filterGlyphs, isFiltering, isReady, sortGlyphs } from '../utils/glyphLogic';
 import { CATEGORY_LABEL, FORM_LABEL } from '../utils/labels';
-import { FeaturesModal } from './FeaturesModal';
 import { FontTestPanel } from './FontTestPanel';
-import { FontInfoModal, type InfoPatch } from './FontInfoModal';
-import { ConnectorsModal } from './ConnectorsModal';
-import { KerningModal } from './KerningModal';
-import { CascadeModal } from './CascadeModal';
+import { type InfoPatch } from './FontInfoModal';
+import { KitchenModal, type KitchenSection } from './KitchenModal';
 import { GlyphAddModal } from './GlyphAddModal';
 import { GlyphCard } from './GlyphCard';
 import { CopyGlyphsModal } from './CopyGlyphsModal';
@@ -57,7 +49,7 @@ interface ProjectOverviewProps {
   project: FontProject;
   onBackToProjects: () => void;
   onEnterStudio: (glyphId?: string) => void;
-  onOpenMetrics: () => void;
+  onSaveMetrics: (updates: { metrics: FontMetrics }) => void;
   onOpenExport: () => void;
   onAddNewGlyph: (glyphData: NewGlyphData) => void;
   onAddPreset: (items: NewGlyphData[]) => void;
@@ -88,18 +80,14 @@ const SORTS: Array<{ id: SortMode; label: string }> = [
 ];
 
 export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
-  const { project, onBackToProjects, onEnterStudio, onOpenMetrics, onOpenExport, onUpdateInfo } = props;
+  const { project, onBackToProjects, onEnterStudio, onOpenExport, onUpdateInfo } = props;
   const { glyphs, metrics } = project;
 
   const [sort, setSort] = useState<SortMode>('ready');
   const [limit, setLimit] = useState(PAGE);
   const [showAdd, setShowAdd] = useState(false);
+  const [kitchen, setKitchen] = useState<KitchenSection | null>(null);
   const [showPreset, setShowPreset] = useState(false);
-  const [showFeatures, setShowFeatures] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
-  const [showConnectors, setShowConnectors] = useState(false);
-  const [showKerning, setShowKerning] = useState(false);
-  const [showCascade, setShowCascade] = useState(false);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -253,65 +241,10 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             <BackIcon className={icon} />
           </Button>
           <h1 className="min-w-0 flex-1 truncate text-base sm:text-xl" title={project.name}>{project.name}</h1>
-          <Dropdown label={t('الإعدادات')} iconOnly icon={<Settings2 className={icon} />} placement="bottom" width={230}>
-            {(close) => (
-              <>
-                <MenuLabel>{t('إعدادات الخط')}</MenuLabel>
-                <MenuItem
-                  label={t('معلومات الخط')}
-                  icon={<FileText className={icon} />}
-                  onClick={() => {
-                    close();
-                    setShowInfo(true);
-                  }}
-                />
-                <MenuItem
-                  label={t('المقاييس')}
-                  icon={<Sliders className={icon} />}
-                  onClick={() => {
-                    close();
-                    onOpenMetrics();
-                  }}
-                />
-                <MenuItem
-                  label={t('إزاحة الحروف اللاحقة')}
-                  icon={<MoveDown className={icon} />}
-                  hint={project.cascades?.length ? String(project.cascades.length) : undefined}
-                  onClick={() => {
-                    close();
-                    setShowCascade(true);
-                  }}
-                />
-                <MenuItem
-                  label={t('المسافة بين الأزواج')}
-                  icon={<ArrowLeftRight className={icon} />}
-                  hint={project.kerning?.length ? String(project.kerning.length) : undefined}
-                  onClick={() => {
-                    close();
-                    setShowKerning(true);
-                  }}
-                />
-                <MenuItem
-                  label={t('الوصلات')}
-                  icon={<Link2 className={icon} />}
-                  hint={project.connectors?.length ? String(project.connectors.length) : undefined}
-                  onClick={() => {
-                    close();
-                    setShowConnectors(true);
-                  }}
-                />
-                <MenuItem
-                  label={t('ميزات الأوبن تايب')}
-                  icon={<Sparkles className={icon} />}
-                  hint={rules ? String(rules) : undefined}
-                  onClick={() => {
-                    close();
-                    setShowFeatures(true);
-                  }}
-                />
-              </>
-            )}
-          </Dropdown>
+          <Button variant="secondary" title={t('مطبخ الخط')} onClick={() => setKitchen('features')}>
+            <ChefHat className={icon} />
+            <span>{t('مطبخ الخط')}</span>
+          </Button>
           <HelpBookButton iconOnly />
           <Button variant="primary" icon onClick={onOpenExport} title={t('تصدير الخط')}>
             <Download className={icon} />
@@ -580,31 +513,16 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
 
       {showAdd && <GlyphAddModal glyphs={glyphs} onAdd={props.onAddNewGlyph} onClose={() => setShowAdd(false)} />}
       {showPreset && <PresetModal existing={glyphs} onAdd={props.onAddPreset} onClose={() => setShowPreset(false)} />}
-      {showConnectors && (
-        <ConnectorsModal
+      {kitchen && (
+        <KitchenModal
           project={project}
-          onSave={(connectors) => props.onUpdateProject({ connectors })}
-          onClose={() => setShowConnectors(false)}
-        />
-      )}
-      {showKerning && (
-        <KerningModal project={project} onSave={(kerning) => props.onUpdateProject({ kerning })} onClose={() => setShowKerning(false)} />
-      )}
-      {showCascade && (
-        <CascadeModal project={project} onSave={(cascades) => props.onUpdateProject({ cascades })} onClose={() => setShowCascade(false)} />
-      )}
-      {showInfo && <FontInfoModal project={project} onSave={onUpdateInfo} onClose={() => setShowInfo(false)} />}
-      {showFeatures && (
-        <FeaturesModal
-          project={project}
+          initial={kitchen}
+          onClose={() => setKitchen(null)}
+          onUpdateProject={props.onUpdateProject}
+          onSaveMetrics={props.onSaveMetrics}
+          onUpdateInfo={onUpdateInfo}
           onAddGlyphs={props.onAddPreset}
-          onOpenGlyph={(id) => {
-            setShowFeatures(false);
-            onEnterStudio(id);
-          }}
-          onSaveCustomFea={(fea) => props.onUpdateProject({ customFea: fea })}
-          onSetOriginal={(use) => project.source && props.onUpdateProject({ source: { ...project.source, useOriginal: use } })}
-          onClose={() => setShowFeatures(false)}
+          onOpenGlyph={(id) => onEnterStudio(id)}
         />
       )}
       {editing && (

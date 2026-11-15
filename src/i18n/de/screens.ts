@@ -23,7 +23,6 @@ const d: Dict = {
   'إجراءات المشروع': 'Projektaktionen',
   'إضافة محرف': 'Glyphe hinzufügen',
   'إعادة التحميل': 'Neu laden',
-  'إعدادات الخط': 'Schrifteinstellungen',
   'إلغاء': 'Abbrechen',
   'إنشاء مشروع خط جديد': 'Neues Schriftprojekt erstellen',
   'إنهاء': 'Beenden',

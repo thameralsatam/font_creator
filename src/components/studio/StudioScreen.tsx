@@ -276,7 +276,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
       contours: centerOnOrigin(picked),
     };
     onUpdateProject({ connectors: [...connectors, next] });
-    editor.notify(t('حُفظت الوصلة. غيّر اسمها من إعدادات المشروع.'));
+    editor.notify(t('حُفظت الوصلة. غيّر اسمها من «مطبخ الخط».'));
   };
   const svgInput = useRef<HTMLInputElement>(null);
 
@@ -608,7 +608,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
               <MenuLabel>{t('وصلات المشروع ({n})', { n: connectors.length })}</MenuLabel>
               {connectors.length === 0 && (
                 <p className="px-3 py-2 text-xs leading-6 text-ink-soft">
-                  {t('لا وصلات بعد. حدد مسارات واحفظها وصلة، أو أضفها من إعدادات المشروع.')}
+                  {t('لا وصلات بعد. حدد مسارات واحفظها وصلة، أو أضفها من «مطبخ الخط».')}
                 </p>
               )}
               {connectors.map((c) => (

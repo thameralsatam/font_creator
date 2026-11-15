@@ -4,7 +4,6 @@ import { ProjectOverview } from './components/ProjectOverview';
 const StudioScreen = lazy(() =>
   import('./components/studio/StudioScreen').then((m) => ({ default: m.StudioScreen }))
 );
-import { MetricsModal } from './components/MetricsModal';
 import { ExportModal } from './components/ExportModal';
 import { useProjects } from './state/useProjects';
 import { type FontMetrics, type NewGlyphData } from './types/font';
@@ -21,7 +20,6 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [selectedGlyphId, setSelectedGlyphId] = useState<string | null>(null);
   const [view, setView] = useState<AppView>('dashboard');
-  const [isMetricsOpen, setIsMetricsOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
 
   // لا يوجد مشروع افتراضي بديل: إن لم يوجد المشروع المطلوب نبقى في القائمة
@@ -59,7 +57,6 @@ export default function App() {
     if (activeProjectId === projectId) {
       setActiveProjectId(null);
       setSelectedGlyphId(null);
-      setIsMetricsOpen(false);
       setIsExportOpen(false);
       setView('dashboard');
     }
@@ -139,7 +136,7 @@ export default function App() {
             project={activeProject}
             onBackToProjects={() => setView('dashboard')}
             onEnterStudio={handleEnterStudio}
-            onOpenMetrics={() => setIsMetricsOpen(true)}
+            onSaveMetrics={handleSaveMetrics}
             onOpenExport={() => setIsExportOpen(true)}
             onAddNewGlyph={handleAddGlyph}
             onAddPreset={handleAddPreset}
@@ -184,16 +181,6 @@ export default function App() {
       )}
 
       {/* تُركَّب النوافذ فقط عند فتحها حتى تبدأ كل مرة بقيم المشروع الحالية */}
-      {isMetricsOpen && activeProject && (
-        <MetricsModal
-          key={activeProject.id}
-          isOpen
-          onClose={() => setIsMetricsOpen(false)}
-          project={activeProject}
-          onSave={handleSaveMetrics}
-        />
-      )}
-
       {isExportOpen && activeProject && (
         <ExportModal
           isOpen
