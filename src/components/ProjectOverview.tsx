@@ -17,8 +17,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { isRtl, t, tx } from '../i18n';
-import { type Contour, type FontMetrics,
-  type FontProject, type Glyph, type GlyphCategory, type GlyphForm, type NewGlyphData } from '../types/font';
+import { type Contour, type FontProject, type Glyph, type GlyphCategory, type GlyphForm, type NewGlyphData } from '../types/font';
 import { LIMITS, countNodes, fixDirections } from '../utils/pathEdit';
 import { downloadBlob, downloadTextFile } from '../utils/download';
 import { zipStore } from '../utils/zip';
@@ -32,7 +31,7 @@ import { type GlyphFilter, type GlyphMeta, type SortMode, NO_FILTER, filterGlyph
 import { CATEGORY_LABEL, FORM_LABEL } from '../utils/labels';
 import { FontTestPanel } from './FontTestPanel';
 import { type InfoPatch } from './FontInfoModal';
-import { KitchenModal, type KitchenSection } from './KitchenModal';
+import { type KitchenSection } from './KitchenPage';
 import { GlyphAddModal } from './GlyphAddModal';
 import { GlyphCard } from './GlyphCard';
 import { CopyGlyphsModal } from './CopyGlyphsModal';
@@ -49,7 +48,7 @@ interface ProjectOverviewProps {
   project: FontProject;
   onBackToProjects: () => void;
   onEnterStudio: (glyphId?: string) => void;
-  onSaveMetrics: (updates: { metrics: FontMetrics }) => void;
+  onOpenKitchen: (section: KitchenSection) => void;
   onOpenExport: () => void;
   onAddNewGlyph: (glyphData: NewGlyphData) => void;
   onAddPreset: (items: NewGlyphData[]) => void;
@@ -86,7 +85,6 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const [sort, setSort] = useState<SortMode>('ready');
   const [limit, setLimit] = useState(PAGE);
   const [showAdd, setShowAdd] = useState(false);
-  const [kitchen, setKitchen] = useState<KitchenSection | null>(null);
   const [showPreset, setShowPreset] = useState(false);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [selecting, setSelecting] = useState(false);
@@ -241,7 +239,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             <BackIcon className={icon} />
           </Button>
           <h1 className="min-w-0 flex-1 truncate text-base sm:text-xl" title={project.name}>{project.name}</h1>
-          <Button variant="secondary" title={t('مطبخ الخط')} onClick={() => setKitchen('features')}>
+          <Button variant="secondary" title={t('مطبخ الخط')} onClick={() => props.onOpenKitchen('features')}>
             <ChefHat className={icon} />
             <span>{t('مطبخ الخط')}</span>
           </Button>
@@ -513,18 +511,6 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
 
       {showAdd && <GlyphAddModal glyphs={glyphs} onAdd={props.onAddNewGlyph} onClose={() => setShowAdd(false)} />}
       {showPreset && <PresetModal existing={glyphs} onAdd={props.onAddPreset} onClose={() => setShowPreset(false)} />}
-      {kitchen && (
-        <KitchenModal
-          project={project}
-          initial={kitchen}
-          onClose={() => setKitchen(null)}
-          onUpdateProject={props.onUpdateProject}
-          onSaveMetrics={props.onSaveMetrics}
-          onUpdateInfo={onUpdateInfo}
-          onAddGlyphs={props.onAddPreset}
-          onOpenGlyph={(id) => onEnterStudio(id)}
-        />
-      )}
       {editing && (
         <GlyphEditModal
           key={editing.id}

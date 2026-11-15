@@ -4,6 +4,7 @@ import { ProjectOverview } from './components/ProjectOverview';
 const StudioScreen = lazy(() =>
   import('./components/studio/StudioScreen').then((m) => ({ default: m.StudioScreen }))
 );
+import { KitchenPage, type KitchenSection } from './components/KitchenPage';
 import { ExportModal } from './components/ExportModal';
 import { useProjects } from './state/useProjects';
 import { type FontMetrics, type NewGlyphData } from './types/font';
@@ -11,7 +12,7 @@ import { createGlyph } from './utils/fontLogic';
 import { t } from './i18n';
 import { applyGlyphMeta, duplicateGlyph, type GlyphMeta } from './utils/glyphLogic';
 
-export type AppView = 'dashboard' | 'overview' | 'studio';
+export type AppView = 'dashboard' | 'overview' | 'studio' | 'kitchen';
 
 export default function App() {
   const store = useProjects();
@@ -20,6 +21,7 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [selectedGlyphId, setSelectedGlyphId] = useState<string | null>(null);
   const [view, setView] = useState<AppView>('dashboard');
+  const [kitchenSection, setKitchenSection] = useState<KitchenSection>('features');
   const [isExportOpen, setIsExportOpen] = useState(false);
 
   // لا يوجد مشروع افتراضي بديل: إن لم يوجد المشروع المطلوب نبقى في القائمة
@@ -136,7 +138,10 @@ export default function App() {
             project={activeProject}
             onBackToProjects={() => setView('dashboard')}
             onEnterStudio={handleEnterStudio}
-            onSaveMetrics={handleSaveMetrics}
+            onOpenKitchen={(sec) => {
+              setKitchenSection(sec);
+              setView('kitchen');
+            }}
             onOpenExport={() => setIsExportOpen(true)}
             onAddNewGlyph={handleAddGlyph}
             onAddPreset={handleAddPreset}
@@ -163,6 +168,22 @@ export default function App() {
             onCopyToProject={(targetId, ids, replace) =>
               store.copyGlyphsToProject(targetId, activeProject.glyphs.filter((g) => ids.includes(g.id)), replace)
             }
+          />
+        </div>
+      )}
+
+      {screen === 'kitchen' && activeProject && (
+        <div className="flex-1 mx-auto w-full max-w-[1680px] px-2.5 py-3 sm:px-4 sm:py-6 md:px-8 animate-view-fade">
+          <KitchenPage
+            key={activeProject.id}
+            project={activeProject}
+            initial={kitchenSection}
+            onClose={() => setView('overview')}
+            onUpdateProject={(patch) => store.updateProject(activeProject.id, patch)}
+            onSaveMetrics={handleSaveMetrics}
+            onUpdateInfo={(patch) => store.updateProject(activeProject.id, patch)}
+            onAddGlyphs={handleAddPreset}
+            onOpenGlyph={handleEnterStudio}
           />
         </div>
       )}

@@ -17,8 +17,9 @@ const SAMPLES: Array<{ label: string; text: string }> = [
 ];
 
 /** اختبار الخط بكتابة نص: يُبنى الخط الحقيقي ويُحمَّل في المتصفح فتُطبَّق الميزات مثل أي برنامج. */
-const TestBody: React.FC<{ project: FontProject }> = ({ project }) => {
-  const [text, setText] = useState('');
+/** auto: يعيد بناء الخط تلقائياً بعد كل تعديل في المشروع (بعد توقف نصف ثانية). */
+export const FontPreview: React.FC<{ project: FontProject; auto?: boolean; initialText?: string }> = ({ project, auto = false, initialText = '' }) => {
+  const [text, setText] = useState(initialText);
   const [size, setSize] = useState(48);
   const [dark, setDark] = useState(false);
   const [ltr, setLtr] = useState(false);
@@ -46,6 +47,9 @@ const TestBody: React.FC<{ project: FontProject }> = ({ project }) => {
       await face.load();
       document.fonts.add(face);
       added.current.push(face);
+      // الأشكال القديمة لا حاجة لها بعد تحميل الجديد
+      added.current.filter((f) => f !== face).forEach((f) => document.fonts.delete(f));
+      added.current = [face];
       setFamily(name);
       setState('ready');
     } catch {
@@ -60,6 +64,18 @@ const TestBody: React.FC<{ project: FontProject }> = ({ project }) => {
     // يُبنى مرة عند الفتح، ثم عند زر التحديث
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (!auto) return;
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    const id = window.setTimeout(() => void rebuild(), 500);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto, project]);
 
   // نرسل للمتصفح فقط ما يخالف الافتراضي
   const settings = tags
@@ -143,7 +159,7 @@ export const FontTestPanel: React.FC<{ project: FontProject }> = ({ project }) =
         </span>
         <ChevronDown className={`h-4 w-4 shrink-0 stroke-[1.5] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && <TestBody project={project} />}
+      {open && <FontPreview project={project} />}
     </section>
   );
 };

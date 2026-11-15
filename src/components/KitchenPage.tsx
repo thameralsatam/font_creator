@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { ChefHat } from 'lucide-react';
-import { t } from '../i18n';
+import { ArrowLeft, ArrowRight, ChefHat } from 'lucide-react';
+import { isRtl, t } from '../i18n';
 import { type FontProject, type FontMetrics, type NewGlyphData } from '../types/font';
-import { Modal, ModalEmbed } from './ui/Modal';
+import { ModalEmbed } from './ui/Modal';
+import { Button } from './ui/Button';
+import { FontPreview } from './FontTestPanel';
 import { FeaturesModal } from './FeaturesModal';
 import { KerningModal } from './KerningModal';
 import { CascadeModal } from './CascadeModal';
@@ -18,9 +20,11 @@ import { ConnectorsModal } from './ConnectorsModal';
   والثانية معلومات وقياسات تُكتب في الخط لكنها ليست ميزات. والثالثة مساعدات للرسم لا تدخل الخط.
 */
 
+const SAMPLE = 'الخط العربي جميل ومتناسق'; // i18n-keep
+
 export type KitchenSection = 'features' | 'kerning' | 'cascade' | 'metrics' | 'info' | 'connectors';
 
-interface KitchenModalProps {
+interface KitchenPageProps {
   project: FontProject;
   initial?: KitchenSection;
   onClose: () => void;
@@ -31,7 +35,7 @@ interface KitchenModalProps {
   onOpenGlyph: (id: string) => void;
 }
 
-export const KitchenModal: React.FC<KitchenModalProps> = (props) => {
+export const KitchenPage: React.FC<KitchenPageProps> = (props) => {
   const { project, onClose } = props;
   const [section, setSection] = useState<KitchenSection>(props.initial ?? 'features');
 
@@ -89,16 +93,24 @@ export const KitchenModal: React.FC<KitchenModalProps> = (props) => {
     }
   })();
 
+  const Back = isRtl() ? ArrowRight : ArrowLeft;
   return (
-    <Modal
-      title={t('مطبخ الخط')}
-      subtitle={t('كل ما يضبط سلوك الخط في مكان واحد')}
-      icon={<ChefHat className="h-4 w-4 stroke-[1.5]" />}
-      size="2xl"
-      onClose={onClose}
-    >
-      <div className="flex flex-col gap-4 md:flex-row md:gap-5">
-        <nav className="flex shrink-0 flex-col gap-3 md:w-52" aria-label={t('أقسام المطبخ')}>
+    <div className="flex flex-col gap-4 sm:gap-5">
+      <header className="capsule flex items-center gap-3 p-3 sm:p-4">
+        <Button variant="quiet" icon title={t('الرجوع إلى المشروع')} onClick={onClose}>
+          <Back className="h-4 w-4 stroke-[1.5]" />
+        </Button>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-ink/20 bg-sand/35">
+          <ChefHat className="h-4 w-4 stroke-[1.5]" />
+        </span>
+        <div className="min-w-0">
+          <h1 className="truncate text-base sm:text-xl">{t('مطبخ الخط')}</h1>
+          <p className="truncate text-xs text-ink-soft">{project.name} · {t('كل ما يضبط سلوك الخط في مكان واحد')}</p>
+        </div>
+      </header>
+
+      <div className="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)_minmax(0,25rem)] lg:items-start lg:gap-5">
+        <nav className="flex flex-col gap-3 lg:sticky lg:top-6" aria-label={t('أقسام المطبخ')}>
           {groups.map((g) => (
             <div key={g.title} className="flex flex-col gap-0.5">
               <p className="px-2 text-xs text-ink">{g.title}</p>
@@ -120,10 +132,17 @@ export const KitchenModal: React.FC<KitchenModalProps> = (props) => {
             </div>
           ))}
         </nav>
-        <div className="min-w-0 flex-1 md:border-s md:border-ink/10 md:ps-5">
+
+        <section className="capsule min-w-0 p-4 sm:p-5">
           <ModalEmbed key={section}>{body}</ModalEmbed>
-        </div>
+        </section>
+
+        <aside className="capsule min-w-0 overflow-hidden lg:sticky lg:top-6" aria-label={t('معاينة مباشرة')}>
+          <p className="px-4 pt-4 text-sm">{t('معاينة مباشرة')}</p>
+          <p className="px-4 pb-1 text-[11px] text-ink-soft">{t('تتحدث تلقائياً بعد كل تعديل')}</p>
+          <FontPreview project={project} auto initialText={SAMPLE} />
+        </aside>
       </div>
-    </Modal>
+    </div>
   );
 };
