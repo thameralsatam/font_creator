@@ -474,6 +474,26 @@ const StudioInner: React.FC<StudioScreenProps> = ({
               <MenuItem label={t('النقاط والمقابض')} helpId="view.nodes" active={options.nodes} onClick={() => toggle('nodes')} />
               <MenuItem label={t('نقاط الارتكاز')} helpId="view.anchors" active={options.anchors} onClick={() => toggle('anchors')} />
               <MenuItem label={t('خطوط الدليل')} helpId="view.guides" active={options.guides} onClick={() => toggle('guides')} />
+              <MenuItem label={t('أسهم اتجاه المسارات')} helpId="view.direction" active={options.direction} onClick={() => toggle('direction')} />
+              <div className="hidden lg:block">
+                <MenuItem label={t('قائمة المحارف الجانبية')} helpId="sideList" active={showList} onClick={toggleList} />
+              </div>
+              <MenuItem label={t('مساعدات الرسم: جيران وصورة تتبع')} helpId="aids" active={aidsOpen} onClick={() => setAidsOpen((v) => !v)} />
+              <MenuDivider />
+              <MenuLabel>{t('الشبكة والالتصاق')}</MenuLabel>
+              <div className="flex flex-wrap gap-1 px-2 pb-1">
+                {GRID_CHAIN.map((g) => (
+                  <Button key={g} variant="quiet" active={editor.settings.gridStep === g} onClick={() => editor.setGridStep(g)}>
+                    <span className="font-mono">{g}</span>
+                  </Button>
+                ))}
+              </div>
+              <NumberRow label={t('حجم الشبكة (حر)')} helpId="settings.gridSize" value={editor.settings.gridStep} onCommit={(n) => editor.setGridStep(clampInt(n, 1, 500))} />
+              <MenuLabel>{t('الأحجام أعلاه متداخلة: تبقى الخطوط الكبيرة في مكانها وتظهر بينها خطوط أدق.')}</MenuLabel>
+              <NumberRow label={t('خطوة التحريك الحرة')} helpId="settings.nudge" value={nudgeStep} onCommit={(n) => setNudgeStep(clampInt(n, 1, 500))} />
+              <MenuItem label={t('الالتصاق بالشبكة')} helpId="settings.snapGrid" active={editor.settings.snapGrid} onClick={() => editor.setSnapGrid(!editor.settings.snapGrid)} />
+              <MenuItem label={t('الالتصاق بالنقاط والمقاييس')} helpId="settings.snapPoints" active={editor.settings.snapPoints} onClick={() => editor.setSnapPoints(!editor.settings.snapPoints)} />
+              <MenuLabel>{t('Shift لتقييد الاتجاه، وAlt لتعطيل الالتصاق مؤقتاً.')}</MenuLabel>
               <MenuDivider />
               <MenuLabel>{t('خطوط الدليل ({n})', { n: (glyph.guides ?? []).length })}</MenuLabel>
               {(glyph.guides ?? []).map((g) => (
@@ -501,26 +521,6 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 disabled={!glyph.guides || glyph.guides.length === 0}
                 onClick={() => setGuides(() => [])}
               />
-              <MenuItem label={t('أسهم اتجاه المسارات')} helpId="view.direction" active={options.direction} onClick={() => toggle('direction')} />
-              <div className="hidden lg:block">
-                <MenuItem label={t('قائمة المحارف الجانبية')} helpId="sideList" active={showList} onClick={toggleList} />
-              </div>
-              <MenuItem label={t('مساعدات الرسم: جيران وصورة تتبع')} helpId="aids" active={aidsOpen} onClick={() => setAidsOpen((v) => !v)} />
-              <MenuDivider />
-              <MenuLabel>{t('الشبكة والالتصاق')}</MenuLabel>
-              <div className="flex flex-wrap gap-1 px-2 pb-1">
-                {GRID_CHAIN.map((g) => (
-                  <Button key={g} variant="quiet" active={editor.settings.gridStep === g} onClick={() => editor.setGridStep(g)}>
-                    <span className="font-mono">{g}</span>
-                  </Button>
-                ))}
-              </div>
-              <NumberRow label={t('حجم الشبكة (حر)')} helpId="settings.gridSize" value={editor.settings.gridStep} onCommit={(n) => editor.setGridStep(clampInt(n, 1, 500))} />
-              <MenuLabel>{t('الأحجام أعلاه متداخلة: تبقى الخطوط الكبيرة في مكانها وتظهر بينها خطوط أدق.')}</MenuLabel>
-              <NumberRow label={t('خطوة التحريك الحرة')} helpId="settings.nudge" value={nudgeStep} onCommit={(n) => setNudgeStep(clampInt(n, 1, 500))} />
-              <MenuItem label={t('الالتصاق بالشبكة')} helpId="settings.snapGrid" active={editor.settings.snapGrid} onClick={() => editor.setSnapGrid(!editor.settings.snapGrid)} />
-              <MenuItem label={t('الالتصاق بالنقاط والمقاييس')} helpId="settings.snapPoints" active={editor.settings.snapPoints} onClick={() => editor.setSnapPoints(!editor.settings.snapPoints)} />
-              <MenuLabel>{t('Shift لتقييد الاتجاه، وAlt لتعطيل الالتصاق مؤقتاً.')}</MenuLabel>
             </>
           )}
         </Dropdown>
