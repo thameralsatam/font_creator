@@ -11,7 +11,7 @@ import {
 import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
 import { type Rule, computeFeatures, ruleToFea, rulesForBuild } from './features';
 import { projectRules } from './feaParse';
-import { infoOf, parseVersion, resolveInfo, safePsName } from './fontInfo';
+import { infoOf, parseVersion, resolveInfo, safePsName, styleOf } from './fontInfo';
 import { type Anchor, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, mergeCascadeIntoGpos, readGpos, readRawTable } from './gpos';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
 import { isRtl, t } from '../i18n';
@@ -186,15 +186,23 @@ export function fontFileName(project: FontProject): string {
   return `${resolveInfo(project).postScriptName}.otf`;
 }
 
-/** علامات fsSelection: عادي أو عريض أو مائل بحسب اسم النمط، ودائماً «استخدم مقاييس Typo». */
+/**
+ * fsSelection: USE_TYPO_METRICS دائماً. REGULAR لنمط معروف غير عريض وغير مائل، BOLD وITALIC بحسب التصنيف.
+ * النمط الحر غير المعروف لا يُعطى علامة نمط، فلا نخمّن أنه Regular.
+ */
 export function fsSelectionFor(subfamily: string): number {
-  const bold = /bold/i.test(subfamily);
-  const italic = /italic|oblique/i.test(subfamily);
-  let v = 0x80; // USE_TYPO_METRICS
-  if (bold) v |= 0x20;
-  if (italic) v |= 0x01;
-  if (!bold && !italic) v |= 0x40; // REGULAR
+  let v = 0x80;
+  const st = styleOf(subfamily);
+  if (!st) return v;
+  if (st.bold) v |= 0x20;
+  if (st.italic) v |= 0x01;
+  if (!st.bold && !st.italic) v |= 0x40;
   return v;
+}
+
+/** usWeightClass من تصنيف النمط؛ للنمط غير المعروف 400 (وزن عادي افتراضي لا ادعاء). */
+export function weightClassFor(subfamily: string): number {
+  return styleOf(subfamily)?.weight ?? 400;
 }
 
 /**
@@ -216,6 +224,7 @@ export function os2Overrides(m: FontMetrics, subfamily: string, glyphs: Array<{ 
     sTypoDescender: m.descender,
     usWinAscent: Math.max(Math.round(m.ascender), Math.ceil(top)),
     usWinDescent: Math.max(Math.abs(Math.round(m.descender)), Math.ceil(-bottom)),
+    usWeightClass: weightClassFor(subfamily),
     fsSelection: fsSelectionFor(subfamily),
   };
 }
