@@ -11,7 +11,7 @@ import {
 import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
 import { type Rule, computeFeatures, ruleToFea, rulesForBuild } from './features';
 import { projectRules } from './feaParse';
-import { infoOf, parseVersion, resolveInfo, safePsName } from './fontInfo';
+import { infoOf, parseVersion, resolveInfo, safePsName, styleOf } from './fontInfo';
 import { type Anchor, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, mergeCascadeIntoGpos, readGpos, readRawTable } from './gpos';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
 import { isRtl, t } from '../i18n';
@@ -186,6 +186,56 @@ export function fontFileName(project: FontProject): string {
   return `${resolveInfo(project).postScriptName}.otf`;
 }
 
+/**
+ * fsSelection: USE_TYPO_METRICS دائماً. REGULAR لنمط معروف غير عريض وغير مائل، BOLD وITALIC بحسب التصنيف.
+ * النمط الحر غير المعروف لا يُعطى علامة نمط، فلا نخمّن أنه Regular.
+ */
+export function fsSelectionFor(subfamily: string): number {
+  let v = 0x80;
+  const st = styleOf(subfamily);
+  if (!st) return v;
+  if (st.bold) v |= 0x20;
+  if (st.italic) v |= 0x01;
+  if (!st.bold && !st.italic) v |= 0x40;
+  return v;
+}
+
+/** usWeightClass من تصنيف النمط؛ للنمط غير المعروف 400 (وزن عادي افتراضي لا ادعاء). */
+export function weightClassFor(subfamily: string): number {
+  return styleOf(subfamily)?.weight ?? 400;
+}
+
+/**
+ * حقول OS/2 التي نضبطها: ارتفاعا الحروف، مقاييس Typo، مقاييس Win، وfsSelection.
+ * مقاييس Win موجبة دائماً وتغطي أكبر امتداد فعلي للمحارف حتى لا يُقصّ الرسم في ويندوز.
+ */
+export function os2Overrides(
+  m: FontMetrics,
+  subfamily: string,
+  glyphs: Array<{ getBoundingBox(): { y1: number; y2: number } }>,
+  origin?: FontProject['os2Origin']
+) {
+  // خط مستورد لم يُغيَّر نمطه: يبقى الوزن وfsSelection كما في الملف الأصلي
+  const keep = origin && origin.subfamily.trim() === subfamily.trim() ? origin : null;
+  let top = 0;
+  let bottom = 0;
+  for (const g of glyphs) {
+    const b = g.getBoundingBox();
+    if (Number.isFinite(b.y2)) top = Math.max(top, b.y2);
+    if (Number.isFinite(b.y1)) bottom = Math.min(bottom, b.y1);
+  }
+  return {
+    sxHeight: m.xHeight,
+    sCapHeight: m.capHeight,
+    sTypoAscender: m.ascender,
+    sTypoDescender: m.descender,
+    usWinAscent: Math.max(Math.round(m.ascender), Math.ceil(top)),
+    usWinDescent: Math.max(Math.abs(Math.round(m.descender)), Math.ceil(-bottom)),
+    usWeightClass: keep ? keep.weight : weightClassFor(subfamily),
+    fsSelection: keep ? keep.fsSelection : fsSelectionFor(subfamily),
+  };
+}
+
 export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer> {
   const ot = await loadOpenType();
   const m = project.metrics;
@@ -248,12 +298,9 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
   ];
   for (const [key, value] of optional) if (value.trim()) names[key] = { en: value.trim() };
   // ارتفاعا الحروف الصغيرة والكبيرة يُكتبان كما ضبطتهما، وإلا خمّنتهما المكتبة من حروف لاتينية
-  (font.tables as unknown as Record<string, unknown>).os2 = {
-    sxHeight: m.xHeight,
-    sCapHeight: m.capHeight,
-    sTypoAscender: m.ascender,
-    sTypoDescender: m.descender,
-  };
+  // تُدمج فوق الجدول القائم (لا تستبدله) فتبقى حقوله الأخرى كالوزن والعرض
+  const os2Table = (font.tables as unknown as { os2: Record<string, unknown> }).os2;
+  Object.assign(os2Table, os2Overrides(m, info.subfamily, glyphs, project.os2Origin));
 
   // ميزات الأوبن تايب المستخرجة من أسماء المحارف (init وmedi وfina وisol وrlig)
   const sub = font.substitution as unknown as {
@@ -445,7 +492,7 @@ export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?:
     designerUrl: pick('designerURL') ?? '',
   };
 
-  const os2 = (font.tables as unknown as { os2?: { sCapHeight?: number; sxHeight?: number } }).os2;
+  const os2 = (font.tables as unknown as { os2?: { sCapHeight?: number; sxHeight?: number; usWeightClass?: number; fsSelection?: number } }).os2;
   const metrics: FontMetrics = {
     upm,
     ascender: Math.round(font.ascender) > 0 ? Math.round(font.ascender) : Math.round(upm * 0.8),
@@ -456,6 +503,9 @@ export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?:
   metrics.capHeight = Math.min(metrics.capHeight, metrics.ascender);
   metrics.xHeight = Math.min(metrics.xHeight, metrics.capHeight);
   project.metrics = metrics;
+  if (typeof os2?.usWeightClass === 'number' && typeof os2.fsSelection === 'number') {
+    project.os2Origin = { weight: os2.usWeightClass, fsSelection: os2.fsSelection, subfamily: project.info.subfamily };
+  }
 
   const range = coordRange(metrics);
   const taken = new Set<string>();

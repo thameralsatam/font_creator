@@ -129,6 +129,8 @@ export interface FontProject {
   cascades?: CascadeRule[];
   /** يوجد فقط للمشاريع المستوردة من ملف خط. */
   source?: SourceLayout;
+  /** قيم OS/2 الأصلية للخط المستورد (الوزن وfsSelection) مع اسم نمطه وقت الاستيراد، لتبقى كما هي ما لم يغيّر المستخدم النمط. */
+  os2Origin?: { weight: number; fsSelection: number; subfamily: string };
 }
 
 /**

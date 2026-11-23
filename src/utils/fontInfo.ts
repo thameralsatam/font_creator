@@ -7,7 +7,32 @@ export function safePsName(name: string): string {
   return s || 'FontStudio';
 }
 
-export const SUBFAMILIES = ['Regular', 'Bold', 'Italic', 'Bold Italic', 'Light', 'Medium', 'SemiBold', 'ExtraBold', 'Thin', 'Black'];
+/**
+ * تصنيف صريح لكل نمط: الوزن (usWeightClass) وعلامتا BOLD وITALIC في fsSelection.
+ * علامة BOLD لنمطي Bold وBold Italic فقط؛ الأوزان الأخرى (Light وBlack…) ليست عريضة بمعنى RIBBI.
+ */
+export const SUBFAMILY_STYLES = {
+  Regular: { weight: 400, bold: false, italic: false },
+  Bold: { weight: 700, bold: true, italic: false },
+  Italic: { weight: 400, bold: false, italic: true },
+  'Bold Italic': { weight: 700, bold: true, italic: true },
+  Light: { weight: 300, bold: false, italic: false },
+  Medium: { weight: 500, bold: false, italic: false },
+  SemiBold: { weight: 600, bold: false, italic: false },
+  ExtraBold: { weight: 800, bold: false, italic: false },
+  Thin: { weight: 100, bold: false, italic: false },
+  Black: { weight: 900, bold: false, italic: false },
+} as const;
+
+export type KnownSubfamily = keyof typeof SUBFAMILY_STYLES;
+export const SUBFAMILIES = Object.keys(SUBFAMILY_STYLES) as KnownSubfamily[];
+
+/** تصنيف النمط، أو null إن كان اسماً حراً لا يطابق أحد الأنماط المعروفة (بلا تخمين). */
+export function styleOf(subfamily: string): (typeof SUBFAMILY_STYLES)[KnownSubfamily] | null {
+  const key = subfamily.trim().toLowerCase();
+  const hit = SUBFAMILIES.find((s) => s.toLowerCase() === key);
+  return hit ? SUBFAMILY_STYLES[hit] : null;
+}
 
 export const EMPTY_INFO: FontInfo = {
   subfamily: 'Regular',
