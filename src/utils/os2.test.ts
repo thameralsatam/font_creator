@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createGlyph, createProject } from './fontLogic';
-import { buildFontBuffer, fsSelectionFor, weightClassFor } from './fontBuild';
+import { buildFontBuffer, fsSelectionFor, importFontBuffer, weightClassFor } from './fontBuild';
 import { SUBFAMILIES, SUBFAMILY_STYLES } from './fontInfo';
 
 const nd = (id: string, x: number, y: number) => ({ id, x, y, kind: 'corner' as const, handleIn: null, handleOut: null });
@@ -121,4 +121,59 @@ test('font parse failure fails the test with the reason (not a silent skip)', as
   const r = spawnSync('python3', ['-I', '-c', PY, file], { encoding: 'utf8' });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /TTLibError|Error/);
+});
+
+/* ---- خط مستورد: القيم الأصلية تبقى ما لم يغيّر المستخدم النمط ---- */
+
+const PATCH = `
+import sys
+from fontTools.ttLib import TTFont
+f = TTFont(sys.argv[1])
+f['OS/2'].usWeightClass = int(sys.argv[3])
+f['OS/2'].fsSelection = int(sys.argv[4])
+for r in f['name'].names:
+    if r.nameID == 2: r.string = sys.argv[5]
+f.save(sys.argv[2])
+`;
+
+/** يبني خطاً ثم يعدّل OS/2 واسم النمط فيه بقيم أصلية مختارة، كأنه خط من برنامج آخر. */
+async function foreignFont(weight: number, sel: number, style: string): Promise<ArrayBuffer> {
+  const dir = mkdtempSync(join(tmpdir(), 'os2-imp-'));
+  const a = join(dir, 'a.otf');
+  const b = join(dir, 'b.otf');
+  writeFileSync(a, Buffer.from(await buildFontBuffer(project('Regular'))));
+  const r = spawnSync('python3', ['-I', '-c', PATCH, a, b, String(weight), String(sel), style], { encoding: 'utf8' });
+  assert.equal(r.status, 0, `تعديل الخط فشل:\n${r.stderr}`);
+  const { readFileSync } = await import('node:fs');
+  const buf = readFileSync(b);
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+}
+
+const CASES: Array<[string, number, number, string]> = [
+  // [وصف, وزن أصلي, fsSelection أصلي, نمط]
+  ['known style with non-default marks (Bold, no typo-metrics bit)', 700, 0x20, 'Bold'],
+  ['known style with odd weight (Light 350 + WWS)', 350, 0x40 | 0x100, 'Light'],
+  ['unknown free-text style', 650, 0x40 | 0x100, 'Display'],
+];
+
+for (const [label, weight, sel, style] of CASES) {
+  test(`imported font keeps original usWeightClass and fsSelection: ${label}`, { skip: SKIP }, async () => {
+    const imported = (await importFontBuffer(await foreignFont(weight, sel, style), 'x.otf')).project;
+    assert.equal(imported.info?.subfamily, style);
+    // إعادة التصدير دون تغيير النمط
+    const o = await inspect(imported);
+    assert.equal(o.weight, weight, 'usWeightClass');
+    assert.equal(o.sel, sel, 'fsSelection');
+    // بقية إصلاحات OS/2 تعمل كما هي
+    assert.ok(o.win[0] > 0 && o.win[1] > 0);
+    assert.equal(o.width, 5);
+  });
+}
+
+test('imported font: changing the style explicitly recomputes weight and fsSelection', { skip: SKIP }, async () => {
+  const imported = (await importFontBuffer(await foreignFont(350, 0x40 | 0x100, 'Light'), 'x.otf')).project;
+  imported.info = { ...imported.info, subfamily: 'Bold' } as typeof imported.info;
+  const o = await inspect(imported);
+  assert.equal(o.weight, 700);
+  assert.equal(o.sel, 0x20 | 0x80);
 });
