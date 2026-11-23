@@ -186,6 +186,40 @@ export function fontFileName(project: FontProject): string {
   return `${resolveInfo(project).postScriptName}.otf`;
 }
 
+/** علامات fsSelection: عادي أو عريض أو مائل بحسب اسم النمط، ودائماً «استخدم مقاييس Typo». */
+export function fsSelectionFor(subfamily: string): number {
+  const bold = /bold/i.test(subfamily);
+  const italic = /italic|oblique/i.test(subfamily);
+  let v = 0x80; // USE_TYPO_METRICS
+  if (bold) v |= 0x20;
+  if (italic) v |= 0x01;
+  if (!bold && !italic) v |= 0x40; // REGULAR
+  return v;
+}
+
+/**
+ * حقول OS/2 التي نضبطها: ارتفاعا الحروف، مقاييس Typo، مقاييس Win، وfsSelection.
+ * مقاييس Win موجبة دائماً وتغطي أكبر امتداد فعلي للمحارف حتى لا يُقصّ الرسم في ويندوز.
+ */
+export function os2Overrides(m: FontMetrics, subfamily: string, glyphs: Array<{ getBoundingBox(): { y1: number; y2: number } }>) {
+  let top = 0;
+  let bottom = 0;
+  for (const g of glyphs) {
+    const b = g.getBoundingBox();
+    if (Number.isFinite(b.y2)) top = Math.max(top, b.y2);
+    if (Number.isFinite(b.y1)) bottom = Math.min(bottom, b.y1);
+  }
+  return {
+    sxHeight: m.xHeight,
+    sCapHeight: m.capHeight,
+    sTypoAscender: m.ascender,
+    sTypoDescender: m.descender,
+    usWinAscent: Math.max(Math.round(m.ascender), Math.ceil(top)),
+    usWinDescent: Math.max(Math.abs(Math.round(m.descender)), Math.ceil(-bottom)),
+    fsSelection: fsSelectionFor(subfamily),
+  };
+}
+
 export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer> {
   const ot = await loadOpenType();
   const m = project.metrics;
@@ -248,12 +282,9 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
   ];
   for (const [key, value] of optional) if (value.trim()) names[key] = { en: value.trim() };
   // ارتفاعا الحروف الصغيرة والكبيرة يُكتبان كما ضبطتهما، وإلا خمّنتهما المكتبة من حروف لاتينية
-  (font.tables as unknown as Record<string, unknown>).os2 = {
-    sxHeight: m.xHeight,
-    sCapHeight: m.capHeight,
-    sTypoAscender: m.ascender,
-    sTypoDescender: m.descender,
-  };
+  // تُدمج فوق الجدول القائم (لا تستبدله) فتبقى حقوله الأخرى كالوزن والعرض
+  const os2Table = (font.tables as unknown as { os2: Record<string, unknown> }).os2;
+  Object.assign(os2Table, os2Overrides(m, info.subfamily, glyphs));
 
   // ميزات الأوبن تايب المستخرجة من أسماء المحارف (init وmedi وfina وisol وrlig)
   const sub = font.substitution as unknown as {
