@@ -297,12 +297,24 @@ export function buildGpos(pairs: PairAdjust[], marks: MarkAnchors | null, cascad
 }
 
 
+interface LayoutPlan {
+  lookups: Lookup[];
+  /** ميزات جديدة تستدعي بحوثاً بأرقامها المطلقة في القائمة الجديدة. */
+  features: Array<{ tag: string; lookups: number[] }>;
+}
+interface MergeOpts {
+  /** الخطوط (scripts) التي تُوصَل بها الميزات الجديدة؛ null لكلها. يُنشأ الخط إن لم يوجد. */
+  scripts: string[] | null;
+  /** إن وُجدت في اللغة ميزة بالوسم نفسه تُضاف البحوث إليها بدل إنشاء ميزة مكررة (المشكّل يأخذ أول ميزة بالوسم). */
+  reuse: boolean;
+}
+
 /**
- * يدمج الإزاحة التتابعية في جدول GPOS أصلي دون المساس ببحوثه: البحوث الجديدة تُلحق بعد الأصلية (فلا يتغير ترقيم شيء)،
- * وتُضاف ميزة dist إلى كل لغة في كل خط. يعيد null إن تعذّر (جدول غير مفهوم أو تجاوز حدود الإزاحات).
+ * يدمج بحوثاً وميزات جديدة في جدول GSUB أو GPOS أصلي دون المساس ببحوثه: الجديدة تُلحق بعد الأصلية (فلا يتغير ترقيم شيء)،
+ * وتُوصَل الميزات بلغات الخطوط المطلوبة. يعيد null إن تعذّر (جدول غير مفهوم أو تجاوز حدود الإزاحات).
  * المخرج: الأقسام الجديدة ثم نسخة كاملة من الجدول الأصلي تبقى بحوثه فيها كما هي.
  */
-export function mergeCascadeIntoGpos(orig: Uint8Array, cascade: CascadeData): Uint8Array | null {
+function mergeLayout(orig: Uint8Array, plan: (firstIndex: number) => LayoutPlan, opts: MergeOpts): Uint8Array | null {
   const dv = new DataView(orig.buffer, orig.byteOffset, orig.byteLength);
   const u16 = (o: number) => (o + 2 <= orig.length ? dv.getUint16(o) : -1);
   if (orig.length < 10 || u16(0) !== 1) return null;
@@ -321,14 +333,14 @@ export function mergeCascadeIntoGpos(orig: Uint8Array, cascade: CascadeData): Ui
     if (o < 0) return null;
     oldLookups.push(lookOff + o); // موضع مطلق في الجدول الأصلي
   }
-  const added = cascadeLookups(cascade, n);
-  if (!added.length) return null;
-  const chainIdx = n + added.length - 1;
+  const { lookups: added, features: extra } = plan(n);
+  if (!added.length || !extra.length) return null;
 
-  // قائمة الميزات: نسخها ثم إدخال dist بحسب الترتيب الأبجدي
+  // قائمة الميزات: نسخها ثم إدخال الجديدة بحسب الترتيب الأبجدي
   const fc = u16(featOff);
   if (fc < 0) return null;
-  const feats: Array<{ tag: string; lookups: number[]; old: number }> = [];
+  type Feat = { tag: string; lookups: number[]; old: number };
+  const feats: Feat[] = [];
   for (let i = 0; i < fc; i++) {
     const r = featOff + 2 + 6 * i;
     if (r + 6 > orig.length) return null;
@@ -344,19 +356,35 @@ export function mergeCascadeIntoGpos(orig: Uint8Array, cascade: CascadeData): Ui
     }
     feats.push({ tag, lookups, old: i });
   }
-  const distAt = feats.filter((f) => f.tag <= 'dist').length; // بعد كل ما يسبقه أبجدياً
-  const order: Array<{ tag: string; lookups: number[]; old: number }> = [
-    ...feats.slice(0, distAt),
-    { tag: 'dist', lookups: [chainIdx], old: -1 },
-    ...feats.slice(distAt),
-  ];
+  const fresh: Feat[] = extra.map((e) => ({ tag: e.tag, lookups: [...e.lookups], old: -1 }));
+  // الجديدة بعد كل ما يساويها أو يسبقها أبجدياً (الفرز مستقر)
+  let order: Feat[] = [...feats, ...fresh].sort((a, b) => (a.tag < b.tag ? -1 : a.tag > b.tag ? 1 : 0));
   const newIndexOf = (oldIdx: number) => order.findIndex((f) => f.old === oldIdx);
-  const distIdx = distAt;
+  const freshIdx = (tag: string) => order.findIndex((f) => f.old === -1 && f.tag === tag);
 
-  // قائمة الخطوط: إعادة كتابة كل لغة مع إضافة dist
+  // قائمة الخطوط: إعادة كتابة كل لغة مع إضافة الميزات الجديدة للخطوط المطلوبة
   const sc = u16(scriptOff);
   if (sc < 0) return null;
-  const langSysBytes = (at: number): Uint8Array | null => {
+  const langBytes = (idx: number[], req: number) => {
+    idx.sort((a, b) => a - b);
+    const w = new W().u16(0).u16(req).u16(idx.length);
+    idx.forEach((v) => w.u16(v));
+    return w.done();
+  };
+  /** يضيف الميزات الجديدة إلى فهارس لغة هدف: يعيد استعمال ميزة بالوسم نفسه إن وُجدت وإلا يصل الميزة الجديدة. */
+  const usedFresh = new Set<string>();
+  const wire = (idx: number[]) => {
+    for (const e of fresh) {
+      const hit = opts.reuse ? idx.find((i) => order[i].tag === e.tag && order[i].old !== -1) : undefined;
+      if (hit !== undefined) {
+        for (const l of e.lookups) if (!order[hit].lookups.includes(l)) order[hit].lookups.push(l);
+      } else {
+        usedFresh.add(e.tag);
+        if (!idx.includes(freshIdx(e.tag))) idx.push(freshIdx(e.tag));
+      }
+    }
+  };
+  const langSysBytes = (at: number, target: boolean): Uint8Array | null => {
     const req = u16(at + 2);
     const cnt = u16(at + 4);
     if (req < 0 || cnt < 0) return null;
@@ -366,17 +394,17 @@ export function mergeCascadeIntoGpos(orig: Uint8Array, cascade: CascadeData): Ui
       if (v < 0 || v >= fc) return null;
       idx.push(newIndexOf(v));
     }
-    if (!idx.includes(distIdx)) idx.push(distIdx);
-    idx.sort((a, b) => a - b);
-    const w = new W().u16(0).u16(req === 0xffff ? 0xffff : newIndexOf(req)).u16(idx.length);
-    idx.forEach((v) => w.u16(v));
-    return w.done();
+    if (target) wire(idx);
+    return langBytes(idx, req === 0xffff ? 0xffff : newIndexOf(req));
   };
+  const isTarget = (tag: string) => opts.scripts === null || opts.scripts.includes(tag);
+  const buildScripts = (): Array<{ tag: string; bytes: Uint8Array }> | null => {
   const scriptTables: Array<{ tag: string; bytes: Uint8Array }> = [];
   for (let i = 0; i < sc; i++) {
     const r = scriptOff + 2 + 6 * i;
     if (r + 6 > orig.length) return null;
     const tag = String.fromCharCode(orig[r], orig[r + 1], orig[r + 2], orig[r + 3]);
+    const target = isTarget(tag);
     const st = scriptOff + u16(r + 4);
     const defOff = u16(st);
     const lc = u16(st + 2);
@@ -385,16 +413,18 @@ export function mergeCascadeIntoGpos(orig: Uint8Array, cascade: CascadeData): Ui
     for (let j = 0; j < lc; j++) {
       const lr = st + 4 + 6 * j;
       const lt = String.fromCharCode(orig[lr], orig[lr + 1], orig[lr + 2], orig[lr + 3]);
-      const b = langSysBytes(st + u16(lr + 4));
+      const b = langSysBytes(st + u16(lr + 4), target);
       if (!b) return null;
       langs.push({ tag: lt, bytes: b });
     }
     let def: Uint8Array | null = null;
     if (defOff !== 0) {
-      def = langSysBytes(st + defOff);
+      def = langSysBytes(st + defOff, target);
       if (!def) return null;
-    } else if (langs.length === 0) {
-      def = new W().u16(0).u16(0xffff).u16(1).u16(distIdx).done();
+    } else if (langs.length === 0 && target) {
+      const idx: number[] = [];
+      wire(idx);
+      def = langBytes(idx, 0xffff);
     }
     const head = 4 + 6 * langs.length;
     const w = new W().u16(def ? head : 0).u16(langs.length);
@@ -406,6 +436,25 @@ export function mergeCascadeIntoGpos(orig: Uint8Array, cascade: CascadeData): Ui
     if (def) w.bytes(def);
     langs.forEach((l) => w.bytes(l.bytes));
     scriptTables.push({ tag, bytes: w.done() });
+  }
+  // خط مطلوب غير موجود في الجدول الأصلي: يُنشأ بلغة افتراضية تحمل الميزات الجديدة
+  for (const tag of opts.scripts ?? []) {
+    if (scriptTables.some((t) => t.tag === tag)) continue;
+    const idx: number[] = [];
+    wire(idx);
+    const def = langBytes(idx, 0xffff);
+    scriptTables.push({ tag, bytes: new W().u16(4).u16(0).bytes(def).done() });
+  }
+  scriptTables.sort((a, b) => (a.tag < b.tag ? -1 : a.tag > b.tag ? 1 : 0));
+  return scriptTables;
+  };
+  let scriptTables = buildScripts();
+  if (!scriptTables) return null;
+  // ميزات جديدة لم يستعملها أحد (دُمجت بحوثها في ميزات موجودة) لا تُكتب؛ ثم تُعاد كتابة الخطوط بالفهارس الجديدة
+  if (fresh.some((e) => !usedFresh.has(e.tag))) {
+    order = order.filter((f) => f.old !== -1 || usedFresh.has(f.tag));
+    scriptTables = buildScripts();
+    if (!scriptTables) return null;
   }
   const sl = new W().u16(scriptTables.length);
   let so = 2 + 6 * scriptTables.length;
@@ -455,6 +504,100 @@ export function mergeCascadeIntoGpos(orig: Uint8Array, cascade: CascadeData): Ui
   addedBytes.forEach((b) => out.bytes(b));
   out.bytes(orig);
   return out.done();
+}
+
+/** يدمج الإزاحة التتابعية في جدول GPOS أصلي (ميزة dist لكل لغة في كل خط). */
+export function mergeCascadeIntoGpos(orig: Uint8Array, cascade: CascadeData): Uint8Array | null {
+  return mergeLayout(
+    orig,
+    (n) => {
+      const added = cascadeLookups(cascade, n);
+      return { lookups: added, features: added.length ? [{ tag: 'dist', lookups: [n + added.length - 1] }] : [] };
+    },
+    { scripts: null, reuse: false }
+  );
+}
+
+export interface GsubAdditions {
+  singles: Array<{ feature: string; from: number; to: number }>;
+  ligatures: Array<{ feature: string; from: number[]; to: number }>;
+}
+
+/** استبدال مفرد: نوع 1 صيغة 2 (قائمة بدائل بترتيب التغطية). */
+function singleSubstSubtable(pairs: Array<{ from: number; to: number }>): Uint8Array {
+  const sorted = [...pairs].sort((a, b) => a.from - b.from);
+  const w = new W().u16(2).u16(6 + 2 * sorted.length).u16(sorted.length);
+  sorted.forEach((p) => w.u16(p.to));
+  w.bytes(coverage(sorted.map((p) => p.from)));
+  return w.done();
+}
+
+/** استبدال بحرف مركّب: نوع 4 صيغة 1، مجموعة لكل محرف أول، والأطول أولاً داخل المجموعة. */
+function ligatureSubstSubtable(ligs: Array<{ from: number[]; to: number }>): Uint8Array {
+  const byFirst = new Map<number, Array<{ rest: number[]; to: number }>>();
+  for (const l of ligs) byFirst.set(l.from[0], [...(byFirst.get(l.from[0]) ?? []), { rest: l.from.slice(1), to: l.to }]);
+  const firsts = [...byFirst.keys()].sort((a, b) => a - b);
+  const sets = firsts.map((f) => {
+    const items = byFirst.get(f)!.sort((a, b) => b.rest.length - a.rest.length);
+    const tables = items.map((it) => {
+      const w = new W().u16(it.to).u16(it.rest.length + 1);
+      it.rest.forEach((g) => w.u16(g));
+      return w.done();
+    });
+    const w = new W().u16(tables.length);
+    let off = 2 + 2 * tables.length;
+    tables.forEach((t) => {
+      w.u16(off);
+      off += t.length;
+    });
+    tables.forEach((t) => w.bytes(t));
+    return w.done();
+  });
+  const cov = coverage(firsts);
+  const head = 6 + 2 * sets.length;
+  const w = new W().u16(1).u16(head).u16(sets.length);
+  let off = head + cov.length;
+  sets.forEach((s) => {
+    w.u16(off);
+    off += s.length;
+  });
+  w.bytes(cov);
+  sets.forEach((s) => w.bytes(s));
+  return w.done();
+}
+
+/**
+ * يدمج قواعد استبدال جديدة (أشكال الحروف والحروف المركّبة) في جدول GSUB أصلي دون تغيير بحوثه.
+ * الميزة الموجودة أصلاً بالوسم نفسه في لغة الخط arab تُضاف إليها البحوث الجديدة، وغير الموجودة تُنشأ.
+ */
+export function mergeRulesIntoGsub(orig: Uint8Array, add: GsubAdditions): Uint8Array | null {
+  // لا جدول أصلي: نبدأ من جدول فارغ صالح (قوائم الخطوط والميزات والبحوث فارغة)
+  const base = orig.length ? orig : Uint8Array.from([0, 1, 0, 0, 0, 10, 0, 12, 0, 14, 0, 0, 0, 0, 0, 0]);
+  return mergeLayout(
+    base,
+    (n) => {
+      const lookups: Lookup[] = [];
+      const features: Array<{ tag: string; lookups: number[] }> = [];
+      const tags = [...new Set([...add.singles.map((r) => r.feature), ...add.ligatures.map((r) => r.feature)])].sort();
+      for (const tag of tags) {
+        const idxs: number[] = [];
+        const seen = new Set<number>();
+        const singles = add.singles.filter((r) => r.feature === tag && !seen.has(r.from) && seen.add(r.from));
+        if (singles.length) {
+          idxs.push(n + lookups.length);
+          lookups.push({ type: 1, feature: tag, subtables: [singleSubstSubtable(singles)] });
+        }
+        const ligs = add.ligatures.filter((r) => r.feature === tag);
+        if (ligs.length) {
+          idxs.push(n + lookups.length);
+          lookups.push({ type: 4, feature: tag, subtables: [ligatureSubstSubtable(ligs)] });
+        }
+        features.push({ tag, lookups: idxs });
+      }
+      return { lookups, features };
+    },
+    { scripts: ['arab'], reuse: true }
+  );
 }
 
 /** جدول GDEF يصنّف المحارف: علامات التشكيل فئة 3، وغيرها أساس (فئة 1). */

@@ -12,7 +12,7 @@ import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
 import { type Rule, computeFeatures, ruleToFea, rulesForBuild } from './features';
 import { projectRules } from './feaParse';
 import { infoOf, parseVersion, resolveInfo, safePsName, styleOf } from './fontInfo';
-import { type Anchor, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, mergeCascadeIntoGpos, readGpos, readRawTable } from './gpos';
+import { type Anchor, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, mergeCascadeIntoGpos, mergeRulesIntoGsub, readGpos, readRawTable } from './gpos';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
 import { isRtl, t } from '../i18n';
 
@@ -328,6 +328,19 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
     if (casc) {
       const merged = mergeCascadeIntoGpos(raw.GPOS ?? new Uint8Array(0), casc) ?? (raw.GPOS ? null : buildGpos([], null, casc));
       if (merged) raw.GPOS = merged;
+    }
+    // أشكال الحروف المضافة بعد الاستيراد (init وmedi وfina وisol وrlig) تُدمج في GSUB الأصلي دون تغيير بحوثه
+    const had = new Set(source.slots.map((x) => x.id));
+    const fresh = new Set(project.glyphs.filter((g) => !had.has(g.id)).map((g) => g.name));
+    const rules = rulesForBuild({ rules: projectRules(project).rules, gaps: [], mismatches: [] }).filter((r) => fresh.has(r.to));
+    const gid = (n: string) => index.get(n);
+    const add = {
+      singles: rules.filter((r) => r.kind === 'single' && gid(r.from[0]) !== undefined && gid(r.to) !== undefined).map((r) => ({ feature: r.feature, from: gid(r.from[0])!, to: gid(r.to)! })),
+      ligatures: rules.filter((r) => r.kind === 'ligature' && r.from.every((n) => gid(n) !== undefined) && gid(r.to) !== undefined).map((r) => ({ feature: r.feature, from: r.from.map((n) => gid(n)!), to: gid(r.to)! })),
+    };
+    if (add.singles.length || add.ligatures.length) {
+      const merged = mergeRulesIntoGsub(raw.GSUB ?? new Uint8Array(0), add);
+      if (merged) raw.GSUB = merged;
     }
     return injectTables(buf, raw);
   }
