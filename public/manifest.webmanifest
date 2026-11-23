@@ -4,9 +4,11 @@
   "description": "منصة هادئة لتصميم الخطوط العربية وبنائها، تعمل كاملة داخل متصفحك.",
   "lang": "ar",
   "dir": "rtl",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#F8F4EA",
   "theme_color": "#F8F4EA",
   "icons": [
