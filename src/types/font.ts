@@ -130,7 +130,22 @@ export interface FontProject {
   /** يوجد فقط للمشاريع المستوردة من ملف خط. */
   source?: SourceLayout;
   /** قيم OS/2 الأصلية للخط المستورد (الوزن وfsSelection) مع اسم نمطه وقت الاستيراد، لتبقى كما هي ما لم يغيّر المستخدم النمط. */
-  os2Origin?: { weight: number; fsSelection: number; subfamily: string };
+  os2Origin?: {
+    weight: number;
+    fsSelection: number;
+    subfamily: string;
+    /** مقاييس Win الأصلية، وascender/descender وقت الاستيراد لمعرفة هل غيّرها المستخدم. */
+    win?: [number, number];
+    metrics?: [number, number];
+    /** صفحات الرموز وبصمة الناشر وصلاحيات التضمين الأصلية. */
+    codePage?: [number, number];
+    vendor?: string;
+    fsType?: number;
+  };
+  /** سجلات جدول الأسماء التي لا يديرها المحرر (اسم الميزات 256+، رابط الناشر، العلامة التجارية…) تُعاد كما هي عند التصدير. */
+  nameExtras?: Record<string, Record<string, string>>;
+  /** المحرف الافتراضي .notdef الأصلي: عرضه ومساره (أوامر M/L/C/Z بإحداثيات الخط)، فارغ إن كان بلا رسم. */
+  notdef?: { advance: number; path: Array<['M' | 'L' | 'C' | 'Z', ...number[]]> };
 }
 
 /**
