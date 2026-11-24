@@ -6,6 +6,7 @@ import { featureTags, readRawTable } from '../utils/gpos';
 import { OT_DEFAULT_ON, otFeatureLabel } from '../utils/labels';
 import { t } from '../i18n';
 import { Button } from './ui/Button';
+import { missingChars } from '../utils/testText';
 
 const SAMPLES: Array<{ label: string; text: string }> = [
   { label: t('البسملة'), text: 'بسم الله الرحمن الرحيم' }, // i18n-keep
@@ -28,6 +29,7 @@ export const FontPreview: React.FC<{ project: FontProject; auto?: boolean; initi
   const [tags, setTags] = useState<string[]>([]);
   const [on, setOn] = useState<Record<string, boolean>>({});
   const counter = useRef(0);
+  const missing = missingChars(text, project.glyphs);
   const added = useRef<FontFace[]>([]);
 
   const rebuild = async () => {
@@ -132,6 +134,11 @@ export const FontPreview: React.FC<{ project: FontProject; auto?: boolean; initi
       >
         {state === 'error' ? t('تعذّر بناء الخط. راجع التنبيهات في نافذة التصدير.') : text}
       </div>
+      {missing.length > 0 && (
+        <p className="rounded-xl border border-ink/20 bg-sand/25 p-3 text-xs leading-6" role="status">
+          {t('لا محرف في المشروع للأحرف: {chars}. يعرضها المتصفح بخط آخر، فلا تحكم بها على خطك.', { chars: missing.join(' ') })}
+        </p>
+      )}
       <p className="text-xs leading-6 text-ink-soft">
         {t('الحروف التي لم تُرسم تظهر فراغاً. بعد تعديل رسم أو قاعدة اضغط تحديث.')}
       </p>
