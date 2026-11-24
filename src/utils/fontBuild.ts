@@ -9,7 +9,8 @@ import {
   type KernPair,
 } from '../types/font';
 import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
-import { type Rule, computeFeatures, ruleToFea, rulesForBuild } from './features';
+import { FORM_OF, type Rule, computeFeatures, ruleToFea, rulesForBuild, splitName } from './features';
+import { presentationForm } from './arabicForms';
 import { projectRules } from './feaParse';
 import { infoOf, parseVersion, resolveInfo, safePsName, styleOf } from './fontInfo';
 import { type Anchor, type ReadMarkLookup, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, mergeCascadeIntoGpos, mergeMarkBasesIntoGpos, mergeRulesIntoGsub, readGpos, readGposTable, readRawTable } from './gpos';
@@ -655,6 +656,11 @@ export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?:
       name,
       unicode: cp !== null ? `U+${cp.toString(16).toUpperCase().padStart(4, '0')}` : '',
       category: categoryOf(cp),
+      // الشكل من لاحقة الاسم، وإلا من رمز الشكل التقديمي (uniFE91 مبتدئ)، وإلا منفصل
+      form: (() => {
+        const sfx = splitName(name).suffix;
+        return sfx ? FORM_OF[sfx] : cp !== null ? presentationForm(cp) ?? 'isolated' : 'isolated';
+      })(),
       advanceWidth: Math.min(Math.max(0, Math.round(g.advanceWidth ?? 0)), upm * 2),
     });
     glyphs.push({ ...glyph, contours });

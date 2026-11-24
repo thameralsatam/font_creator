@@ -1,5 +1,6 @@
 import { type Glyph, type GlyphForm, type NewGlyphData } from '../types/font';
 import { t } from '../i18n';
+import { presentationForm } from './arabicForms';
 
 /*
   ميزات الأوبن تايب الأساسية للخط العربي، تُستخرج تلقائياً من أسماء المحارف:
@@ -176,7 +177,8 @@ export function computeFeatures(glyphs: Glyph[]): FeatureReport {
       }
       rules.push({ feature: suffix, kind: 'single', from: [source], to: g.name });
       if (g.form !== FORM_OF[suffix]) mismatches.push(g.name);
-    } else if (g.form !== 'isolated') {
+    } else if (g.form !== 'isolated' && g.form !== presentationForm(Number.parseInt(g.unicode.replace(/^U\+/i, ''), 16))) {
+      // بلا لاحقة: الشكل المنفصل هو المتوقع، أو الشكل الذي يدل عليه رمز الشكل التقديمي (uniFE91 مبتدئ)
       mismatches.push(g.name);
     }
   }
