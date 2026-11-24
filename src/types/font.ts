@@ -180,6 +180,8 @@ export interface SourceLayout {
   /** جداول خام مرمّزة base64 (GSUB وGPOS وGDEF). */
   tables: { GSUB?: string; GPOS?: string; GDEF?: string };
   useOriginal: boolean;
+  /** اسم نقطة الارتكاز لكل فئة علامات في كل جدول علامة-قاعدة أصلي (top وbottom أو markN) بترتيب الجدول الأصلي. */
+  markClasses?: string[][];
 }
 
 export interface Connector {

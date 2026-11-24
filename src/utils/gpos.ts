@@ -16,9 +16,11 @@ export interface PairAdjust {
 }
 
 export interface MarkAnchors {
-  /** صف الفئات: الفئة 0 «فوق» والفئة 1 «تحت». */
-  marks: Array<{ gid: number; cls: 0 | 1; x: number; y: number }>;
-  bases: Array<{ gid: number; anchors: [Anchor | null, Anchor | null] }>;
+  /** صف الفئات: الفئة 0 «فوق» والفئة 1 «تحت» ما لم يُحدَّد classCount (خط مستورد بفئاته الأصلية). */
+  marks: Array<{ gid: number; cls: number; x: number; y: number }>;
+  bases: Array<{ gid: number; anchors: Array<Anchor | null> }>;
+  /** عدد الفئات؛ 2 افتراضياً. */
+  classCount?: number;
 }
 export interface Anchor {
   x: number;
@@ -138,15 +140,20 @@ function markBaseSubtable(m: MarkAnchors): Uint8Array {
   marks.forEach((mk) => ma.bytes(anchor(mk.x, mk.y)));
   const markArray = ma.done();
 
+  const cc = m.classCount ?? 2;
   const ba = new W().u16(bases.length);
   let k = 0;
   const anchorBytes: Uint8Array[] = [];
   bases.forEach((b) => {
-    b.anchors.forEach((a) => {
-      if (!a) return void ba.u16(0);
-      ba.u16(2 + 2 * 2 * bases.length + 6 * k++);
+    for (let c = 0; c < cc; c++) {
+      const a = b.anchors[c];
+      if (!a) {
+        ba.u16(0);
+        continue;
+      }
+      ba.u16(2 + 2 * cc * bases.length + 6 * k++);
       anchorBytes.push(anchor(a.x, a.y));
-    });
+    }
   });
   anchorBytes.forEach((a) => ba.bytes(a));
   const baseArray = ba.done();
@@ -156,7 +163,7 @@ function markBaseSubtable(m: MarkAnchors): Uint8Array {
   const markArrOff = baseCovOff + baseCov.length;
   const baseArrOff = markArrOff + markArray.length;
   return new W()
-    .u16(1).u16(markCovOff).u16(baseCovOff).u16(2).u16(markArrOff).u16(baseArrOff)
+    .u16(1).u16(markCovOff).u16(baseCovOff).u16(cc).u16(markArrOff).u16(baseArrOff)
     .bytes(markCov).bytes(baseCov).bytes(markArray).bytes(baseArray)
     .done();
 }
@@ -518,6 +525,22 @@ export function mergeCascadeIntoGpos(orig: Uint8Array, cascade: CascadeData): Ui
   );
 }
 
+/**
+ * يدمج قواعد علامة-قاعدة جديدة (محارف أُضيفت بعد الاستيراد) في GPOS أصلي بفئات العلامات الأصلية نفسها،
+ * فتتموضع علامات الخط الأصلية فوق المحارف الجديدة. تُضاف إلى ميزة mark الموجودة في كل لغة.
+ */
+export function mergeMarkBasesIntoGpos(orig: Uint8Array, lookups: MarkAnchors[]): Uint8Array | null {
+  if (!lookups.length) return null;
+  return mergeLayout(
+    orig,
+    (n) => ({
+      lookups: lookups.map((m) => ({ type: 4, feature: 'mark', subtables: [markBaseSubtable(m)] })),
+      features: [{ tag: 'mark', lookups: lookups.map((_, i) => n + i) }],
+    }),
+    { scripts: null, reuse: true }
+  );
+}
+
 export interface GsubAdditions {
   singles: Array<{ feature: string; from: number; to: number }>;
   ligatures: Array<{ feature: string; from: number[]; to: number }>;
@@ -742,10 +765,17 @@ export function collectPositioning(project: FontProject, gidOf: (name: string) =
    قراءة جدول GPOS من خط مستورد (ما نكتبه نحن، وما يشبهه)
    ============================================================ */
 
-export interface ReadGpos {
-  pairs: PairAdjust[];
+/** جدول تموضع تشكيل واحد (نوع 4 صيغة 1) بفئاته الأصلية. */
+export interface ReadMarkLookup {
+  classCount: number;
   marks: Array<{ gid: number; cls: number; x: number; y: number }>;
   bases: Array<{ gid: number; anchors: Array<Anchor | null> }>;
+}
+
+export interface ReadGpos {
+  pairs: PairAdjust[];
+  /** جداول العلامة-القاعدة بترتيبها في الجدول، لكل منها عدد فئاته. */
+  markLookups: ReadMarkLookup[];
   /** عدد جداول الأزواج بالصيغة الصفية التي لم تُقرأ. */
   skipped: number;
 }
@@ -763,7 +793,24 @@ export function readGpos(buf: ArrayBuffer): ReadGpos | null {
       if (dv.getUint32(rec) === 0x47504f53) gpos = dv.getUint32(rec + 8); // 'GPOS'
     }
     if (gpos < 0) return null;
-    const out: ReadGpos = { pairs: [], marks: [], bases: [], skipped: 0 };
+    return readGposAt(dv, gpos);
+  } catch {
+    return null;
+  }
+}
+
+/** يقرأ جدول GPOS خاماً (بايتات الجدول وحدها، كما تُحفظ في المشروع). */
+export function readGposTable(table: Uint8Array): ReadGpos | null {
+  try {
+    return readGposAt(new DataView(table.buffer, table.byteOffset, table.byteLength), 0);
+  } catch {
+    return null;
+  }
+}
+
+function readGposAt(dv: DataView, gpos: number): ReadGpos | null {
+  try {
+    const out: ReadGpos = { pairs: [], markLookups: [], skipped: 0 };
     const lookupList = gpos + dv.getUint16(gpos + 8);
     const lookupCount = dv.getUint16(lookupList);
     const cov = (o: number): number[] => {
@@ -810,22 +857,26 @@ export function readGpos(buf: ArrayBuffer): ReadGpos | null {
           }
         } else if (type === 2 && fmt === 2) {
           out.skipped++;
-        } else if (type === 4 && fmt === 1 && dv.getUint16(so + 6) === 2) {
+        } else if (type === 4 && fmt === 1) {
+          const cc = dv.getUint16(so + 6);
+          if (cc < 1 || cc > 32) continue;
           const markGids = cov(so + dv.getUint16(so + 2));
           const baseGids = cov(so + dv.getUint16(so + 4));
           const ma = so + dv.getUint16(so + 8);
           const ba = so + dv.getUint16(so + 10);
+          const ml: ReadMarkLookup = { classCount: cc, marks: [], bases: [] };
           markGids.forEach((gid, i) => {
             const a = anchorAt(ma + dv.getUint16(ma + 2 + 4 * i + 2));
-            out.marks.push({ gid, cls: dv.getUint16(ma + 2 + 4 * i), x: a.x, y: a.y });
+            ml.marks.push({ gid, cls: dv.getUint16(ma + 2 + 4 * i), x: a.x, y: a.y });
           });
           baseGids.forEach((gid, i) => {
-            const anchors = [0, 1].map((c) => {
-              const off = dv.getUint16(ba + 2 + 4 * i + 2 * c);
+            const anchors = Array.from({ length: cc }, (_, c) => {
+              const off = dv.getUint16(ba + 2 + 2 * cc * i + 2 * c);
               return off ? anchorAt(ba + off) : null;
             });
-            out.bases.push({ gid, anchors });
+            ml.bases.push({ gid, anchors });
           });
+          out.markLookups.push(ml);
         }
       }
     }
