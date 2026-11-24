@@ -56,6 +56,7 @@ const d: Dict = {
   'الجداول الأصلية للخط المستورد': 'Originaltabellen der importierten Schrift',
   'الجداول الأصلية متوقفة: يُبنى الخط من قواعدك ومن أسماء المحارف فقط، وما لا يفهمه الموقع من قواعد الخط الأصلي (السياقية والتشكيل بأكثر من فئتين والتقارب بالفئات) لن يُكتب.': 'Originaltabellen sind ausgeschaltet: Die Schrift wird nur aus Ihren Regeln und den Glyphennamen gebaut; Regeln der Originalschrift, die die Website nicht versteht (kontextuelle, Vokalzeichen mit mehr als zwei Klassen, Unterschneidung nach Klassen), werden nicht geschrieben.',
   'الحجم': 'Größe',
+  'لا محرف في المشروع للأحرف: {chars}. يعرضها المتصفح بخط آخر، فلا تحكم بها على خطك.': 'Für diese Zeichen gibt es kein Glyph im Projekt: {chars}. Der Browser zeigt sie in einer anderen Schrift, beurteilen Sie daran also nicht Ihre Schrift.',
   'الحروف التي لم تُرسم تظهر فراغاً. بعد تعديل رسم أو قاعدة اضغط تحديث.': 'Nicht gezeichnete Buchstaben erscheinen leer. Klicken Sie nach einer Änderung an Zeichnung oder Regel auf Aktualisieren.',
   'الرسم لا يتغير، فقط بياناته': 'Die Zeichnung bleibt unverändert, nur ihre Daten',
   'السطر {n}: {m}': 'Zeile {n}: {m}',
