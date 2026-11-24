@@ -53,6 +53,7 @@ import { centerOnOrigin } from '../../utils/pathEdit';
 import { ConnectorPreview } from '../ConnectorPreview';
 import { DrawingAids, findGlyph, type Neighbors, type Trace } from './DrawingAids';
 import { boundsOf, GRID_CHAIN } from '../../utils/pathEdit';
+import { defaultAnchorPos, type InkBox } from '../../utils/anchorDefaults';
 import { downloadTextFile } from '../../utils/download';
 import { glyphToSvg, svgToGlyph } from '../../utils/svgGlyph';
 import { FORM_LABEL } from '../../utils/labels';
@@ -135,15 +136,8 @@ const NumberRow: React.FC<{
 
 /** تدوير وتحجيم بقيم دقيقة. المربع يمثل صندوق المحدد، والنقطة المملوءة هي مركز الدوران والتحجيم. */
 /** موضع ابتدائي معقول لنقطة ارتكاز جاهزة، يسحبها المستخدم بعده. */
-function defaultAnchor(name: string, advanceWidth: number, m: FontMetrics): AnchorPoint {
-  const mid = Math.round(advanceWidth / 2);
-  const pos: Record<string, [number, number]> = {
-    top: [mid, m.ascender],
-    bottom: [mid, m.descender],
-    entry: [advanceWidth, Math.round(m.xHeight / 2)],
-    exit: [0, Math.round(m.xHeight / 2)],
-  };
-  const [x, y] = pos[name] ?? [mid, 0];
+function defaultAnchor(name: string, glyph: Glyph, m: FontMetrics, ink: InkBox | null): AnchorPoint {
+  const [x, y] = defaultAnchorPos(name, glyph.category === 'diacritic', glyph.advanceWidth, m, ink);
   return { id: uid('anchor'), name, x, y };
 }
 
@@ -652,7 +646,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                     label={`${has ? t('حذف') : t('إضافة')}: ${label}`}
                     helpId="anchors.edit"
                     onClick={() => {
-                      editor.setAnchors((all) => (has ? all.filter((a) => a.name !== key) : [...all, defaultAnchor(key, glyph.advanceWidth, metrics)]));
+                      editor.setAnchors((all) => (has ? all.filter((a) => a.name !== key) : [...all, defaultAnchor(key, glyph, metrics, bounds)]));
                       if (!has && !options.anchors) toggle('anchors');
                       close();
                     }}
