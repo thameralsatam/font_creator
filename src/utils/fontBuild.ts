@@ -158,6 +158,18 @@ function contourToOT(ot: OT, path: InstanceType<OT['Path']>, c: Contour): void {
   void ot;
 }
 
+/** .notdef الأصلي المحفوظ عند الاستيراد (يُستعمل بدل المربع المولَّد). */
+function savedNotdef(ot: OT, saved: NonNullable<FontProject['notdef']>) {
+  const p = new ot.Path();
+  for (const [c, ...n] of saved.path) {
+    if (c === 'M') p.moveTo(n[0], n[1]);
+    else if (c === 'L') p.lineTo(n[0], n[1]);
+    else if (c === 'C') p.curveTo(n[0], n[1], n[2], n[3], n[4], n[5]);
+    else p.close();
+  }
+  return { path: p, advance: saved.advance };
+}
+
 function notdefPath(ot: OT, m: FontMetrics) {
   const p = new ot.Path();
   const w = Math.round(m.upm * 0.55);
@@ -169,16 +181,24 @@ function notdefPath(ot: OT, m: FontMetrics) {
   return { path: p, advance: w };
 }
 
+/** الحافة اليسرى للرسم (xMin): قيمة hmtx الصحيحة للمحرف، وصفر لمحرف بلا رسم. */
+function lsbOf(path: { commands: unknown[]; getBoundingBox(): { x1: number } }): number {
+  return path.commands.length ? Math.round(path.getBoundingBox().x1) : 0;
+}
+
 export function glyphToOT(ot: OT, g: Glyph) {
   const path = new ot.Path();
   for (const c of fixDirections(g.contours)) contourToOT(ot, path, c);
   const cp = parseUnicode(g.unicode);
-  return new ot.Glyph({
+  const glyph = new ot.Glyph({
     name: g.name,
     unicode: cp ?? undefined,
     advanceWidth: Math.max(0, Math.round(g.advanceWidth)),
     path,
   });
+  // المكتبة لا تقرأ الحافة اليسرى من خيارات البناء، فتُسند بعده (وإلا كُتبت 0 في hmtx)
+  glyph.leftSideBearing = lsbOf(path);
+  return glyph;
 }
 
 /** اسم ملف الخط المقترح للتصدير (مثل MyFont-Regular.otf). */
@@ -205,18 +225,33 @@ export function weightClassFor(subfamily: string): number {
   return styleOf(subfamily)?.weight ?? 400;
 }
 
+/** صفحات الرموز المعلنة بحسب تغطية الخط الفعلية: لاتينية (1252) وعربية (1256) متى غُطّي 90% من أساسياتها. */
+export function codePagesFor(unicodes: number[]): [number, number] {
+  const has = new Set(unicodes);
+  const share = (cps: number[]) => cps.filter((c) => has.has(c)).length / cps.length;
+  const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+  const latin = [...range(0x41, 0x5a), ...range(0x61, 0x7a)];
+  const arabic = [...range(0x621, 0x63a), ...range(0x641, 0x64a)];
+  let lo = 0;
+  if (share(latin) >= 0.9) lo |= 1 << 0;
+  if (share(arabic) >= 0.9) lo |= 1 << 6;
+  return [lo >>> 0, 0];
+}
+
 /**
- * حقول OS/2 التي نضبطها: ارتفاعا الحروف، مقاييس Typo، مقاييس Win، وfsSelection.
+ * حقول OS/2 التي نضبطها: ارتفاعا الحروف، مقاييس Typo، مقاييس Win، وfsSelection، وصفحات الرموز.
  * مقاييس Win موجبة دائماً وتغطي أكبر امتداد فعلي للمحارف حتى لا يُقصّ الرسم في ويندوز.
+ * خط مستورد: يحتفظ بقيمه الأصلية (الوزن وfsSelection ما دام النمط لم يتغير، ومقاييس Win ما دام الارتفاعان لم يتغيرا،
+ * وصفحات الرموز وبصمة الناشر وصلاحيات التضمين دائماً).
  */
 export function os2Overrides(
   m: FontMetrics,
   subfamily: string,
-  glyphs: Array<{ getBoundingBox(): { y1: number; y2: number } }>,
+  glyphs: Array<{ getBoundingBox(): { y1: number; y2: number }; unicode?: number }>,
   origin?: FontProject['os2Origin']
 ) {
-  // خط مستورد لم يُغيَّر نمطه: يبقى الوزن وfsSelection كما في الملف الأصلي
   const keep = origin && origin.subfamily.trim() === subfamily.trim() ? origin : null;
+  const keepWin = origin?.win && origin.metrics && origin.metrics[0] === m.ascender && origin.metrics[1] === m.descender ? origin.win : null;
   let top = 0;
   let bottom = 0;
   for (const g of glyphs) {
@@ -224,25 +259,31 @@ export function os2Overrides(
     if (Number.isFinite(b.y2)) top = Math.max(top, b.y2);
     if (Number.isFinite(b.y1)) bottom = Math.min(bottom, b.y1);
   }
+  const cp = origin?.codePage ?? codePagesFor(glyphs.map((g) => g.unicode ?? 0).filter((u) => u > 0));
   return {
     sxHeight: m.xHeight,
     sCapHeight: m.capHeight,
     sTypoAscender: m.ascender,
     sTypoDescender: m.descender,
-    usWinAscent: Math.max(Math.round(m.ascender), Math.ceil(top)),
-    usWinDescent: Math.max(Math.abs(Math.round(m.descender)), Math.ceil(-bottom)),
+    usWinAscent: keepWin ? keepWin[0] : Math.max(Math.round(m.ascender), Math.ceil(top)),
+    usWinDescent: keepWin ? keepWin[1] : Math.max(Math.abs(Math.round(m.descender)), Math.ceil(-bottom)),
     usWeightClass: keep ? keep.weight : weightClassFor(subfamily),
     fsSelection: keep ? keep.fsSelection : fsSelectionFor(subfamily),
+    ulCodePageRange1: cp[0],
+    ulCodePageRange2: cp[1],
+    ...(origin?.vendor !== undefined ? { achVendID: origin.vendor } : {}),
+    ...(origin?.fsType !== undefined ? { fsType: origin.fsType } : {}),
   };
 }
 
 export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer> {
   const ot = await loadOpenType();
   const m = project.metrics;
-  const nd = notdefPath(ot, m);
+  const nd = project.notdef ? savedNotdef(ot, project.notdef) : notdefPath(ot, m);
   const source = project.source && project.source.useOriginal ? project.source : null;
   // مع الجداول الأصلية يحتفظ المحرف الافتراضي (.notdef) بعرضه الأصلي حتى تبقى المسافات كما هي
   const notdef = new ot.Glyph({ name: '.notdef', unicode: 0, advanceWidth: source?.slots[0]?.advance || nd.advance, path: nd.path });
+  notdef.leftSideBearing = lsbOf(nd.path);
   // نرتب المحارف: ذوات الرمز أولاً بترتيب الرمز، ثم الباقي بترتيب المشروع
   const withCode = project.glyphs
     .filter((g) => parseUnicode(g.unicode) !== null)
@@ -297,6 +338,10 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
     ['designerURL', info.designerUrl],
   ];
   for (const [key, value] of optional) if (value.trim()) names[key] = { en: value.trim() };
+  // سجلات لا يديرها المحرر (أسماء الميزات 256+ وأسماء أخرى) تعود كما كانت، فلا تفقد الميزات الأصلية أسماءها
+  for (const [key, val] of Object.entries(project.nameExtras ?? {})) if (!names[key] || Object.values(names[key]).every((v) => !String(v).trim())) names[key] = { ...val };
+  // المكتبة تملأ ما لا قيمة له بمسافة؛ نحذفها لئلا يظهر سجل اسم فارغ
+  for (const key of Object.keys(names)) if (Object.values(names[key]).every((v) => !String(v).trim())) delete names[key];
   // ارتفاعا الحروف الصغيرة والكبيرة يُكتبان كما ضبطتهما، وإلا خمّنتهما المكتبة من حروف لاتينية
   // تُدمج فوق الجدول القائم (لا تستبدله) فتبقى حقوله الأخرى كالوزن والعرض
   const os2Table = (font.tables as unknown as { os2: Record<string, unknown> }).os2;
@@ -505,7 +550,7 @@ export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?:
     designerUrl: pick('designerURL') ?? '',
   };
 
-  const os2 = (font.tables as unknown as { os2?: { sCapHeight?: number; sxHeight?: number; usWeightClass?: number; fsSelection?: number } }).os2;
+  const os2 = (font.tables as unknown as { os2?: { sCapHeight?: number; sxHeight?: number; usWeightClass?: number; fsSelection?: number; usWinAscent?: number; usWinDescent?: number; ulCodePageRange1?: number; ulCodePageRange2?: number; achVendID?: string; fsType?: number } }).os2;
   const metrics: FontMetrics = {
     upm,
     ascender: Math.round(font.ascender) > 0 ? Math.round(font.ascender) : Math.round(upm * 0.8),
@@ -517,7 +562,43 @@ export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?:
   metrics.xHeight = Math.min(metrics.xHeight, metrics.capHeight);
   project.metrics = metrics;
   if (typeof os2?.usWeightClass === 'number' && typeof os2.fsSelection === 'number') {
-    project.os2Origin = { weight: os2.usWeightClass, fsSelection: os2.fsSelection, subfamily: project.info.subfamily };
+    project.os2Origin = {
+      weight: os2.usWeightClass,
+      fsSelection: os2.fsSelection,
+      subfamily: project.info.subfamily,
+      ...(typeof os2.usWinAscent === 'number' && typeof os2.usWinDescent === 'number'
+        ? { win: [os2.usWinAscent, os2.usWinDescent] as [number, number], metrics: [metrics.ascender, metrics.descender] as [number, number] }
+        : {}),
+      ...(typeof os2.ulCodePageRange1 === 'number' ? { codePage: [os2.ulCodePageRange1, os2.ulCodePageRange2 ?? 0] as [number, number] } : {}),
+      ...(typeof os2.achVendID === 'string' ? { vendor: os2.achVendID } : {}),
+      ...(typeof os2.fsType === 'number' ? { fsType: os2.fsType } : {}),
+    };
+  }
+  // سجلات الأسماء غير المُدارة تُحفظ لتعود عند التصدير
+  const MANAGED = new Set(['fontFamily', 'fontSubfamily', 'uniqueID', 'fullName', 'version', 'postScriptName', 'copyright', 'license', 'licenseURL', 'manufacturer', 'designer', 'designerURL', 'description', 'preferredFamily', 'preferredSubfamily']);
+  const extras: Record<string, Record<string, string>> = {};
+  for (const [key, val] of Object.entries(names)) {
+    if (MANAGED.has(key) || !val) continue;
+    const kept = Object.fromEntries(Object.entries(val).filter(([, v]) => typeof v === 'string' && v.trim()));
+    if (Object.keys(kept).length) extras[key] = kept;
+  }
+  if (Object.keys(extras).length) project.nameExtras = extras;
+  // المحرف الافتراضي الأصلي
+  const nd0 = font.glyphs.get(0);
+  if (nd0 && nd0.name === '.notdef') {
+    const path: NonNullable<FontProject['notdef']>['path'] = [];
+    for (const c of nd0.path.commands) {
+      if (c.type === 'M' || c.type === 'L') path.push([c.type, Math.round(c.x), Math.round(c.y)]);
+      else if (c.type === 'C') path.push(['C', Math.round(c.x1), Math.round(c.y1), Math.round(c.x2), Math.round(c.y2), Math.round(c.x), Math.round(c.y)]);
+      else if (c.type === 'Q') {
+        // منحنى تربيعي (TrueType) يُحوَّل إلى تكعيبي بالنقطة الحالية
+        const last = path[path.length - 1];
+        const x0 = last && last.length >= 3 ? (last[last.length - 2] as number) : 0;
+        const y0 = last && last.length >= 3 ? (last[last.length - 1] as number) : 0;
+        path.push(['C', Math.round(x0 + (2 / 3) * (c.x1 - x0)), Math.round(y0 + (2 / 3) * (c.y1 - y0)), Math.round(c.x + (2 / 3) * (c.x1 - c.x)), Math.round(c.y + (2 / 3) * (c.y1 - c.y)), Math.round(c.x), Math.round(c.y)]);
+      } else path.push(['Z']);
+    }
+    project.notdef = { advance: Math.round(nd0.advanceWidth ?? 0), path };
   }
 
   const range = coordRange(metrics);
