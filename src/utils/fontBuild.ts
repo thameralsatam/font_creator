@@ -12,7 +12,7 @@ import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
 import { type Rule, computeFeatures, ruleToFea, rulesForBuild } from './features';
 import { projectRules } from './feaParse';
 import { infoOf, parseVersion, resolveInfo, safePsName, styleOf } from './fontInfo';
-import { type Anchor, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, mergeCascadeIntoGpos, mergeRulesIntoGsub, readGpos, readRawTable } from './gpos';
+import { type Anchor, type ReadMarkLookup, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, mergeCascadeIntoGpos, mergeMarkBasesIntoGpos, mergeRulesIntoGsub, readGpos, readGposTable, readRawTable } from './gpos';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
 import { isRtl, t } from '../i18n';
 
@@ -374,6 +374,21 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
       const merged = mergeCascadeIntoGpos(raw.GPOS ?? new Uint8Array(0), casc) ?? (raw.GPOS ? null : buildGpos([], null, casc));
       if (merged) raw.GPOS = merged;
     }
+    // علامات التشكيل الأصلية تتموضع فوق المحارف المضافة بعد الاستيراد (بنقاط ارتكازها الجديدة وفئات الخط الأصلية)
+    const labels = source.markClasses;
+    const origMarks = labels && raw.GPOS ? readGposTable(raw.GPOS) : null;
+    if (origMarks && labels) {
+      const newBases = project.glyphs.filter((gl) => !source.slots.some((x) => x.id === gl.id) && gl.category !== 'diacritic' && gl.anchors.length);
+      const lookups = origMarks.markLookups.flatMap((ml, k) => {
+        const names = labels[k] ?? [];
+        const bases = newBases
+          .map((gl): { gid: number | undefined; anchors: Array<Anchor | null> } => ({ gid: index.get(gl.name), anchors: names.map((nm) => gl.anchors.find((a) => a.name === nm) ?? null) }))
+          .filter((b): b is { gid: number; anchors: Array<Anchor | null> } => b.gid !== undefined && b.anchors.some(Boolean));
+        return bases.length ? [{ marks: ml.marks, bases, classCount: ml.classCount }] : [];
+      });
+      const merged = mergeMarkBasesIntoGpos(raw.GPOS!, lookups);
+      if (merged) raw.GPOS = merged;
+    }
     // أشكال الحروف المضافة بعد الاستيراد (init وmedi وfina وisol وrlig) تُدمج في GSUB الأصلي دون تغيير بحوثه
     const had = new Set(source.slots.map((x) => x.id));
     const fresh = new Set(project.glyphs.filter((g) => !had.has(g.id)).map((g) => g.name));
@@ -689,22 +704,52 @@ export function fontToProject(font: OpenType.Font, fileName: string, rawBuffer?:
       }
       if (kerning.length) project.kerning = kerning;
       let anchored = 0;
-      const put = (gid: number, name: 'top' | 'bottom', pt: Anchor, mark: boolean) => {
+      const glyphOf = (gid: number) => {
         const nm = nameOf(gid);
         const i = nm === undefined ? undefined : byName.get(nm);
-        if (i === undefined) return;
-        const gl = glyphs[i];
+        return i === undefined ? undefined : glyphs[i];
+      };
+      const midY = (gl: Glyph) => {
+        const ys = gl.contours.flatMap((c) => c.nodes.map((nd) => nd.y));
+        return ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : undefined;
+      };
+      // فئات العلامات تُسمّى بالهندسة لا برقمها: علامة تقع نقطة ارتكازها أسفل منتصف رسمها تعلو القاعدة (top) وإلا تحتها (bottom)
+      const labelsFor = (ml: ReadMarkLookup): string[] => {
+        const used = new Set<string>();
+        return Array.from({ length: ml.classCount }, (_, c) => {
+          let up = 0;
+          let down = 0;
+          for (const m of ml.marks) {
+            if (m.cls !== c) continue;
+            const gl = glyphOf(m.gid);
+            const mid = gl ? midY(gl) : undefined;
+            if (mid === undefined) continue;
+            if (m.y < mid) up++;
+            else down++;
+          }
+          let label = up === 0 && down === 0 ? `mark${c}` : up > down ? 'top' : 'bottom';
+          if (used.has(label)) label = `mark${c}`;
+          used.add(label);
+          return label;
+        });
+      };
+      const classLabels = g.markLookups.map(labelsFor);
+      const put = (gl: Glyph | undefined, name: string, pt: Anchor, mark: boolean) => {
+        if (!gl || gl.anchors.some((a) => a.name === name)) return;
         gl.anchors = [...gl.anchors, { id: uid('anchor'), name, x: pt.x, y: pt.y }];
         if (mark) gl.category = 'diacritic';
         anchored++;
       };
-      g.marks.forEach((m) => put(m.gid, m.cls === 0 ? 'top' : 'bottom', m, true));
-      g.bases.forEach((b) => b.anchors.forEach((a, c) => a && put(b.gid, c === 0 ? 'top' : 'bottom', a, false)));
+      g.markLookups.forEach((ml, k) => {
+        ml.marks.forEach((m) => put(glyphOf(m.gid), classLabels[k][m.cls] ?? `mark${m.cls}`, m, true));
+        ml.bases.forEach((b) => b.anchors.forEach((a, c) => a && put(glyphOf(b.gid), classLabels[k][c], a, false)));
+      });
+      if (project.source && classLabels.length) project.source.markClasses = classLabels;
       if (kerning.length) notes.push(t('استُوردت {n} قاعدة مسافة بين أزواج المحارف.', { n: kerning.length }));
       if (anchored) notes.push(t('استُوردت {n} نقطة ارتكاز لتموضع التشكيل.', { n: anchored }));
       if (g.skipped) notes.push(t('بعض قواعد المسافات مكتوبة بصيغة الفئات ولا تُستورد بعد.'));
     }
-    if (!g || (g.pairs.length === 0 && g.marks.length === 0)) {
+    if (!g || (g.pairs.length === 0 && g.markLookups.length === 0)) {
       notes.push(t('قواعد المواضع في الخط الأصلي بصيغة غير مدعومة للاستيراد، فلم تُستورد.'));
     }
   }
