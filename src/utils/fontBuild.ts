@@ -408,9 +408,11 @@ export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer
   // جداول الموضع (كيرننغ وتشكيل): المكتبة لا تكتبها، فنحقنها في الملف بعد البناء
   const pos = collectPositioning(project, (n) => index.get(n));
   const gpos = buildGpos(pos.pairs, pos.marks, pos.cascade);
-  if (!gpos) return buf;
-  const extra: Record<string, Uint8Array> = { GPOS: gpos };
-  const gdef = pos.marks ? buildGdef(pos.markGids, glyphs.length) : null;
+  // تصنيف العلامات في GDEF لازم لبرامج التنضيد حتى لو لم يوجد كيرننغ ولا ارتكاز
+  const gdef = buildGdef(pos.markGids, glyphs.length);
+  if (!gpos && !gdef) return buf;
+  const extra: Record<string, Uint8Array> = {};
+  if (gpos) extra.GPOS = gpos;
   if (gdef) extra.GDEF = gdef;
   return injectTables(buf, extra);
 }
