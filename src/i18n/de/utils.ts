@@ -94,6 +94,8 @@ const d: Dict = {
   'تحت': 'Unten',
   'دخول': 'Eintritt',
   'خروج': 'Austritt',
+  'فوق العلامة': 'Über dem Zeichen',
+  'تحت العلامة': 'Unter dem Zeichen',
   'بدائل الشكل': 'Formvarianten',
   'بدائل سياقية': 'Kontextvarianten',
   'تركيب وتفكيك المحارف': 'Glyphen zusammensetzen und zerlegen',
