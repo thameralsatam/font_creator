@@ -638,7 +638,9 @@ const StudioInner: React.FC<StudioScreenProps> = ({
               />
               <MenuDivider />
               <MenuLabel>{t('نقاط الارتكاز (اسحبها على اللوحة)')}</MenuLabel>
-              {Object.entries(ANCHOR_LABEL).map(([key, label]) => {
+              {Object.entries(ANCHOR_LABEL)
+                .filter(([key]) => glyph.category === 'diacritic' || (key !== 'markTop' && key !== 'markBottom'))
+                .map(([key, label]) => {
                 const has = glyph.anchors.some((a) => a.name === key);
                 return (
                   <MenuItem

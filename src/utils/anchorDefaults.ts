@@ -18,6 +18,11 @@ export function defaultAnchorPos(name: string, isMark: boolean, advance: number,
   const mid = Math.round(advance / 2);
   if (name === 'entry') return [advance, Math.round(m.xHeight / 2)];
   if (name === 'exit') return [0, Math.round(m.xHeight / 2)];
+  if (name === 'markTop' || name === 'markBottom') {
+    if (!ink) return [mid, name === 'markTop' ? m.ascender : m.descender];
+    const g = Math.round(m.upm * 0.06);
+    return [Math.round((ink.xMin + ink.xMax) / 2), Math.round(name === 'markTop' ? ink.yMax + g : ink.yMin - g)];
+  }
   if (name !== 'top' && name !== 'bottom') return [mid, 0];
   if (!ink) return [mid, name === 'top' ? m.ascender : m.descender];
   const cx = Math.round((ink.xMin + ink.xMax) / 2);

@@ -34,7 +34,7 @@ export interface Contour {
 
 export interface AnchorPoint {
   id: string;
-  name: string; // top, bottom, entry, exit
+  name: string; // top, bottom, entry, exit, markTop, markBottom
   x: number;
   y: number;
 }

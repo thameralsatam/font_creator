@@ -27,3 +27,13 @@ test('entry/exit stay at the advance edges; empty glyph keeps the metric default
   assert.deepEqual(defaultAnchorPos('top', false, 600, m, null), [300, m.ascender]);
   assert.deepEqual(defaultAnchorPos('bottom', true, 0, m, null), [0, m.descender]);
 });
+
+test('stacking points of a mark sit just outside its own drawing', () => {
+  const mark = { xMin: -150, xMax: 150, yMin: 800, yMax: 900 };
+  const above = defaultAnchorPos('markTop', true, 0, m, mark);
+  const below = defaultAnchorPos('markBottom', true, 0, m, mark);
+  assert.equal(above[0], 0);
+  assert.ok(above[1] > 900 && above[1] - 900 <= 120);
+  assert.ok(below[1] < 800 && 800 - below[1] <= 120);
+  assert.deepEqual(defaultAnchorPos('markTop', true, 0, m, null), [0, m.ascender]);
+});

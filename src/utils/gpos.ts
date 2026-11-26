@@ -246,7 +246,7 @@ function cascadeLookups(c: CascadeData, firstIndex: number): Lookup[] {
 }
 
 /** يبني جدول GPOS كاملاً، أو null إن لم يوجد ما يُكتب. */
-export function buildGpos(pairs: PairAdjust[], marks: MarkAnchors | null, cascade: CascadeData | null = null): Uint8Array | null {
+export function buildGpos(pairs: PairAdjust[], marks: MarkAnchors | null, cascade: CascadeData | null = null, markMarks: MarkAnchors | null = null): Uint8Array | null {
   const lookups: Lookup[] = [];
   // الإزاحة التتابعية أولاً: التشكيل يُوضَع بعدها فيتبع الحرف بعد إزاحته
   if (cascade) lookups.push(...cascadeLookups(cascade, 0));
@@ -254,6 +254,10 @@ export function buildGpos(pairs: PairAdjust[], marks: MarkAnchors | null, cascad
   if (pairTables.length) lookups.push({ type: 2, subtables: pairTables, feature: 'kern' });
   if (marks && marks.marks.length > 0 && marks.bases.length > 0) {
     lookups.push({ type: 4, subtables: [markBaseSubtable(marks)], feature: 'mark' });
+  }
+  // علامة فوق علامة: MarkMarkPos صيغة 1 لها البنية الثنائية نفسها (علامة متعلقة + علامة حاملة)
+  if (markMarks && markMarks.marks.length > 0 && markMarks.bases.length > 0) {
+    lookups.push({ type: 6, subtables: [markBaseSubtable(markMarks)], feature: 'mkmk' });
   }
   if (lookups.length === 0) return null;
 
@@ -708,6 +712,8 @@ export function injectTables(buf: ArrayBuffer, extra: Record<string, Uint8Array>
 export interface Positioning {
   pairs: PairAdjust[];
   marks: MarkAnchors | null;
+  /** علامات تتراكب فوق علامات: «العلامة المتعلقة» لها ارتكازها العادي، و«الحاملة» لها «فوق العلامة» أو «تحت العلامة». */
+  markMarks: MarkAnchors | null;
   markGids: number[];
   cascade: CascadeData | null;
 }
@@ -724,6 +730,7 @@ export function collectPositioning(project: FontProject, gidOf: (name: string) =
     if (a !== undefined && b !== undefined && k.value !== 0) pairs.push({ first: a, second: b, value: k.value });
   }
   const marks: MarkAnchors = { marks: [], bases: [] };
+  const markMarks: MarkAnchors = { marks: [], bases: [] };
   const markGids: number[] = [];
   for (const g of project.glyphs) {
     const gid = gidOf(g.name);
@@ -732,6 +739,11 @@ export function collectPositioning(project: FontProject, gidOf: (name: string) =
     const bottom = g.anchors.find((a) => a.name === 'bottom');
     if (g.category === 'diacritic') {
       markGids.push(gid);
+      const stackTop = g.anchors.find((a) => a.name === 'markTop');
+      const stackBottom = g.anchors.find((a) => a.name === 'markBottom');
+      if (stackTop || stackBottom) {
+        markMarks.bases.push({ gid, anchors: [stackTop ? { x: stackTop.x, y: stackTop.y } : null, stackBottom ? { x: stackBottom.x, y: stackBottom.y } : null] });
+      }
       const a = top ?? bottom;
       if (a) marks.marks.push({ gid, cls: top ? 0 : 1, x: a.x, y: a.y });
     } else if (top || bottom) {
@@ -753,9 +765,11 @@ export function collectPositioning(project: FontProject, gidOf: (name: string) =
     if (same) same.triggers.push(gid);
     else rules.push({ triggers: [gid], dy: r.dy, span: r.span });
   }
+  markMarks.marks = marks.marks;
   return {
     pairs,
     marks: marks.marks.length && marks.bases.length ? marks : null,
+    markMarks: markMarks.marks.length && markMarks.bases.length ? markMarks : null,
     markGids,
     cascade: rules.length ? { rules, letters } : null,
   };

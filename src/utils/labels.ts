@@ -22,6 +22,8 @@ export const ANCHOR_LABEL: Record<string, string> = {
   bottom: t('تحت'),
   entry: t('دخول'),
   exit: t('خروج'),
+  markTop: t('فوق العلامة'),
+  markBottom: t('تحت العلامة'),
 };
 
 /** أسماء عربية لوسوم ميزات الأوبن تايب الشائعة. */
