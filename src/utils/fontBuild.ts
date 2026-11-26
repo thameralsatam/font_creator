@@ -12,6 +12,7 @@ import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
 import { FORM_OF, type Rule, computeFeatures, ruleToFea, rulesForBuild, splitName } from './features';
 import { presentationForm } from './arabicForms';
 import { projectRules } from './feaParse';
+import { exportAnchorChecks, joinEdgeChecks } from './exportChecks';
 import { infoOf, parseVersion, resolveInfo, safePsName, styleOf } from './fontInfo';
 import { type Anchor, type ReadMarkLookup, base64ToBytes, buildGdef, buildGpos, bytesToBase64, collectPositioning, injectTables, mergeCascadeIntoGpos, mergeMarkBasesIntoGpos, mergeRulesIntoGsub, readGpos, readGposTable, readRawTable } from './gpos';
 import { LIMITS, coordRange, fixDirections, wrongDirectionCount } from './pathEdit';
@@ -123,6 +124,7 @@ export function checkProject(project: FontProject): BuildReport {
   );
   if (stacked.length) warnings.push(t('نقاط متراكبة فوق بعضها في: {names}.', { names: list(stacked.map((g) => g.name)) }));
   if (original) return { errors, warnings };
+  warnings.push(...exportAnchorChecks(project), ...joinEdgeChecks(project));
   if (fea.errors.length) warnings.push(t('في قواعد الأوبن تايب التي كتبتها {n} خطأ، وهذه القواعد لن تُكتب في الخط. راجعها في تبويب الكود.', { n: fea.errors.length }));
   if (feats.gaps.length) warnings.push(t('ميزات ناقصة: {names}.', { names: list(feats.gaps.map((x) => `${x.glyph} (${x.message})`)) }));
   if (feats.mismatches.length) warnings.push(t('شكل المحرف لا يطابق لاحقة اسمه: {names}.', { names: list(feats.mismatches) }));
