@@ -56,6 +56,7 @@ import { boundsOf, GRID_CHAIN } from '../../utils/pathEdit';
 import { defaultAnchorPos, type InkBox } from '../../utils/anchorDefaults';
 import { downloadTextFile } from '../../utils/download';
 import { glyphToSvg, svgToGlyph } from '../../utils/svgGlyph';
+import { resolveAll, resolveGlyph } from '../../utils/composites';
 import { FORM_LABEL } from '../../utils/labels';
 import { HelpProvider, useHelp } from '../help/HelpContext';
 import { HelpBook } from '../help/HelpBook';
@@ -64,6 +65,7 @@ import { Button } from '../ui/Button';
 import { BarDivider, DragScroll } from '../ui/DragScroll';
 import { Dropdown, MenuDivider, MenuItem, MenuLabel } from '../ui/Dropdown';
 import { GlyphThumb } from '../GlyphThumb';
+import { ComponentsMenu } from './ComponentsMenu';
 import { StudioCanvas, type ViewOptions } from './StudioCanvas';
 import { useStudioEditor, type SelectMode, type ToolId } from './useStudioEditor';
 import { useViewport } from './useViewport';
@@ -257,9 +259,15 @@ const StudioInner: React.FC<StudioScreenProps> = ({
       else delete next[glyph.id];
       return next;
     });
+  // للعرض فقط: المحارف بمساراتها الفعلية (بمكوّناتها)، فيطابق ما يُرى ما يُصدَّر
+  const viewGlyphs = useMemo(() => resolveAll(project), [project.glyphs]);
+  const lockedContours = useMemo(
+    () => (glyph.components?.length ? resolveGlyph(project, { ...glyph, contours: [] }).contours : undefined),
+    [project.glyphs, glyph.components]
+  );
   const neighborGlyphs = useMemo(
-    () => ({ left: findGlyph(project.glyphs, neighbors.left), right: findGlyph(project.glyphs, neighbors.right) }),
-    [project.glyphs, neighbors]
+    () => ({ left: findGlyph(viewGlyphs, neighbors.left), right: findGlyph(viewGlyphs, neighbors.right) }),
+    [viewGlyphs, neighbors]
   );
   const clampInt = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(n)));
   const connectors = project.connectors ?? [];
@@ -378,7 +386,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             <>
               <MenuLabel>{t('اختر المحرف')}</MenuLabel>
               <div className="grid grid-cols-4 gap-1 p-1">
-                {project.glyphs.map((g) => (
+                {viewGlyphs.map((g) => (
                   <button
                     key={g.id}
                     type="button"
@@ -428,7 +436,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 icon={<FileDown className={icon} />}
                 disabled={!hasDrawing}
                 onClick={() => {
-                  downloadTextFile(glyphToSvg(glyph, metrics), `${glyph.name}.svg`, 'image/svg+xml');
+                  downloadTextFile(glyphToSvg(resolveGlyph(project, glyph), metrics), `${glyph.name}.svg`, 'image/svg+xml');
                   close();
                 }}
               />
@@ -658,6 +666,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             </>
           )}
         </Dropdown>
+        <ComponentsMenu project={project} glyph={glyph} setComponents={editor.setComponents} />
 
         <BarDivider />
 
@@ -677,7 +686,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
         <aside className={`glass-panel hidden w-52 shrink-0 flex-col overflow-hidden rounded-2xl xl:w-60 ${showList ? 'lg:flex' : ''}`}>
           <p className="shrink-0 px-3 pb-1 pt-3 text-xs text-ink-soft">{t('المحارف ({n})', { n: project.glyphs.length })}</p>
           <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-1.5 overflow-y-auto p-2">
-            {project.glyphs.map((g) => (
+            {viewGlyphs.map((g) => (
               <button
                 key={g.id}
                 type="button"
@@ -742,12 +751,13 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             panMode={panMode}
             onHelp={help.on ? () => help.show('canvas') : undefined}
             neighbors={neighborGlyphs}
+            locked={lockedContours}
             trace={trace}
             onAnchors={(next) => editor.setAnchors(() => next, 'anchor-drag')}
           />
           {aidsOpen && (
             <DrawingAids
-              glyphs={project.glyphs}
+              glyphs={viewGlyphs}
               neighbors={neighbors}
               onNeighbors={setNeighbors}
               trace={trace}

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ArrowLeftRight, Minus, Plus, Trash2 } from 'lucide-react';
 import { type FontProject, type Glyph, type KernPair } from '../types/font';
 import { uid } from '../utils/fontLogic';
+import { resolveAll } from '../utils/composites';
 import { glyphFillPath } from '../utils/pathGeometry';
 import { isRtl, t } from '../i18n';
 import { Button } from './ui/Button';
@@ -42,7 +43,7 @@ export const KerningModal: React.FC<{
   onClose: () => void;
 }> = ({ project, onSave, onClose }) => {
   const list = project.kerning ?? [];
-  const glyphs = project.glyphs;
+  const glyphs = useMemo(() => resolveAll(project), [project.glyphs]);
   const byName = useMemo(() => new Map(glyphs.map((g) => [g.name, g])), [glyphs]);
   const [left, setLeft] = useState(list[0]?.left ?? glyphs[0]?.name ?? '');
   const [right, setRight] = useState(list[0]?.right ?? glyphs[1]?.name ?? glyphs[0]?.name ?? '');

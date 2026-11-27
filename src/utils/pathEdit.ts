@@ -1,6 +1,7 @@
 import {
   type AnchorPoint,
   type Contour,
+  type GlyphComponent,
   type FontMetrics,
   type PathNode,
   type Vec,
@@ -725,6 +726,8 @@ export interface Snapshot {
   advanceWidth: number;
   /** نقاط الارتكاز: تُزاح وتُحوَّل مع الرسم كله حتى تبقى في مكانها منه. */
   anchors?: AnchorPoint[];
+  /** مكوّنات المحرف بالمرجع: تدخل في سجل التراجع مع الرسم. */
+  components?: GlyphComponent[];
 }
 
 /** يزيح نقاط الارتكاز أفقياً. */

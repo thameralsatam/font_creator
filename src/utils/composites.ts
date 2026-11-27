@@ -38,6 +38,11 @@ const lookupOf = (project: Pick<FontProject, 'glyphs'>): Lookup => {
   return (i) => map.get(i);
 };
 
+/** كل محارف المشروع بمساراتها الفعلية. المحارف بلا مكوّنات تبقى الكائن نفسه فلا تُعاد رسم بطاقاتها. */
+export function resolveAll(project: Pick<FontProject, 'glyphs'>): Glyph[] {
+  return project.glyphs.some(hasComponents) ? project.glyphs.map((g) => resolveGlyph(project, g)) : project.glyphs;
+}
+
 export const hasComponents = (g: Glyph): boolean => !!g.components?.length;
 
 /** المحرف بمساراته الفعلية (الخاصة + المكوّنات). المحرف بلا مكوّنات يُعاد كما هو. */
@@ -85,6 +90,26 @@ export function detachComponents(project: Pick<FontProject, 'glyphs'>, g: Glyph,
     for (const c of flat.contours) out.push(transformContour(c, comp, () => uid('id')));
   }
   return { ...g, contours: out, components: keep.length ? keep : undefined };
+}
+
+/** يفك ارتباط مكوّن واحد (بمعرّفه) ويبقي بقية المكوّنات: يُضاف رسمه الناتج إلى مسارات المحرف بالشكل نفسه. */
+export function detachOne(project: Pick<FontProject, 'glyphs'>, g: Glyph, compId: string): Glyph {
+  const target = g.components?.find((c) => c.id === compId);
+  if (!target) return g;
+  const d = detachComponents(project, { ...g, components: [target] });
+  const rest = g.components!.filter((c) => c.id !== compId);
+  return { ...d, components: rest.length ? rest : undefined };
+}
+
+/** يضيف مكوّناً بإزاحة صفر. يعيد null إن كان يُنشئ دورة أو كان المرجع غير موجود. */
+export function addComponent(project: Pick<FontProject, 'glyphs'>, g: Glyph, refId: string): Glyph | null {
+  if (!project.glyphs.some((x) => x.id === refId) || wouldCycle(project, g.id, refId)) return null;
+  return { ...g, components: [...(g.components ?? []), { id: uid('comp'), ref: refId, dx: 0, dy: 0 }] };
+}
+
+/** يحرّك مكوّناً بإزاحة نسبية (dx, dy). لا يلمس المحرف المرجعي. */
+export function moveComponent(g: Glyph, compId: string, dx: number, dy: number): Glyph {
+  return { ...g, components: g.components?.map((c) => (c.id === compId ? { ...c, dx: c.dx + dx, dy: c.dy + dy } : c)) };
 }
 
 /**

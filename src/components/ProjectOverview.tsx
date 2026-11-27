@@ -40,7 +40,7 @@ import { PresetModal } from './PresetModal';
 import { HelpBookButton } from './help/HelpBook';
 import { Button } from './ui/Button';
 import { Dropdown, MenuItem, MenuLabel } from './ui/Dropdown';
-import { resolveGlyph } from '../utils/composites';
+import { resolveAll, resolveGlyph } from '../utils/composites';
 import { Modal, ModalActions } from './ui/Modal';
 import { CountChip, VersionPill } from './ui/Pill';
 import { Toast } from './ui/Toast';
@@ -60,7 +60,7 @@ interface ProjectOverviewProps {
   onUpdateInfo: (patch: InfoPatch) => void;
   onUpdateProject: (patch: Partial<FontProject>) => void;
   onSetGlyphSvg: (glyphId: string, contours: Contour[], advanceWidth: number) => void;
-  onRestoreGlyphs: (items: Array<{ glyph: Glyph; index: number }>) => void;
+  onRestoreGlyphs: (items: Array<{ glyph: Glyph; index: number }>, relink?: Glyph[]) => void;
   otherProjects: FontProject[];
   onCopyToProject: (targetId: string, glyphIds: string[], replace: boolean) => { added: number; replaced: number; skipped: number } | null;
   onApplySvgBatch: (
@@ -81,7 +81,9 @@ const SORTS: Array<{ id: SortMode; label: string }> = [
 
 export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const { project, onBackToProjects, onEnterStudio, onOpenExport, onUpdateInfo } = props;
-  const { glyphs, metrics } = project;
+  const { metrics } = project;
+  // للعرض والفحص: المحارف بمساراتها الفعلية. التعديل والتراجع يعملان على المحارف الأصلية (project.glyphs)
+  const glyphs = useMemo(() => resolveAll(project), [project.glyphs]);
 
   const [sort, setSort] = useState<SortMode>('ready');
   const [limit, setLimit] = useState(PAGE);
@@ -104,9 +106,10 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkWarn, setBulkWarn] = useState<{ ids: string[]; message: string } | null>(null);
   const [svgError, setSvgError] = useState<string | null>(null);
   const [filter, setFilter] = useState<GlyphFilter>(NO_FILTER);
-  const [undo, setUndo] = useState<{ message: string; items: Array<{ glyph: Glyph; index: number }> } | null>(null);
+  const [undo, setUndo] = useState<{ message: string; items: Array<{ glyph: Glyph; index: number }>; relink: Glyph[] } | null>(null);
   const undoTimer = useRef<number | undefined>(undefined);
   const svgInput = useRef<HTMLInputElement>(null);
   const batchInput = useRef<HTMLInputElement>(null);
@@ -193,7 +196,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
       setSvgError(res.error);
       return;
     }
-    const target = glyphs.find((g) => g.id === id);
+    const target = project.glyphs.find((g) => g.id === id);
     if (!target || target.contours.length === 0) return props.onSetGlyphSvg(id, res.contours, res.advanceWidth);
     // الإضافة لا تستبدل شيئاً: يبقى رسمه وعرضه ويُضاف رسم الملف إليه
     const merged = fixDirections([...target.contours, ...res.contours]);
@@ -213,14 +216,32 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
     setLimit(PAGE);
   };
 
+  /** أسماء المحارف المعتمدة على المحذوف مكوّناً، وهذه يُفك ارتباطها قبل الحذف فيبقى شكلها كما هو. */
+  const dependentNames = (ids: string[]) =>
+    project.glyphs.filter((g) => !ids.includes(g.id) && g.components?.some((c) => ids.includes(c.ref))).map((g) => g.name);
+  const detachNote = (ids: string[]) => {
+    const names = dependentNames(ids);
+    if (names.length === 0) return null;
+    return (
+      <p className="mt-2 rounded-xl border border-sand-deep/60 bg-sand/40 p-3 text-sm leading-7" data-testid="detach-warning">
+        {tx('تحذير: {n} محرف يستعمل المحذوف مكوّناً ({names}). ستُفك ارتباطاتها قبل الحذف فيبقى شكلها كما هو تماماً، لكنها لن تتبع بعد ذلك أي تعديل على الأصل.', {
+          n: <span className="font-mono">{names.length}</span>,
+          names: <span dir="ltr" className="font-mono">{names.slice(0, 4).join(', ')}{names.length > 4 ? '…' : ''}</span>,
+        })}
+      </p>
+    );
+  };
+
   /** يحذف محارف ويعرض شريط التراجع خمس ثوانٍ. */
   const deleteWithUndo = (ids: string[], message: string) => {
-    const items = glyphs.flatMap((g, index) => (ids.includes(g.id) ? [{ glyph: g, index }] : []));
+    const items = project.glyphs.flatMap((g, index) => (ids.includes(g.id) ? [{ glyph: g, index }] : []));
     if (items.length === 0) return;
+    // المحارف المعتمدة على المحذوف يُفك ارتباطها؛ نحفظ صورتها الأصلية ليعيدها التراجع
+    const relink = project.glyphs.filter((g) => !ids.includes(g.id) && g.components?.some((c) => ids.includes(c.ref)));
     if (ids.length === 1) props.onDeleteGlyph(ids[0]);
     else props.onDeleteGlyphs(ids);
     window.clearTimeout(undoTimer.current);
-    setUndo({ message, items });
+    setUndo({ message, items, relink });
     undoTimer.current = window.setTimeout(() => setUndo(null), 5000);
   };
 
@@ -470,7 +491,9 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             variant="secondary"
             disabled={picked.size === 0}
             onClick={() => {
-              deleteWithUndo([...picked], t('حُذف {n} محرف', { n: picked.size }));
+              const message = t('حُذف {n} محرف', { n: picked.size });
+              if (dependentNames([...picked]).length > 0) return setBulkWarn({ ids: [...picked], message });
+              deleteWithUndo([...picked], message);
               stopSelecting();
             }}
           >
@@ -504,7 +527,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
           message={undo.message}
           actionLabel={t('تراجع')}
           onAction={() => {
-            props.onRestoreGlyphs(undo.items);
+            props.onRestoreGlyphs(undo.items, undo.relink);
             window.clearTimeout(undoTimer.current);
             setUndo(null);
           }}
@@ -575,6 +598,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
           <p className="text-sm leading-7">
             {tx('سيُحذف المحرف {name} مع رسمه نهائياً ولا يمكن التراجع.', { name: <span dir="ltr" className="font-mono">{deleting.name}</span> })}
           </p>
+          {detachNote([deleting.id])}
           <ModalActions>
             <Button onClick={() => setDeletingId(null)}>{t('إلغاء')}</Button>
             <Button
@@ -590,11 +614,32 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
         </Modal>
       )}
 
+      {bulkWarn && (
+        <Modal title={t('حذف محارف مستعملة مكوّناتٍ')} size="sm" onClose={() => setBulkWarn(null)}>
+          <p className="text-sm leading-7">{t('سيُحذف {n} محرف.', { n: bulkWarn.ids.length })}</p>
+          {detachNote(bulkWarn.ids)}
+          <ModalActions>
+            <Button onClick={() => setBulkWarn(null)}>{t('إلغاء')}</Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                deleteWithUndo(bulkWarn.ids, bulkWarn.message);
+                setBulkWarn(null);
+                stopSelecting();
+              }}
+            >
+              {t('حذف')}
+            </Button>
+          </ModalActions>
+        </Modal>
+      )}
+
       {confirmEmpty && (
         <Modal title={t('حذف المحارف غير المرسومة')} size="sm" onClose={() => setConfirmEmpty(false)}>
           <p className="text-sm leading-7">
             {tx('سيُحذف {n} محرف لم يُرسم فيه مسار مغلق بعد (محرف الفراغ يبقى). لا يمكن التراجع، لكن تستطيع إعادتها من المجموعات الجاهزة.', { n: <span className="font-mono">{notReadyIds.length}</span> })}
           </p>
+          {detachNote(notReadyIds)}
           <ModalActions>
             <Button onClick={() => setConfirmEmpty(false)}>{t('إلغاء')}</Button>
             <Button

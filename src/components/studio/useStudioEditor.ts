@@ -2,7 +2,7 @@ import { roundCorners, removeRedundant } from '../../utils/pathOps';
 import { t } from '../../i18n';
 import { booleanContours, type BoolOp } from '../../utils/pathBool';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { type AnchorPoint, type Contour, type FontMetrics, type Glyph, type Vec } from '../../types/font';
+import { type AnchorPoint, type Contour, type FontMetrics, type Glyph, type GlyphComponent, type Vec } from '../../types/font';
 import {
   LIMITS,
   addContourWithNode,
@@ -206,15 +206,16 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
   guidesRef.current = glyph.guides;
 
   /* ---------- نسخة العمل ---------- */
-  const work = useRef<Snapshot>({ contours: glyph.contours, advanceWidth: glyph.advanceWidth, anchors: glyph.anchors });
+  const work = useRef<Snapshot>({ contours: glyph.contours, advanceWidth: glyph.advanceWidth, anchors: glyph.anchors, components: glyph.components });
   const applied = useRef<Snapshot>(work.current);
   if (
     applied.current.contours !== glyph.contours ||
     applied.current.advanceWidth !== glyph.advanceWidth ||
-    applied.current.anchors !== glyph.anchors
+    applied.current.anchors !== glyph.anchors ||
+    applied.current.components !== glyph.components
   ) {
     // تغيير خارجي (مثل تبديل المحرف): نتبنّاه
-    work.current = { contours: glyph.contours, advanceWidth: glyph.advanceWidth, anchors: glyph.anchors };
+    work.current = { contours: glyph.contours, advanceWidth: glyph.advanceWidth, anchors: glyph.anchors, components: glyph.components };
     applied.current = work.current;
   }
 
@@ -284,7 +285,13 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     const next: Snapshot = { ...work.current, ...patch };
     work.current = next;
     applied.current = next;
-    updateRef.current((g) => ({ ...g, contours: next.contours, advanceWidth: next.advanceWidth, anchors: next.anchors ?? g.anchors }));
+    updateRef.current((g) => ({
+      ...g,
+      contours: next.contours,
+      advanceWidth: next.advanceWidth,
+      anchors: next.anchors ?? g.anchors,
+      ...(next.components || g.components ? { components: next.components } : {}),
+    }));
   };
 
   const syncCounts = () =>
@@ -950,6 +957,12 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     commit({ anchors: fn(work.current.anchors ?? []) }, key);
   };
 
+  /** تعديل مكوّنات المحرف (إضافة وإزاحة وحذف وفك) ضمن سجل التراجع. */
+  const setComponents = (fn: (all: GlyphComponent[]) => GlyphComponent[], patch?: Partial<Snapshot>, key?: string) => {
+    const next = fn(work.current.components ?? []);
+    commit({ ...patch, components: next.length ? next : undefined }, key);
+  };
+
   const center = () => {
     const b = boundsOfTouched(work.current.contours, liveSelection());
     return b ? { cx: (b.xMin + b.xMax) / 2, cy: (b.yMin + b.yMax) / 2 } : null;
@@ -1385,6 +1398,7 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     changeRsb,
     centerGlyph,
     setAnchors,
+    setComponents,
   };
 }
 

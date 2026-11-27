@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { type AnchorPoint, type FontMetrics, type Glyph } from '../../types/font';
+import { type AnchorPoint, type Contour, type FontMetrics, type Glyph } from '../../types/font';
 import { type Trace } from './DrawingAids';
 import { contourToPath, glyphFillPath } from '../../utils/pathGeometry';
 import { contourArrow, effectiveGridStep } from '../../utils/pathEdit';
@@ -30,6 +30,8 @@ interface StudioCanvasProps {
   onHelp?: () => void;
   /** محرفان جاران يُرسمان باهتين، وصورة تتبع خلف الرسم. */
   neighbors?: { left: Glyph | null; right: Glyph | null };
+  /** مسارات المكوّنات: طبقة مقفلة تُرسم تحت مسارات المحرف ولا تُحرَّر هنا. */
+  locked?: Contour[];
   trace?: Trace | null;
   onAnchors?: (next: AnchorPoint[]) => void;
 }
@@ -52,6 +54,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   panMode,
   onHelp,
   neighbors,
+  locked,
   trace,
   onAnchors,
 }) => {
@@ -317,6 +320,9 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
       {/* مسارات المحرف بوحدات الخط */}
       <g transform={`translate(${ox} ${oy}) scale(${s} ${-s})`}>
+        {locked && locked.length > 0 && (
+          <path d={glyphFillPath(locked)} fillRule="nonzero" className="pointer-events-none fill-ink/40" data-testid="locked-layer" />
+        )}
         <path
           d={glyphFillPath(glyph.contours)}
           fillRule="nonzero"

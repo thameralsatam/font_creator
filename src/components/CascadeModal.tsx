@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Minus, MoveDown, Plus, Trash2 } from 'lucide-react';
 import { type CascadeRule, type FontProject, type Glyph } from '../types/font';
 import { uid } from '../utils/fontLogic';
+import { resolveAll } from '../utils/composites';
 import { glyphFillPath } from '../utils/pathGeometry';
 import { MAX_CASCADE_SPAN } from '../utils/gpos';
 import { t } from '../i18n';
@@ -56,8 +57,9 @@ export const CascadeModal: React.FC<{
   onClose: () => void;
 }> = ({ project, onSave, onClose }) => {
   const list = project.cascades ?? [];
-  const letters = useMemo(() => project.glyphs.filter((g) => g.category === 'letter' || g.category === 'ligature'), [project.glyphs]);
-  const byName = useMemo(() => new Map(project.glyphs.map((g) => [g.name, g])), [project.glyphs]);
+  const viewGlyphs = useMemo(() => resolveAll(project), [project.glyphs]);
+  const letters = useMemo(() => viewGlyphs.filter((g) => g.category === 'letter' || g.category === 'ligature'), [viewGlyphs]);
+  const byName = useMemo(() => new Map(viewGlyphs.map((g) => [g.name, g])), [viewGlyphs]);
   const first = list[0];
   const [glyph, setGlyph] = useState(first?.glyph ?? letters[0]?.name ?? '');
   const [dy, setDy] = useState(first?.dy ?? -60);
