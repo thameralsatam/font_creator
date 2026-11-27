@@ -743,35 +743,49 @@ export function clampAdvance(v: number, m: FontMetrics): number {
   return clamp(Math.round(v), 0, maxAdvance(m));
 }
 
-/** العارض الأيسر = بُعد أقصى يسار الرسم عن الأصل. تغييره يزيح الرسم ويبقي العارض الأيمن كما هو. */
-export function setLsb(s: Snapshot, lsb: number, m: FontMetrics): Snapshot | null {
-  const b = boundsOf(s.contours);
+/** حدود الرسم الفعلي: مسارات المحرف الخاصة مع مسارات مكوّناته (locked) بمواضعها الحالية. */
+const inkBounds = (s: Snapshot, locked?: Contour[]) => boundsOf(locked?.length ? [...s.contours, ...locked] : s.contours);
+
+/** إزاحة الرسم كله أفقياً: المسارات الخاصة والمكوّنات (بإزاحتها) والارتكازات. المحرف المصدر لا يُمس. */
+const shiftAll = (s: Snapshot, dx: number, advanceWidth: number): Snapshot => ({
+  contours: translateAll(s.contours, dx, 0),
+  advanceWidth,
+  anchors: shiftAnchors(s.anchors, dx),
+  ...(s.components ? { components: s.components.map((c) => ({ ...c, dx: c.dx + dx })) } : {}),
+});
+
+/**
+ * العارض الأيسر = بُعد أقصى يسار الرسم عن الأصل. تغييره يزيح الرسم ويبقي العارض الأيمن كما هو.
+ * الرسم هنا هو الفعلي: مسارات المحرف ومسارات مكوّناته (locked).
+ */
+export function setLsb(s: Snapshot, lsb: number, m: FontMetrics, locked?: Contour[]): Snapshot | null {
+  const b = inkBounds(s, locked);
   if (!b) return null;
   const dx = Math.round(lsb) - Math.round(b.xMin);
   const advanceWidth = s.advanceWidth + dx;
   const r = coordRange(m);
   if (advanceWidth < 0 || advanceWidth > maxAdvance(m)) return null;
   if (b.xMin + dx < r.xMin || b.xMax + dx > r.xMax) return null;
-  return { contours: translateAll(s.contours, dx, 0), advanceWidth, anchors: shiftAnchors(s.anchors, dx) };
+  return shiftAll(s, dx, advanceWidth);
 }
 
 /** العارض الأيمن = المسافة بين أقصى يمين الرسم ونهاية العرض الكامل. تغييره يغيّر العرض فقط. */
-export function setRsb(s: Snapshot, rsb: number, m: FontMetrics): Snapshot | null {
-  const b = boundsOf(s.contours);
+export function setRsb(s: Snapshot, rsb: number, m: FontMetrics, locked?: Contour[]): Snapshot | null {
+  const b = inkBounds(s, locked);
   if (!b) return null;
   const advanceWidth = Math.round(b.xMax) + Math.round(rsb);
   if (advanceWidth < 0 || advanceWidth > maxAdvance(m)) return null;
-  return { contours: s.contours, advanceWidth, anchors: s.anchors };
+  return { contours: s.contours, advanceWidth, anchors: s.anchors, ...(s.components ? { components: s.components } : {}) };
 }
 
 /** توسيط الرسم داخل العرض الكامل دون تغيير العرض. */
-export function centerInAdvance(s: Snapshot, m: FontMetrics): Snapshot | null {
-  const b = boundsOf(s.contours);
+export function centerInAdvance(s: Snapshot, m: FontMetrics, locked?: Contour[]): Snapshot | null {
+  const b = inkBounds(s, locked);
   if (!b) return null;
   const dx = Math.round((s.advanceWidth - (b.xMin + b.xMax)) / 2);
   const r = coordRange(m);
   if (b.xMin + dx < r.xMin || b.xMax + dx > r.xMax) return null;
-  return { contours: translateAll(s.contours, dx, 0), advanceWidth: s.advanceWidth, anchors: shiftAnchors(s.anchors, dx) };
+  return shiftAll(s, dx, s.advanceWidth);
 }
 
 /* ============================================================
