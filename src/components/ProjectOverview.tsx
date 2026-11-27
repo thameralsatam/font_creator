@@ -40,6 +40,7 @@ import { PresetModal } from './PresetModal';
 import { HelpBookButton } from './help/HelpBook';
 import { Button } from './ui/Button';
 import { Dropdown, MenuItem, MenuLabel } from './ui/Dropdown';
+import { DeriveModal } from './DeriveModal';
 import { resolveAll, resolveGlyph } from '../utils/composites';
 import { Modal, ModalActions } from './ui/Modal';
 import { CountChip, VersionPill } from './ui/Pill';
@@ -57,6 +58,7 @@ interface ProjectOverviewProps {
   onDeleteGlyph: (glyphId: string) => void;
   onDeleteGlyphs: (glyphIds: string[]) => void;
   onDuplicateGlyph: (glyphId: string) => void;
+  onAddDerived: (glyphs: Glyph[]) => void;
   onUpdateInfo: (patch: InfoPatch) => void;
   onUpdateProject: (patch: Partial<FontProject>) => void;
   onSetGlyphSvg: (glyphId: string, contours: Contour[], advanceWidth: number) => void;
@@ -106,6 +108,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [derivingId, setDerivingId] = useState<string | null>(null);
   const [bulkWarn, setBulkWarn] = useState<{ ids: string[]; message: string } | null>(null);
   const [svgError, setSvgError] = useState<string | null>(null);
   const [filter, setFilter] = useState<GlyphFilter>(NO_FILTER);
@@ -454,6 +457,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
                   onOpen={open}
                   onEdit={setEditingId}
                   onDuplicate={duplicate}
+                  onDerive={setDerivingId}
                   onDelete={setDeletingId}
                   onExportSvg={exportSvg}
                   onImportSvg={importSvg}
@@ -612,6 +616,10 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
             </Button>
           </ModalActions>
         </Modal>
+      )}
+
+      {derivingId && (
+        <DeriveModal glyphs={project.glyphs} sourceId={derivingId} onDerive={props.onAddDerived} onClose={() => setDerivingId(null)} />
       )}
 
       {bulkWarn && (
