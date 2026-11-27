@@ -12,6 +12,7 @@ import { backupDue, lastBackupTime } from '../utils/storage';
 import { uid } from '../utils/fontLogic';
 import { ImportFontButton } from './ImportFontButton';
 import { Button } from './ui/Button';
+import { resolveAll } from '../utils/composites';
 import { LangButton } from './ui/LangButton';
 import { CardMenu } from './ui/CardMenu';
 import { Dropdown, MenuItem, MenuLabel } from './ui/Dropdown';
@@ -38,7 +39,7 @@ const ProjectCard: React.FC<{
   onDelete: (p: FontProject) => void;
 }> = React.memo(({ project, onOpen, onEdit, onDuplicate, onDelete }) => {
   const info = resolveInfo(project);
-  const drawn = useMemo(() => project.glyphs.filter(isReady), [project.glyphs]);
+  const drawn = useMemo(() => resolveAll(project).filter(isReady), [project.glyphs]);
   return (
     <article onClick={() => onOpen(project.id)} className="capsule relative flex cursor-pointer flex-col gap-2.5 p-3 sm:p-4">
       <div className="plate flex h-12 sm:h-14 items-center gap-1 overflow-hidden px-2.5">

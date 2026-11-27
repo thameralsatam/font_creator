@@ -172,3 +172,72 @@ test('تصدير ثم استيراد: يعود محرفاً عادياً بال�
   assert.deepEqual(again.glyphs.teh, orig.glyphs.teh);
   assert.deepEqual(again.glyphs.alef, orig.glyphs.alef);
 });
+
+/* ---------------- المرحلة 2: عمليات الواجهة والعرض ---------------- */
+import { addComponent, moveComponent, detachOne, resolveAll } from './composites';
+import { buildFontBuffer as build } from './fontBuild';
+
+const pts = (g: Glyph) => g.contours.flatMap((c) => c.nodes.map((n) => `${Math.round(n.x)},${Math.round(n.y)}`)).sort();
+
+test('addComponent: يضيف بإزاحة صفر، ويرفض الدورة والمرجع المجهول، ولا يغيّر المصدر', () => {
+  const { composite, teh, dot } = projects();
+  const alef = composite.glyphs[0];
+  const g = addComponent(composite, alef, dot.id)!;
+  assert.equal(g.components!.length, 1);
+  assert.deepEqual([g.components![0].dx, g.components![0].dy], [0, 0]);
+  assert.equal(addComponent(composite, alef, 'nope'), null);
+  assert.equal(addComponent(composite, dot, teh.id), null, 'teh يعتمد على dot، فإضافة teh إلى dot دورة');
+  assert.equal(addComponent(composite, dot, dot.id), null, 'المحرف لا يعتمد على نفسه');
+  assert.equal(dot.contours.length, 1);
+});
+
+test('moveComponent: الإزاحة نسبية وتتراكم، والمحرف المرجعي لا يتحرك', () => {
+  const { composite, teh, dot } = projects();
+  const before = JSON.stringify(dot.contours);
+  let g = moveComponent(teh, 'k1', 10, 0);
+  g = moveComponent(g, 'k1', 0, -30);
+  assert.deepEqual([g.components![0].dx, g.components![0].dy], [260, 370]);
+  const r = resolveGlyph({ glyphs: [dot, g] }, g);
+  assert.equal(r.contours[1].nodes[0].x, 260);
+  assert.equal(r.contours[1].nodes[0].y, 370);
+  assert.equal(JSON.stringify(dot.contours), before);
+  assert.ok(composite);
+});
+
+test('detachOne: يفك مكوّناً واحداً بالشكل نفسه ويبقي الآخر', () => {
+  const { composite, teh, dot } = projects();
+  teh.components = [...teh.components!, { id: 'k2', ref: dot.id, dx: 100, dy: 400 }];
+  const before = pts(resolveGlyph(composite, teh));
+  const d = detachOne(composite, teh, 'k1');
+  assert.deepEqual(d.components!.map((c) => c.id), ['k2']);
+  assert.equal(d.contours.length, 2);
+  assert.deepEqual(pts(resolveGlyph({ glyphs: composite.glyphs.map((x) => (x.id === d.id ? d : x)) }, d)), before);
+  const all = detachOne(composite, d, 'k2');
+  assert.equal(all.components, undefined);
+  assert.deepEqual(pts(all), before);
+});
+
+test('الحذف: التراجع يعيد المكوّنات الأصلية (relink) والحذف لا يغيّر شكل المعتمد', () => {
+  const { composite, teh, dot } = projects();
+  const shapeBefore = pts(resolveGlyph(composite, teh));
+  const { glyphs } = removeWithDetach(composite, [dot.id]);
+  const detached = glyphs.find((g) => g.id === teh.id)!;
+  assert.equal(detached.components, undefined);
+  assert.deepEqual(pts(detached), shapeBefore);
+  // المحارف العادية لم تُمس (الكائن نفسه)
+  assert.equal(glyphs.find((g) => g.name === 'alef'), composite.glyphs[0]);
+});
+
+test('العرض = التصدير: نقاط resolveAll تطابق نقاط الخط المصدَّر لكل محرف (عادي ومركّب)', { skip: SKIP }, async () => {
+  const { composite } = projects();
+  const outl = await dump(composite);
+  for (const g of resolveAll(composite)) {
+    if (g.name === 'dot') continue; // مساعد داخلي لا يُصدَّر
+    const shown = new Set(pts(g).map((s) => s));
+    const fo = (outl.glyphs[g.name] as Array<[string, number[][]]>).flatMap(([, a]) => a.map(([x, y]) => `${Math.round(x)},${Math.round(y)}`));
+    // كل نقطة مرسومة على الشاشة موجودة في الملف، والعكس للنقاط على المنحنى
+    for (const s of shown) assert.ok(fo.includes(s), `${g.name}: ${s} غائبة من الملف`);
+  }
+  const reimported = (await importFontBuffer(await build(composite), 'c.otf')).project;
+  assert.equal(reimported.glyphs.find((g) => g.name === 'teh')!.contours.length, 2);
+});

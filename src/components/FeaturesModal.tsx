@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Check, ChevronDown, Copy, Plus, Sparkles } from 'lucide-react';
 import { type FontProject, type NewGlyphData } from '../types/font';
+import { resolveAll } from '../utils/composites';
 import { parseFea, projectRules } from '../utils/feaParse';
 import { copyText } from '../utils/download';
 import {
@@ -63,7 +64,7 @@ export const FeaturesModal: React.FC<FeaturesModalProps> = ({ project, onAddGlyp
   const report = useMemo(() => computeFeatures(project.glyphs), [project.glyphs]);
   const missing = useMemo(() => missingForms(project.glyphs), [project.glyphs]);
   const fea = useMemo(() => rulesToFea(report), [report]);
-  const byName = useMemo(() => new Map(project.glyphs.map((g) => [g.name, g])), [project.glyphs]);
+  const byName = useMemo(() => new Map(resolveAll(project).map((g) => [g.name, g])), [project.glyphs]);
   const rules = useMemo(() => projectRules(project).rules, [project]);
 
   const count = (t: FeatureTag) => rules.filter((r) => r.feature === t).length;

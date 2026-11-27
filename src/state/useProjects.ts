@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { type FontProject, type Glyph, type NewGlyphData } from '../types/font';
 import { loadProjectsAsync, requestPersistence, saveProjectsAsync } from '../utils/storage';
 import * as logic from '../utils/fontLogic';
+import { removeWithDetach } from '../utils/composites';
 import { type CopyResult, copyGlyphsInto } from '../utils/glyphLogic';
 
 const SAVE_DELAY_MS = 400;
@@ -126,25 +127,18 @@ export function useProjects() {
 
   const removeGlyph = useCallback((projectId: string, glyphId: string) => {
     setProjects((prev) =>
-      logic.updateProjectById(prev, projectId, (p) => ({
-        ...p,
-        glyphs: p.glyphs.filter((g) => g.id !== glyphId),
-      }))
+      logic.updateProjectById(prev, projectId, (p) => ({ ...p, glyphs: removeWithDetach(p, [glyphId]).glyphs }))
     );
   }, []);
 
   const removeGlyphs = useCallback((projectId: string, glyphIds: string[]) => {
-    const drop = new Set(glyphIds);
     setProjects((prev) =>
-      logic.updateProjectById(prev, projectId, (p) => ({
-        ...p,
-        glyphs: p.glyphs.filter((g) => !drop.has(g.id)),
-      }))
+      logic.updateProjectById(prev, projectId, (p) => ({ ...p, glyphs: removeWithDetach(p, glyphIds).glyphs }))
     );
   }, []);
 
   /** يعيد محارف محذوفة إلى أماكنها (للتراجع). ما كان موجوداً لا يتكرر. */
-  const restoreGlyphs = useCallback((projectId: string, items: Array<{ glyph: Glyph; index: number }>) => {
+  const restoreGlyphs = useCallback((projectId: string, items: Array<{ glyph: Glyph; index: number }>, relink: Glyph[] = []) => {
     setProjects((prev) =>
       logic.updateProjectById(prev, projectId, (p) => {
         const next = [...p.glyphs];
@@ -153,7 +147,9 @@ export function useProjects() {
           .forEach(({ glyph, index }) => {
             if (!next.some((g) => g.id === glyph.id)) next.splice(Math.min(index, next.length), 0, glyph);
           });
-        return { ...p, glyphs: next };
+        // المحارف التي فُك ارتباطها بالحذف تعود بمكوّناتها الأصلية بعد عودة مصدرها
+        const back = new Map(relink.map((g) => [g.id, g]));
+        return { ...p, glyphs: next.map((g) => back.get(g.id) ?? g) };
       })
     );
   }, []);
