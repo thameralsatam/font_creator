@@ -1,4 +1,4 @@
-import type { Contour, FontProject, Glyph, GlyphComponent } from '../types/font';
+import type { AnchorPoint, Contour, FontProject, Glyph, GlyphComponent } from '../types/font';
 import { uid } from './fontLogic';
 import { parseUnicode } from './fontBuild';
 import { projectRules } from './feaParse';
@@ -33,6 +33,27 @@ function resolveContours(g: Glyph, lookup: Lookup, id: (comp: GlyphComponent, ol
   return out;
 }
 
+/**
+ * الارتكاز الفعلي: ارتكازات المحرف الخاصة، وما غاب اسمه منها يُورَّث من أول مكوّن (الجسم)
+ * بإزاحته. ارتكاز المحرف الخاص يتغلب على الموروث بالاسم. المرجع المعلّق أو الدائري لا يورّث شيئاً.
+ */
+function effectiveAnchors(g: Glyph, lookup: Lookup, seen: Set<string>): AnchorPoint[] {
+  const first = g.components?.[0];
+  if (!first || seen.has(g.id)) return g.anchors;
+  const src = lookup(first.ref);
+  if (!src || seen.has(src.id) || src.id === g.id) return g.anchors;
+  const own = new Set(g.anchors.map((a) => a.name));
+  const inherited = effectiveAnchors(src, lookup, new Set(seen).add(g.id))
+    .filter((a) => !own.has(a.name))
+    .map((a) => ({ ...a, id: `${first.id}:${a.id}`, x: a.x + first.dx, y: a.y + first.dy }));
+  return inherited.length ? [...g.anchors, ...inherited] : g.anchors;
+}
+
+/** الارتكازات الموروثة فقط (للعرض بشكل مقفل وللتمييز عن الخاصة). */
+export function inheritedAnchors(project: Pick<FontProject, 'glyphs'>, g: Glyph): AnchorPoint[] {
+  return effectiveAnchors(g, lookupOf(project), new Set()).slice(g.anchors.length);
+}
+
 const lookupOf = (project: Pick<FontProject, 'glyphs'>): Lookup => {
   const map = new Map(project.glyphs.map((g) => [g.id, g]));
   return (i) => map.get(i);
@@ -49,7 +70,7 @@ export const hasComponents = (g: Glyph): boolean => !!g.components?.length;
 export function resolveGlyph(project: Pick<FontProject, 'glyphs'>, g: Glyph): Glyph {
   if (!hasComponents(g)) return g;
   const contours = resolveContours(g, lookupOf(project), (comp, old) => `${comp.id}:${old}`, new Set());
-  return { ...g, contours, components: undefined };
+  return { ...g, contours, anchors: effectiveAnchors(g, lookupOf(project), new Set()), components: undefined };
 }
 
 /** يمنع إضافة مكوّن يُنشئ دورة (المحرف يرجع إلى نفسه مباشرة أو عبر غيره). */
@@ -89,7 +110,10 @@ export function detachComponents(project: Pick<FontProject, 'glyphs'>, g: Glyph,
     const flat = resolveGlyph(project, src);
     for (const c of flat.contours) out.push(transformContour(c, comp, () => uid('id')));
   }
-  return { ...g, contours: out, components: keep.length ? keep : undefined };
+  // فك أول مكوّن يقطع الوراثة، فتُثبَّت الارتكازات الموروثة ارتكازاتٍ خاصة كي لا تضيع العلامات
+  const first = g.components![0];
+  const freeze = !only || only.has(first.ref);
+  return { ...g, contours: out, anchors: freeze ? effectiveAnchors(g, look, new Set()) : g.anchors, components: keep.length ? keep : undefined };
 }
 
 /** يفك ارتباط مكوّن واحد (بمعرّفه) ويبقي بقية المكوّنات: يُضاف رسمه الناتج إلى مسارات المحرف بالشكل نفسه. */
@@ -98,7 +122,9 @@ export function detachOne(project: Pick<FontProject, 'glyphs'>, g: Glyph, compId
   if (!target) return g;
   const d = detachComponents(project, { ...g, components: [target] });
   const rest = g.components!.filter((c) => c.id !== compId);
-  return { ...d, components: rest.length ? rest : undefined };
+  // الوراثة من أول مكوّن فقط: فك غيره لا يمس الارتكازات
+  const anchors = g.components![0].id === compId ? effectiveAnchors(g, lookupOf(project), new Set()) : g.anchors;
+  return { ...d, anchors, components: rest.length ? rest : undefined };
 }
 
 /** يضيف مكوّناً بإزاحة صفر. يعيد null إن كان يُنشئ دورة أو كان المرجع غير موجود. */

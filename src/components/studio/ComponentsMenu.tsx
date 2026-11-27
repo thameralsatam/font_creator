@@ -63,11 +63,12 @@ export const ComponentsMenu: React.FC<{ project: FontProject; glyph: Glyph; setC
     setComponents((all) => moveComponent({ ...glyph, components: all }, c.id, dx * STEP * k, dy * STEP * k).components ?? all, undefined, 'comp-nudge-' + c.id);
   };
   const detach = (c: GlyphComponent) => {
-    setComponents((all) => all.filter((x) => x.id !== c.id), { contours: detachOne(project, glyph, c.id).contours });
+    const d = detachOne(project, glyph, c.id);
+    setComponents((all) => all.filter((x) => x.id !== c.id), { contours: d.contours, anchors: d.anchors });
   };
   const detachAll = () => {
     const d = detachComponents(project, glyph);
-    setComponents(() => [], { contours: d.contours });
+    setComponents(() => [], { contours: d.contours, anchors: d.anchors });
   };
 
   return (

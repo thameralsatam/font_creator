@@ -241,3 +241,122 @@ test('العرض = التصدير: نقاط resolveAll تطابق نقاط ال�
   const reimported = (await importFontBuffer(await build(composite), 'c.otf')).project;
   assert.equal(reimported.glyphs.find((g) => g.name === 'teh')!.contours.length, 2);
 });
+
+/* ---------------- المرحلة 3: وراثة الارتكاز ---------------- */
+import { inheritedAnchors } from './composites';
+import { exportAnchorChecks } from './exportChecks';
+
+const anc = (name: string, x: number, y: number) => ({ id: 'a-' + name + x, name, x, y });
+
+/** بـ بجسمها (ارتكازا top وbottom) وت تشتق منه بمكوّن الجسم أولاً ثم نقطتين. */
+function anchored() {
+  const base = createGlyph({ char: 'ب', name: 'beh', unicode: 'U+0628', category: 'letter' });
+  base.advanceWidth = 600; base.contours = [box('b', 50, 100, 500, 200)];
+  base.anchors = [anc('top', 300, 420), anc('bottom', 300, -60)];
+  const dots = createGlyph({ char: '.', name: 'dots', unicode: '', category: 'symbol' });
+  dots.advanceWidth = 0; dots.contours = [blob('d', 0, 0)];
+  dots.anchors = [anc('top', 5, 5)]; // ارتكاز في الجزء الثاني لا يجب أن يُورَّث
+  const teh = createGlyph({ char: 'ت', name: 'teh', unicode: 'U+062A', category: 'letter' });
+  teh.advanceWidth = 600;
+  teh.components = [
+    { id: 'c1', ref: base.id, dx: 20, dy: 0 },
+    { id: 'c2', ref: dots.id, dx: 250, dy: 400 },
+  ];
+  const fatha = createGlyph({ char: 'َ', name: 'fatha', unicode: 'U+064E', category: 'diacritic' });
+  fatha.advanceWidth = 0; fatha.contours = [box('f', -100, 800, 200, 60)];
+  fatha.anchors = [anc('top', 0, 800)];
+  const pr = createProject('A', 'D', ''); pr.glyphs = [base, dots, teh, fatha];
+  return { pr, base, dots, teh, fatha };
+}
+
+test('وراثة الارتكاز: من أول مكوّن فقط، مزاحاً بإزاحته، وبمعرّفات مشتقة', () => {
+  const { pr, teh } = anchored();
+  const r = resolveGlyph(pr, teh);
+  assert.deepEqual(r.anchors.map((a) => [a.name, a.x, a.y]).sort(), [['bottom', 320, -60], ['top', 320, 420]]);
+  assert.ok(r.anchors.every((a) => a.id.startsWith('c1:')));
+  assert.deepEqual(inheritedAnchors(pr, teh).length, 2);
+  assert.equal(teh.anchors.length, 0, 'المحرف نفسه لا يتغير');
+});
+
+test('الارتكاز الخاص بالاسم يتغلب على الموروث، ويبقى الباقي موروثاً', () => {
+  const { pr, teh } = anchored();
+  teh.anchors = [anc('top', 300, 650)];
+  const r = resolveGlyph(pr, teh);
+  const by = Object.fromEntries(r.anchors.map((a) => [a.name, [a.x, a.y]]));
+  assert.deepEqual(by.top, [300, 650]);
+  assert.deepEqual(by.bottom, [320, -60]);
+  assert.equal(r.anchors.filter((a) => a.name === 'top').length, 1);
+  assert.deepEqual(inheritedAnchors(pr, teh).map((a) => a.name), ['bottom']);
+});
+
+test('الوراثة متسلسلة، والدورة والمرجع المعلّق لا يكسران', () => {
+  const { pr, base, teh } = anchored();
+  const theh = createGlyph({ char: 'ث', name: 'theh', unicode: 'U+062B', category: 'letter' });
+  theh.components = [{ id: 'z', ref: teh.id, dx: 10, dy: 5 }];
+  pr.glyphs.push(theh);
+  const top = resolveGlyph(pr, theh).anchors.find((a) => a.name === 'top')!;
+  assert.deepEqual([top.x, top.y], [330, 425]);
+  base.components = [{ id: 'cyc', ref: theh.id, dx: 0, dy: 0 }];
+  assert.ok(resolveGlyph(pr, theh).anchors.length >= 0);
+  teh.components = [{ id: 'm', ref: 'missing', dx: 0, dy: 0 }];
+  assert.deepEqual(resolveGlyph(pr, teh).anchors, []);
+});
+
+test('المحرف العادي: ارتكازاته كما هي (الكائن نفسه) بلا وراثة', () => {
+  const { pr, base } = anchored();
+  assert.equal(resolveGlyph(pr, base), base);
+  assert.equal(resolveAll(pr)[0], base);
+});
+
+test('فك أول مكوّن يثبّت الارتكازات الموروثة، وفك الثاني لا يمسها', () => {
+  const { pr, teh } = anchored();
+  const before = resolveGlyph(pr, teh).anchors.map((a) => [a.name, a.x, a.y]).sort();
+  const second = detachOne(pr, teh, 'c2');
+  assert.deepEqual(second.anchors, [], 'ما زال الوارث الأول، والارتكازات تأتي منه');
+  assert.deepEqual(resolveGlyph(pr, second).anchors.map((a) => [a.name, a.x, a.y]).sort(), before);
+  const first = detachOne(pr, teh, 'c1');
+  assert.deepEqual(first.anchors.map((a) => [a.name, a.x, a.y]).sort(), before, 'ثُبّتت ارتكازاتٍ خاصة');
+  const all = detachComponents(pr, teh);
+  assert.deepEqual(all.anchors.map((a) => [a.name, a.x, a.y]).sort(), before);
+  // حذف المصدر يفك المعتمدين فلا تضيع علامات التشكيل
+  const { glyphs } = removeWithDetach(pr, [pr.glyphs[0].id]);
+  const t2 = glyphs.find((g) => g.id === teh.id)!;
+  assert.deepEqual(resolveGlyph({ glyphs }, t2).anchors.map((a) => [a.name, a.x, a.y]).sort(), before);
+});
+
+test('فحص ما قبل التصدير يرى الارتكاز الموروث، وبدونه يحذّر', () => {
+  const { pr, teh } = anchored();
+  const okMsgs = exportAnchorChecks(pr).join('\n');
+  assert.ok(!okMsgs.includes('teh'), okMsgs);
+  // كسر الوراثة (مكوّن أول بلا ارتكاز) يُظهر التحذير
+  pr.glyphs[0].anchors = [];
+  const msgs = exportAnchorChecks(pr).join('\n');
+  assert.ok(msgs.includes('teh') && msgs.includes('beh'), msgs);
+  assert.ok(teh);
+});
+
+test('التصدير والتموضع: الفتحة تقف فوق «ت» المركّبة بارتكازها الموروث كما لو رُسمت يدوياً', { skip: SKIP }, async () => {
+  const { pr, teh } = anchored();
+  const manual = structuredClone(pr);
+  const mt = manual.glyphs.find((g) => g.name === 'teh')!;
+  mt.contours = [box('b', 70, 100, 500, 200), blob('d', 250, 400)];
+  mt.components = undefined;
+  mt.anchors = [anc('top', 320, 420), anc('bottom', 320, -60)];
+  const SHAPE = `
+import sys,json,uharfbuzz as hb
+d=open(sys.argv[1],'rb').read();f=hb.Font(hb.Face(d))
+b=hb.Buffer();b.add_str('\\u062a\\u064e');b.guess_segment_properties();hb.shape(f,b,{'mark':True,'mkmk':True})
+print(json.dumps([[i.codepoint,p.x_advance,p.x_offset,p.y_offset] for i,p in zip(b.glyph_infos,b.glyph_positions)]))`;
+  const shape = async (p: FontProject) => {
+    const file = join(mkdtempSync(join(tmpdir(), 'anc-')), 'f.otf');
+    writeFileSync(file, Buffer.from(await buildFontBuffer(p)));
+    const r = spawnSync('python3', ['-I', '-c', SHAPE, file], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout);
+  };
+  const a = await shape(pr);
+  const b = await shape(manual);
+  assert.deepEqual(a, b);
+  assert.ok(a.some((g: number[]) => g[2] !== 0 || g[3] !== 0), 'العلامة تحركت فعلاً: ' + JSON.stringify(a));
+  assert.ok(teh);
+});

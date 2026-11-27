@@ -1,4 +1,5 @@
 import type { FontProject, Glyph } from '../types/font';
+import { flattenForExport } from './composites';
 import { getGlyphBounds } from './pathGeometry';
 import { isRtl, t } from '../i18n';
 
@@ -17,9 +18,10 @@ const isLetter = (g: Glyph) => g.category === 'letter' || g.category === 'ligatu
 /** سماحية الملامسة بوحدات الخط. */
 const EDGE_TOLERANCE = 1;
 
-export function exportAnchorChecks(project: FontProject): string[] {
+export function exportAnchorChecks(raw: FontProject): string[] {
   const out: string[] = [];
-  const glyphs = project.glyphs;
+  // الفحص على ما سيُصدَّر فعلاً: مسارات وارتكازات المكوّنات والموروثة داخلة
+  const glyphs = flattenForExport(raw).glyphs;
   const marks = glyphs.filter(isMark);
 
   const noAnchor = marks.filter((g) => !has(g, 'top', 'bottom'));
@@ -47,7 +49,8 @@ export function exportAnchorChecks(project: FontProject): string[] {
   return out;
 }
 
-export function joinEdgeChecks(project: FontProject): string[] {
+export function joinEdgeChecks(raw: FontProject): string[] {
+  const project = flattenForExport(raw);
   // مشروع يعتمد نقطتي دخول وخروج يضبط الاتصال بغير الحافة، فلا نحكم عليه بالحافة
   if (project.glyphs.some((g) => has(g, 'entry', 'exit'))) return [];
   const bad: string[] = [];
