@@ -40,6 +40,7 @@ import { PresetModal } from './PresetModal';
 import { HelpBookButton } from './help/HelpBook';
 import { Button } from './ui/Button';
 import { Dropdown, MenuItem, MenuLabel } from './ui/Dropdown';
+import { resolveGlyph } from '../utils/composites';
 import { Modal, ModalActions } from './ui/Modal';
 import { CountChip, VersionPill } from './ui/Pill';
 import { Toast } from './ui/Toast';
@@ -124,7 +125,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
   const exportSvg = useCallback((id: string) => {
     const { project: p } = latest.current;
     const g = p.glyphs.find((x) => x.id === id);
-    if (g) downloadTextFile(glyphToSvg(g, p.metrics), `${g.name}.svg`, 'image/svg+xml');
+    if (g) downloadTextFile(glyphToSvg(resolveGlyph(p, g), p.metrics), `${g.name}.svg`, 'image/svg+xml');
   }, []);
   const importSvg = useCallback((id: string) => {
     svgTarget.current = id;
@@ -133,6 +134,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = (props) => {
 
   const exportAllSvg = () => {
     const files = glyphs
+      .map((g) => resolveGlyph(project, g))
       .filter((g) => g.contours.length > 0)
       .map((g) => ({ name: `${g.name}.svg`, data: new TextEncoder().encode(glyphToSvg(g, metrics)) }));
     if (files.length === 0) return;

@@ -62,9 +62,23 @@ export interface Glyph {
   form: GlyphForm;
   advanceWidth: number;
   contours: Contour[];
+  /** مكوّنات بالمرجع (اختياري): مسارات محارف أخرى مزاحة، تُدمج في الرسم عند العرض والتصدير. */
+  components?: GlyphComponent[];
   anchors: AnchorPoint[];
   /** خطوط دليل خاصة بهذا المحرف (اختياري). */
   guides?: Guide[];
+}
+
+/**
+ * مرجع إلى محرف آخر. الإصدار الأول إزاحة فقط؛ يمكن لاحقاً إضافة حقول اختيارية (تحجيم، دوران)
+ * دون ترحيل للمشاريع المحفوظة، فكل التحويل يمر عبر دالة واحدة في composites.ts.
+ */
+export interface GlyphComponent {
+  id: string;
+  /** معرّف المحرف المرجعي (لا اسمه، فلا تكسره إعادة التسمية). */
+  ref: string;
+  dx: number;
+  dy: number;
 }
 
 export interface NewGlyphData {

@@ -8,6 +8,7 @@ import {
   type PathNode,
   type KernPair,
 } from '../types/font';
+import { flattenForExport } from './composites';
 import { createGlyph, createProject, uid, validateMetrics } from './fontLogic';
 import { FORM_OF, type Rule, computeFeatures, ruleToFea, rulesForBuild, splitName } from './features';
 import { presentationForm } from './arabicForms';
@@ -54,7 +55,8 @@ const SEP = () => (isRtl() ? '، ' : ', ');
 const list = (names: string[]) =>
   names.length <= 4 ? names.join(SEP()) : t('{names} و{n} أخرى', { names: names.slice(0, 4).join(SEP()), n: names.length - 4 });
 
-export function checkProject(project: FontProject): BuildReport {
+export function checkProject(raw: FontProject): BuildReport {
+  const project = flattenForExport(raw);
   const errors: string[] = [];
   const warnings: string[] = [];
   const glyphs = project.glyphs;
@@ -279,7 +281,8 @@ export function os2Overrides(
   };
 }
 
-export async function buildFontBuffer(project: FontProject): Promise<ArrayBuffer> {
+export async function buildFontBuffer(raw: FontProject): Promise<ArrayBuffer> {
+  const project = flattenForExport(raw);
   const ot = await loadOpenType();
   const m = project.metrics;
   const nd = project.notdef ? savedNotdef(ot, project.notdef) : notdefPath(ot, m);
