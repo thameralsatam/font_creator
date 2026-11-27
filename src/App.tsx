@@ -11,6 +11,7 @@ import { type FontMetrics, type NewGlyphData } from './types/font';
 import { createGlyph } from './utils/fontLogic';
 import { t } from './i18n';
 import { applyGlyphMeta, duplicateGlyph, type GlyphMeta } from './utils/glyphLogic';
+import { glyphsForCopy } from './utils/composites';
 
 export type AppView = 'dashboard' | 'overview' | 'studio' | 'kitchen';
 
@@ -166,7 +167,7 @@ export default function App() {
             onDuplicateGlyph={handleDuplicateGlyph}
             otherProjects={projects.filter((p) => p.id !== activeProject.id)}
             onCopyToProject={(targetId, ids, replace) =>
-              store.copyGlyphsToProject(targetId, activeProject.glyphs.filter((g) => ids.includes(g.id)), replace)
+              store.copyGlyphsToProject(targetId, glyphsForCopy(activeProject, ids), replace)
             }
           />
         </div>
