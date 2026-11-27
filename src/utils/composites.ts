@@ -59,6 +59,14 @@ const lookupOf = (project: Pick<FontProject, 'glyphs'>): Lookup => {
   return (i) => map.get(i);
 };
 
+/**
+ * محارف جاهزة للنسخ إلى مشروع آخر: بمساراتها وارتكازاتها الفعلية بلا مكوّنات، لأن مراجع المكوّنات
+ * معرّفات محارف هذا المشروع ولا وجود لها في غيره (كانت ستُتجاهل فيظهر المحرف المنسوخ ناقصاً).
+ */
+export function glyphsForCopy(project: Pick<FontProject, 'glyphs'>, ids: string[]): Glyph[] {
+  return resolveAll(project).filter((g) => ids.includes(g.id));
+}
+
 /** كل محارف المشروع بمساراتها الفعلية. المحارف بلا مكوّنات تبقى الكائن نفسه فلا تُعاد رسم بطاقاتها. */
 export function resolveAll(project: Pick<FontProject, 'glyphs'>): Glyph[] {
   return project.glyphs.some(hasComponents) ? project.glyphs.map((g) => resolveGlyph(project, g)) : project.glyphs;

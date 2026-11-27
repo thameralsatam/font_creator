@@ -243,7 +243,8 @@ test('العرض = التصدير: نقاط resolveAll تطابق نقاط ال�
 });
 
 /* ---------------- المرحلة 3: وراثة الارتكاز ---------------- */
-import { inheritedAnchors } from './composites';
+import { inheritedAnchors, glyphsForCopy } from './composites';
+import { copyGlyphsInto } from './glyphLogic';
 import { exportAnchorChecks } from './exportChecks';
 
 const anc = (name: string, x: number, y: number) => ({ id: 'a-' + name + x, name, x, y });
@@ -359,4 +360,19 @@ print(json.dumps([[i.codepoint,p.x_advance,p.x_offset,p.y_offset] for i,p in zip
   assert.deepEqual(a, b);
   assert.ok(a.some((g: number[]) => g[2] !== 0 || g[3] !== 0), 'العلامة تحركت فعلاً: ' + JSON.stringify(a));
   assert.ok(teh);
+});
+
+test('النسخ إلى مشروع آخر: المحرف المركّب يصل بشكله الكامل وارتكازاته، بلا مراجع معلّقة', () => {
+  const { pr, teh } = anchored();
+  teh.contours = [box('own', 0, 0, 10, 10)];
+  const other = createProject('O', 'D', '');
+  const res = copyGlyphsInto(other.glyphs, glyphsForCopy(pr, [teh.id]), false);
+  const got = res.glyphs.find((g) => g.name === 'teh')!;
+  assert.equal(got.components, undefined);
+  assert.equal(got.contours.length, 1 + 1 + 1, 'خاص + جسم + نقاط');
+  assert.deepEqual(got.anchors.map((a) => a.name).sort(), ['bottom', 'top']);
+  assert.deepEqual(pts(got), pts(resolveGlyph(pr, teh)));
+  // قبل الإصلاح: النسخ الخام يترك مرجعاً معلّقاً فيضيع الرسم المكوَّن
+  const raw = copyGlyphsInto(createProject('O2', 'D', '').glyphs, [teh], false).glyphs.find((g) => g.name === 'teh')!;
+  assert.equal(resolveGlyph({ glyphs: [raw] }, raw).contours.length, 1);
 });
