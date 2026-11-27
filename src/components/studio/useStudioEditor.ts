@@ -111,6 +111,8 @@ interface Options {
   /** false أثناء وضع التعليمات: لا يستجيب المحرر لأي مؤشر أو مفتاح، وتبقى حالته كما هي. */
   enabled?: boolean;
   onUpdateGlyph: (updater: (g: Glyph) => Glyph) => void;
+  /** مسارات المكوّنات المعطاة بمواضعها (تدخل في حساب العارضين والتوسيط). */
+  lockedOf?: (components: GlyphComponent[] | undefined) => Contour[];
 }
 
 type Gesture =
@@ -193,7 +195,9 @@ const MSG = {
  * مصدر الحقيقة الوحيد للرسم هو glyph.contours. هذا المحرك يحتفظ بنسخة عمل متزامنة (work)
  * حتى لا تُقرأ قيمة قديمة بين حدثين متتاليين قبل إعادة الرسم.
  */
-export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdateGlyph }: Options) {
+export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdateGlyph, lockedOf }: Options) {
+  const lockedRef = useRef(lockedOf);
+  lockedRef.current = lockedOf;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
   const scaleRef = useRef(scale);
@@ -1181,9 +1185,10 @@ export function useStudioEditor({ glyph, metrics, scale, enabled = true, onUpdat
     if (!s) return flash(MSG.badMetric);
     commit(s);
   };
-  const changeLsb = (v: number) => applySnapshot(setLsb(work.current, v, metricsRef.current));
-  const changeRsb = (v: number) => applySnapshot(setRsb(work.current, v, metricsRef.current));
-  const centerGlyph = () => applySnapshot(centerInAdvance(work.current, metricsRef.current));
+  const lockedNow = () => lockedRef.current?.(work.current.components);
+  const changeLsb = (v: number) => applySnapshot(setLsb(work.current, v, metricsRef.current, lockedNow()));
+  const changeRsb = (v: number) => applySnapshot(setRsb(work.current, v, metricsRef.current, lockedNow()));
+  const centerGlyph = () => applySnapshot(centerInAdvance(work.current, metricsRef.current, lockedNow()));
 
   /* ---------- تبديل المحرف ---------- */
   useEffect(() => {

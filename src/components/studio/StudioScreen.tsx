@@ -315,7 +315,8 @@ const StudioInner: React.FC<StudioScreenProps> = ({
   };
 
   // الصندوق الذي تُحسب منه الملاءمة: العرض الكامل أفقياً والمقاييس رأسياً
-  const bounds = useMemo(() => boundsOf(glyph.contours), [glyph.contours]);
+  // حدود الرسم الفعلي: مسارات المحرف مع مسارات مكوّناته
+  const bounds = useMemo(() => boundsOf(lockedContours ? [...glyph.contours, ...lockedContours] : glyph.contours), [glyph.contours, lockedContours]);
   const fitBox = useMemo(
     () => ({
       xMin: Math.min(0, bounds?.xMin ?? 0),
@@ -335,6 +336,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     scale: viewport.view.scale,
     enabled: !help.on,
     onUpdateGlyph,
+    lockedOf: (components) => (components?.length ? resolveGlyph(project, { ...glyph, contours: [], components }).contours : []),
   });
 
   const onSvgFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -610,7 +612,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
               <MenuItem
                 label={t('توسيط الرسم داخل العرض')}
                 helpId="metrics.center"
-                disabled={!hasDrawing}
+                disabled={!hasDrawing && !lockedContours?.length}
                 onClick={() => {
                   editor.centerGlyph();
                   close();
