@@ -32,6 +32,8 @@ interface StudioCanvasProps {
   neighbors?: { left: Glyph | null; right: Glyph | null };
   /** مسارات المكوّنات: طبقة مقفلة تُرسم تحت مسارات المحرف ولا تُحرَّر هنا. */
   locked?: Contour[];
+  /** ارتكازات موروثة من المكوّن الأول: تُرسم مقفلة بخط متقطع. */
+  inheritedAnchors?: AnchorPoint[];
   trace?: Trace | null;
   onAnchors?: (next: AnchorPoint[]) => void;
 }
@@ -55,6 +57,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   onHelp,
   neighbors,
   locked,
+  inheritedAnchors,
   trace,
   onAnchors,
 }) => {
@@ -488,6 +491,16 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
           <g key={a.id}>
             <circle cx={sx(a.x)} cy={sy(a.y)} r="6" className="fill-sand/60 stroke-ink" strokeWidth="1.5" />
             <text x={sx(a.x) + 10} y={sy(a.y) - 8} fontSize="12" className="fill-ink">
+              {ANCHOR_LABEL[a.name] ?? a.name}
+            </text>
+          </g>
+        ))}
+
+      {options.anchors && !quiet &&
+        inheritedAnchors?.map((a) => (
+          <g key={a.id} data-testid="inherited-anchor" className="pointer-events-none">
+            <circle cx={sx(a.x)} cy={sy(a.y)} r="6" fill="none" className="stroke-ink-soft" strokeWidth="1.5" strokeDasharray="3 2" />
+            <text x={sx(a.x) + 10} y={sy(a.y) - 8} fontSize="12" className="fill-ink-soft">
               {ANCHOR_LABEL[a.name] ?? a.name}
             </text>
           </g>

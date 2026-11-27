@@ -56,7 +56,7 @@ import { boundsOf, GRID_CHAIN } from '../../utils/pathEdit';
 import { defaultAnchorPos, type InkBox } from '../../utils/anchorDefaults';
 import { downloadTextFile } from '../../utils/download';
 import { glyphToSvg, svgToGlyph } from '../../utils/svgGlyph';
-import { resolveAll, resolveGlyph } from '../../utils/composites';
+import { inheritedAnchors, resolveAll, resolveGlyph } from '../../utils/composites';
 import { FORM_LABEL } from '../../utils/labels';
 import { HelpProvider, useHelp } from '../help/HelpContext';
 import { HelpBook } from '../help/HelpBook';
@@ -265,6 +265,8 @@ const StudioInner: React.FC<StudioScreenProps> = ({
     () => (glyph.components?.length ? resolveGlyph(project, { ...glyph, contours: [] }).contours : undefined),
     [project.glyphs, glyph.components]
   );
+  // ارتكازات موروثة من أول مكوّن: تُعرض مقفلة، وارتكاز المحرف الخاص بالاسم نفسه يتغلب عليها
+  const inherited = useMemo(() => inheritedAnchors(project, glyph), [project.glyphs, glyph.components, glyph.anchors]);
   const neighborGlyphs = useMemo(
     () => ({ left: findGlyph(viewGlyphs, neighbors.left), right: findGlyph(viewGlyphs, neighbors.right) }),
     [viewGlyphs, neighbors]
@@ -652,13 +654,15 @@ const StudioInner: React.FC<StudioScreenProps> = ({
                 .filter(([key]) => glyph.category === 'diacritic' || (key !== 'markTop' && key !== 'markBottom'))
                 .map(([key, label]) => {
                 const has = glyph.anchors.some((a) => a.name === key);
+                const inh = inherited.find((a) => a.name === key);
                 return (
                   <MenuItem
                     key={key}
-                    label={`${has ? t('حذف') : t('إضافة')}: ${label}`}
+                    label={`${has ? t('حذف') : inh ? t('تخصيص') : t('إضافة')}: ${label}${!has && inh ? ` (${t('موروث')})` : ''}`}
                     helpId="anchors.edit"
                     onClick={() => {
-                      editor.setAnchors((all) => (has ? all.filter((a) => a.name !== key) : [...all, defaultAnchor(key, glyph, metrics, bounds)]));
+                      // «تخصيص»: ارتكاز خاص بالموضع الموروث نفسه يتغلب عليه ويمكن تحريكه
+                      editor.setAnchors((all) => (has ? all.filter((a) => a.name !== key) : [...all, inh ? { ...inh, id: uid('anchor') } : defaultAnchor(key, glyph, metrics, bounds)]));
                       if (!has && !options.anchors) toggle('anchors');
                       close();
                     }}
@@ -754,6 +758,7 @@ const StudioInner: React.FC<StudioScreenProps> = ({
             onHelp={help.on ? () => help.show('canvas') : undefined}
             neighbors={neighborGlyphs}
             locked={lockedContours}
+            inheritedAnchors={inherited}
             trace={trace}
             onAnchors={(next) => editor.setAnchors(() => next, 'anchor-drag')}
           />
