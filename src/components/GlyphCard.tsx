@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Copy, Download, Pencil, Trash2, Upload } from 'lucide-react';
+import { Check, Copy, Download, GitFork, Pencil, Trash2, Upload } from 'lucide-react';
 import { type FontMetrics, type Glyph } from '../types/font';
 import { isReady } from '../utils/glyphLogic';
 import { CATEGORY_LABEL, FORM_LABEL } from '../utils/labels';
@@ -14,6 +14,7 @@ interface GlyphCardProps {
   onOpen: (id: string) => void;
   onEdit: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onDerive: (id: string) => void;
   onDelete: (id: string) => void;
   onExportSvg: (id: string) => void;
   onImportSvg: (id: string) => void;
@@ -29,7 +30,7 @@ const ic = 'h-4 w-4 stroke-[1.5]';
  * - معاينة واضحة مع شبكة هندسية دقيقة داخل إطار أبيض ناصع.
  * - زر القائمة الثلاثي موضوع بشكل أنيق في الزاوية دون تداخل.
  */
-const GlyphCardBase: React.FC<GlyphCardProps> = ({ glyph, metrics, onOpen, onEdit, onDuplicate, onDelete, onExportSvg, onImportSvg, selecting, selected, onToggle }) => {
+const GlyphCardBase: React.FC<GlyphCardProps> = ({ glyph, metrics, onOpen, onEdit, onDuplicate, onDerive, onDelete, onExportSvg, onImportSvg, selecting, selected, onToggle }) => {
   const ready = isReady(glyph);
   const kind = glyph.form !== 'isolated' ? FORM_LABEL[glyph.form] : CATEGORY_LABEL[glyph.category];
   return (
@@ -47,6 +48,7 @@ const GlyphCardBase: React.FC<GlyphCardProps> = ({ glyph, metrics, onOpen, onEdi
           <>
             <MenuItem label={t('تعديل البيانات')} icon={<Pencil className={ic} />} onClick={() => { close(); onEdit(glyph.id); }} />
             <MenuItem label={t('تكرار')} icon={<Copy className={ic} />} onClick={() => { close(); onDuplicate(glyph.id); }} />
+            <MenuItem label={t('اشتق من هذا المحرف…')} icon={<GitFork className={ic} />} onClick={() => { close(); onDerive(glyph.id); }} />
             <MenuItem label={t('تصدير SVG')} icon={<Download className={ic} />} onClick={() => { close(); onExportSvg(glyph.id); }} />
             <MenuItem label={t('إضافة رسم من SVG')} icon={<Upload className={ic} />} onClick={() => { close(); onImportSvg(glyph.id); }} />
             <MenuItem label={t('حذف')} icon={<Trash2 className={ic} />} onClick={() => { close(); onDelete(glyph.id); }} />
